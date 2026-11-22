@@ -4,6 +4,9 @@ use std::collections::BTreeMap;
 
 use chrono::{Local, NaiveDate, TimeZone};
 
+mod aggregate;
+pub use aggregate::{Period, aggregate};
+
 use crate::{SCOUT, Snapshot};
 
 pub const AUCTIONATOR: &str = "auctionator";
@@ -17,6 +20,8 @@ pub enum Origin {
     ForeverGuide,
     /// Mean of Auctionator and Forever Guide on the same day.
     Average,
+    /// Mean over several days (weekly or monthly charts).
+    Period,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -70,6 +75,51 @@ pub fn merge(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> 
         .collect()
 }
 
+/// Points of the chart for a period: `Detail` keeps every reading, the others go through `merge`
+/// then `aggregate`.
+pub fn series(
+    history: &[Snapshot],
+    period: Period,
+    value: impl Fn(&Snapshot) -> Option<f64> + Copy,
+) -> Vec<Point> {
+    if period == Period::Detail {
+        detailed(history, value)
+    } else {
+        aggregate(&merge(history, value), period)
+    }
+}
+
+/// Every reading, with the same choice of source as `merge`, day by day: Scout alone on the days
+/// it has readings, otherwise Auctionator and Forever Guide side by side (no mean).
+fn detailed(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> Vec<Point> {
+    let mut days: BTreeMap<NaiveDate, Vec<Point>> = BTreeMap::new();
+    for s in history {
+        let origin = match s.source.as_str() {
+            SCOUT => Origin::Scout,
+            AUCTIONATOR => Origin::Auctionator,
+            FOREVER_GUIDE => Origin::ForeverGuide,
+            _ => continue,
+        };
+        let (Some(day), Some(v)) = (local_day(s.ts), value(s)) else {
+            continue;
+        };
+        days.entry(day).or_default().push(Point {
+            ts: s.ts,
+            value: v,
+            origin,
+        });
+    }
+    let mut out = Vec::new();
+    for mut points in days.into_values() {
+        if points.iter().any(|p| p.origin == Origin::Scout) {
+            points.retain(|p| p.origin == Origin::Scout);
+        }
+        points.sort_by_key(|p| p.ts);
+        out.extend(points);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,5 +162,20 @@ mod tests {
             merged(&h),
             [(Origin::Average, 15.0), (Origin::ForeverGuide, 50.0)]
         );
+    }
+
+    #[test]
+    fn detail_keeps_every_reading_of_the_chosen_source() {
+        let h = [
+            snap(AUCTIONATOR, 1_000_000_000, 10),
+            snap(AUCTIONATOR, 1_000_000_100, 12),
+            snap(SCOUT, 1_000_000_200, 30),
+            snap(SCOUT, 1_000_000_300, 31),
+        ];
+        let values: Vec<f64> = series(&h, Period::Detail, |s| Some(s.price? as f64))
+            .iter()
+            .map(|p| p.value)
+            .collect();
+        assert_eq!(values, [30.0, 31.0]);
     }
 }
