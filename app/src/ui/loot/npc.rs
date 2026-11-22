@@ -5,7 +5,7 @@ use eframe::egui::{self, RichText};
 use super::{VALUE_HINT, unit_value};
 use crate::state::State;
 use crate::ui::theme::Palette;
-use crate::ui::{coins, widgets};
+use crate::ui::{coins, fonts, widgets};
 use scout_core::drops::{DropKind, ZoneNpc};
 use scout_core::gamedata::GameData;
 use scout_core::map;
@@ -45,7 +45,6 @@ pub fn show(
         .response
         .on_hover_text(VALUE_HINT);
     }
-    ui.add_space(8.0);
     egui::ScrollArea::vertical()
         .auto_shrink(false)
         .show(ui, |ui| {
@@ -57,7 +56,8 @@ pub fn show(
                 if drops.is_empty() {
                     continue;
                 }
-                ui.strong(format!("{title} ({})", drops.len()));
+                ui.separator();
+                ui.label(fonts::bold(format!("{title} ({})", drops.len())));
                 let observed = kind != DropKind::Pickpocket;
                 egui::Grid::new(("npc-loot", kind))
                     .num_columns(if observed { 4 } else { 3 })

@@ -21,8 +21,8 @@ use scout_worker::WorkerHandle;
 pub struct Loot {
     /// Zone search (side bar).
     search: String,
-    /// Side bar folders folded (all open by default).
-    folded: std::collections::HashSet<sidebar::Folder>,
+    /// Side bar folders opened (all folded by default).
+    opened: std::collections::HashSet<sidebar::Folder>,
     /// Chosen zones, in the order they were added.
     zones: Vec<String>,
     /// Their monsters together, and the zone data it was made from.

@@ -108,11 +108,11 @@ impl Loot {
                         Folder::Favorites => palette.star,
                         _ => palette.accent,
                     };
-                    let open = searching || !self.folded.contains(&folder);
+                    let open = searching || self.opened.contains(&folder);
                     if entry(ui, Some((glyph, color)), &title, Some(rows.len()), false, 0).clicked()
-                        && !self.folded.remove(&folder)
+                        && !self.opened.remove(&folder)
                     {
-                        self.folded.insert(folder);
+                        self.opened.insert(folder);
                     }
                     if open {
                         for z in rows {
