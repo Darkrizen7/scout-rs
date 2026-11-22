@@ -98,7 +98,7 @@ fn recipe(ui: &mut egui::Ui, game: &GameData, state: &State, r: &Recipe, next: &
 
     ui.strong("Composants");
     ui.add_space(4.0);
-    let (total, _) = super::reagents::table(ui, game, state, r, next);
+    let total = super::reagents::table(ui, game, state, r, next);
     ui.separator();
     egui::Grid::new("recipe-cost")
         .num_columns(2)

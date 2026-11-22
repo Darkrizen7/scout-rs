@@ -30,10 +30,10 @@
   cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
 
 ## Fichiers de l'UI (`app/src/ui/`)
-`header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
-icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet, qui n'a pas les boutons d'agrégation Détaillé / Journalier / Hebdo / Mensuel du Market : tous les relevés, un point par jour, moyenne par semaine ou par mois, avec la fenêtre de temps correspondante ; sur le graphe du Market le titre mène à la fiche objet ; `chart/money_axis` : axe des prix avec pièces ; `chart/limits` : déplacement et zoom des graphes, bornés aux jours de données et à 0, avec effet élastique, axe du temps partagé et bouton « Aujourd'hui »), `analysis_view` (+ `charts`),
+`header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market ; `sidebar/entry` : lignes et
+icônes de catégories partagées par les barres latérales), `item_list`, `chart` (`plots` réutilisé par la fiche objet, qui n'a pas les boutons d'agrégation Détaillé / Journalier / Hebdo / Mensuel du Market : tous les relevés, un point par jour, moyenne par semaine ou par mois, avec la fenêtre de temps correspondante ; sur le graphe du Market le titre mène à la fiche objet ; `chart/money_axis` : axe des prix avec pièces ; `chart/limits` : déplacement et zoom des graphes, bornés aux jours de données et à 0, avec effet élastique, axe du temps partagé et bouton « Aujourd'hui »), `analysis_view` (+ `charts`),
 `calculator`, `credits` (fenêtre « Sources des données »), `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`),
-`loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/{results,detail,reagents,skill_bar}`), `widgets` (étoile de favori,
+`loot` (+ `loot/{map,map/paint,npcs,npc,sidebar}`), `recipes` (+ `recipes/{results,detail,reagents,skill_bar}`), `widgets` (étoile de favori,
 couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chance et chance réelle : partagés),
 `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 

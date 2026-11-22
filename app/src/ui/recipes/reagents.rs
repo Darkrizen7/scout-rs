@@ -13,14 +13,14 @@ use crate::ui::{coins, fonts, theme, widgets};
 const PAD: f32 = 8.0;
 const ROW: f32 = 28.0;
 
-/// Draws the table; returns the total cost and whether some reagent has no known price.
+/// Draws the table; returns the total cost (of the reagents with a known price).
 pub fn table(
     ui: &mut egui::Ui,
     game: &GameData,
     state: &State,
     r: &Recipe,
     next: &mut Option<i64>,
-) -> (i64, bool) {
+) -> i64 {
     let palette = theme::current(ui);
     let border = Stroke::new(1.0, palette.border);
     let mut total = 0.0;
@@ -110,7 +110,7 @@ pub fn table(
                     });
                 });
         });
-    (total.round() as i64, missing)
+    total.round() as i64
 }
 
 /// Paints the cell background and its right / bottom borders, then pads the content.

@@ -147,20 +147,14 @@ pub fn level_label(ui: &mut egui::Ui, npc: &scout_core::drops::DropNpc, palette:
         if !range.is_empty() {
             ui.weak(range);
         }
-        let (elite, rare) = match npc.rank {
-            Some(1) => (true, false),
-            Some(2) => (true, true),
-            Some(4) => (false, true),
-            Some(3) => {
-                ui.weak("boss");
-                return;
-            }
-            _ => return,
-        };
-        if elite {
+        if npc.is_boss() {
+            ui.weak("boss");
+            return;
+        }
+        if npc.is_elite() {
             rank_icon(ui, true, palette).on_hover_text("Élite");
         }
-        if rare {
+        if npc.is_rare() {
             rank_icon(ui, false, palette).on_hover_text("Rare");
         }
     });

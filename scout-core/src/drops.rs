@@ -230,6 +230,20 @@ impl DropNpc {
         matches!(self.rank, None | Some(0))
     }
 
+    /// Elite or rare elite (creature classification 1 and 2).
+    pub fn is_elite(&self) -> bool {
+        matches!(self.rank, Some(1 | 2))
+    }
+
+    /// Rare or rare elite (classification 4 and 2).
+    pub fn is_rare(&self) -> bool {
+        matches!(self.rank, Some(2 | 4))
+    }
+
+    pub fn is_boss(&self) -> bool {
+        self.rank == Some(3)
+    }
+
     /// "24" or "24-25", without the rank.
     pub fn level_range(&self) -> String {
         match (self.min_level, self.max_level) {
@@ -242,11 +256,11 @@ impl DropNpc {
     /// "24", "24-25", with "élite" / "rare" / "boss".
     pub fn levels(&self) -> String {
         let mut text = self.level_range();
-        let rank = match self.rank {
-            Some(1) => "élite",
-            Some(2) => "rare élite",
-            Some(3) => "boss",
-            Some(4) => "rare",
+        let rank = match (self.is_boss(), self.is_rare(), self.is_elite()) {
+            (true, ..) => "boss",
+            (_, true, true) => "rare élite",
+            (_, true, false) => "rare",
+            (_, false, true) => "élite",
             _ => "",
         };
         if !rank.is_empty() {

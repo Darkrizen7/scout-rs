@@ -5,13 +5,13 @@ use std::sync::{Arc, Weak};
 
 use eframe::egui;
 
-use super::{Loot, map, zone_hint};
+use super::{Loot, zone_hint};
 use crate::state::State;
-use crate::ui::sidebar::{entry, entry_marked, rgb, tint};
+use crate::ui::sidebar::{Marker, entry, entry_marked, rgb, tint};
 use crate::ui::theme;
 use scout_core::drops::Zone;
 use scout_core::gamedata::GameData;
-use scout_core::map::Faction;
+use scout_core::map::{self, Faction};
 use scout_core::search::Query;
 use scout_worker::WorkerHandle;
 
@@ -59,7 +59,7 @@ impl Listed {
             .map(|(index, z)| {
                 let zone = ListedZone {
                     index,
-                    rank: map::continent_rank(game, z.ui_map),
+                    rank: map::continent_rank(&game.maps, z.ui_map),
                     faction: game.faction_of(&z.name),
                 };
                 (zone, z.name.to_lowercase())
@@ -76,10 +76,11 @@ impl Listed {
 }
 
 /// Dot after a zone: blue for the Alliance, red for the Horde, none when contested.
-fn faction_dot(faction: Option<Faction>, dark: bool) -> Option<egui::Color32> {
-    match faction? {
-        Faction::Alliance => Some(tint(rgb(0x1c71d8), dark)),
-        Faction::Horde => Some(tint(rgb(0xc01c28), dark)),
+fn faction_dot(faction: Option<Faction>, dark: bool) -> Marker {
+    match faction {
+        Some(Faction::Alliance) => Marker::Dot(tint(rgb(0x1c71d8), dark)),
+        Some(Faction::Horde) => Marker::Dot(tint(rgb(0xc01c28), dark)),
+        None => Marker::Blank,
     }
 }
 
@@ -137,7 +138,7 @@ impl Loot {
             groups.push((
                 Folder::Continent(rank),
                 "🗺",
-                map::continent_name(&game, rank),
+                map::continent_name(&game.maps, rank),
                 rows,
             ));
         }
@@ -186,17 +187,15 @@ impl Loot {
         worker: &WorkerHandle,
     ) {
         let dark = theme::current(ui).dark;
-        let marker = (!z.dungeon).then(|| faction_dot(faction, dark));
         let selected = self.zones.contains(&z.name);
-        let response = entry_marked(
-            ui,
-            None,
-            &z.name,
-            Some(z.npcs as usize),
-            selected,
-            1,
-            marker,
-        )
+        let count = Some(z.npcs as usize);
+        // Dungeons belong to no faction: no dot column.
+        let response = if z.dungeon {
+            entry(ui, None, &z.name, count, selected, 1)
+        } else {
+            let dot = faction_dot(faction, dark);
+            entry_marked(ui, &z.name, count, selected, 1, dot)
+        }
         .on_hover_text(zone_hint(z, faction));
         if response.clicked() {
             let add = ui.input(|i| i.modifiers.command);

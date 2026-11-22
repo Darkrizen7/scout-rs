@@ -11,10 +11,8 @@ use eframe::egui::{self, Color32, Pos2, Rect, Sense, pos2};
 use crate::ui::theme::Palette;
 use scout_core::drops::Zone;
 use scout_core::gamedata::GameData;
-use scout_core::map::{self, Frac, GameMap, Mask};
+use scout_core::map::{self, CONTINENTS, Frac, GameMap, Mask};
 
-/// Continents (UiMap ids), drawn side by side: Kalimdor on the left, Eastern Kingdoms on the right.
-const CONTINENTS: [i64; 2] = [1414, 1415];
 /// Opacity above which a mask pixel belongs to the zone.
 const INSIDE: u8 = 128;
 
@@ -26,25 +24,6 @@ pub struct WorldMap {
     /// Address of the masks the textures were made from.
     made_from: usize,
 }
-
-/// Sort rank of a zone's continent (order of `CONTINENTS`); zones without a known continent come last.
-pub fn continent_rank(game: &GameData, ui_map: Option<i64>) -> usize {
-    ui_map
-        .and_then(|id| game.maps.iter().find(|m| m.id == id))
-        .and_then(|m| CONTINENTS.iter().position(|c| *c == m.parent))
-        .unwrap_or(CONTINENTS.len())
-}
-
-/// Name of the continent of a given rank (see `continent_rank`); "Autres" for the last rank.
-pub fn continent_name(game: &GameData, rank: usize) -> String {
-    CONTINENTS
-        .get(rank)
-        .and_then(|id| game.maps.iter().find(|m| m.id == *id))
-        .map_or_else(|| "Autres".to_owned(), |m| m.name.clone())
-}
-
-/// Number of continent ranks, the one for zones without a known continent included.
-pub const RANKS: usize = CONTINENTS.len() + 1;
 
 impl WorldMap {
     /// Draws the map; returns the zone clicked (its name in the zone list).

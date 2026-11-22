@@ -58,23 +58,23 @@ pub fn show(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
 pub fn plots(ui: &mut egui::Ui, item_id: i64, history: &[Snapshot], periods: bool) {
     let color = theme::current(ui).series[0];
     // A new item starts from a fresh view, not from the previous item's zoom and offset.
-    let seen = egui::Id::NULL.with(("scout-prix/chart-item", ui.scope_id()));
+    let seen = egui::Id::NULL.with(("scout-rs/chart-item", ui.scope_id()));
     let changed = ui.data(|d| d.get_temp::<i64>(seen)) != Some(item_id);
     if changed {
         ui.data_mut(|d| d.insert_temp(seen, item_id));
     }
     // Aggregation of the market view, kept across items; the item sheet always shows days.
-    let period_id = egui::Id::NULL.with("scout-prix/chart-period");
+    let period_id = egui::Id::NULL.with("scout-rs/chart-period");
     let mut period = if periods {
         ui.data(|d| d.get_temp::<Period>(period_id))
             .unwrap_or_default()
     } else {
         Period::Day
     };
-    let link = egui::Id::unique("scout-prix/time-axis");
+    let link = egui::Id::unique("scout-rs/time-axis");
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
         if ui.button("Aujourd'hui").clicked() {
-            limits::show_all(ui.ctx());
+            limits::show_end(ui.ctx());
         }
         if periods {
             // Aggregators, apart from the "go to the end" button. Right-to-left layout: added in
@@ -230,4 +230,26 @@ fn add_series(plot: &mut egui_plot::PlotUi<'_>, points: &[Point], color: egui::C
     let line: Vec<[f64; 2]> = points.iter().map(|p| [p.ts as f64, p.value]).collect();
     plot.line(Line::new("", line.clone()).color(color));
     plot.points(Points::new("", line).color(color).radius(3.5));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn marks(bounds: (f64, f64), base_step_size: f64) -> Vec<f64> {
+        count_grid(GridInput {
+            bounds,
+            base_step_size,
+        })
+        .iter()
+        .map(|m| m.value)
+        .collect()
+    }
+
+    #[test]
+    fn count_grid_uses_whole_steps_of_one_two_or_five() {
+        assert_eq!(marks((0.0, 6.0), 1.5), [0.0, 2.0, 4.0, 6.0]);
+        assert_eq!(marks((3.2, 7.9), 0.3), [4.0, 5.0, 6.0, 7.0]);
+        assert_eq!(marks((0.0, 120.0), 30.0), [0.0, 50.0, 100.0]);
+    }
 }

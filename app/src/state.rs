@@ -3,6 +3,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+#[cfg(feature = "analysis")]
 use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::{self, GameData};
@@ -10,7 +11,10 @@ use scout_core::map::Mask;
 use scout_core::pricing::{self, Source};
 use scout_core::{ItemSummary, Snapshot, VendorData};
 use scout_worker::Config;
-use scout_worker::{Command, Event, Task, WorkerHandle};
+use scout_worker::{Command, Task, WorkerHandle};
+
+mod apply;
+mod loads;
 
 /// Top-level tab: one module of the tool.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -78,6 +82,7 @@ pub struct State {
     masks: Option<Arc<HashMap<i64, Mask>>>,
     masks_asked: bool,
     /// Latest analysis and the items revision it was asked for.
+    #[cfg(feature = "analysis")]
     pub analysis: Option<Analysis>,
     #[cfg(feature = "analysis")]
     pub analysis_for: Option<u64>,
@@ -119,6 +124,7 @@ impl Default for State {
             zone_asked: HashSet::new(),
             masks: None,
             masks_asked: false,
+            #[cfg(feature = "analysis")]
             analysis: None,
             #[cfg(feature = "analysis")]
             analysis_for: None,
@@ -145,67 +151,6 @@ impl State {
     /// An import is writing prices: the analysis would be stale, the WoW folder is in use.
     pub fn importing(&self) -> bool {
         self.busy(Task::Import) || self.busy(Task::ImportLegacy)
-    }
-
-    pub fn apply(&mut self, event: Event) {
-        match event {
-            Event::Config(config) => {
-                if self.config.as_ref().map(|c| c.hide_obsolete) != Some(config.hide_obsolete) {
-                    self.revision += 1;
-                }
-                self.config = Some(config);
-            }
-            Event::Busy(task, true) => {
-                self.running.insert(task);
-            }
-            Event::Busy(task, false) => {
-                self.running.remove(&task);
-            }
-            Event::Status(status) => {
-                self.status = status;
-                self.error = None;
-            }
-            Event::Error(error) => self.error = Some(error),
-            Event::Items(items) => {
-                self.index = items
-                    .iter()
-                    .enumerate()
-                    .map(|(i, item)| (item.item_id, i))
-                    .collect();
-                self.items = items;
-                self.revision += 1;
-                // Sent after each import: the drops may have changed, the open sheet asks again.
-                self.drops = None;
-                self.drops_asked = None;
-                self.zones = None;
-                self.zones_asked = false;
-                self.zone_loot.clear();
-                self.zone_asked.clear();
-            }
-            Event::History(id, history) => self.history = Some((id, history)),
-            Event::Drops(id, drops) => {
-                self.drops = Some((id, *drops));
-                self.drops_asked = None;
-            }
-            Event::Zones(zones) => self.zones = Some(Arc::new(zones)),
-            Event::ZoneLoot(loot) => {
-                self.zone_asked.remove(&loot.zone);
-                self.zone_loot.insert(loot.zone.clone(), Arc::from(loot));
-            }
-            Event::MapMasks(masks) => self.masks = Some(masks),
-            Event::Analysis(analysis) => self.analysis = Some(*analysis),
-            Event::GameData(game) => self.game = game,
-            Event::Vendor(vendor) => self.vendor = vendor,
-            Event::LatestBuild(build) => self.latest_build = Some(build),
-            Event::ZoneFavorites(zones) => self.zone_favorites = zones.into_iter().collect(),
-            Event::Favorites(favorites) => {
-                let favorites: HashSet<i64> = favorites.into_iter().collect();
-                if favorites != self.favorites {
-                    self.favorites = favorites;
-                    self.revision += 1;
-                }
-            }
-        }
     }
 
     pub fn item(&self, item_id: i64) -> Option<&ItemSummary> {
@@ -290,45 +235,6 @@ impl State {
         if self.history.as_ref().is_none_or(|(id, _)| *id != item_id) {
             worker.send(Command::LoadHistory(item_id));
         }
-    }
-
-    /// The sources of an item once loaded; asks the worker for them (once) otherwise.
-    pub fn item_drops(&mut self, item_id: i64, worker: &WorkerHandle) -> Option<&ItemDrops> {
-        let loaded = self.drops.as_ref().is_some_and(|(id, _)| *id == item_id);
-        if !loaded && self.drops_asked != Some(item_id) {
-            self.drops_asked = Some(item_id);
-            worker.send(Command::LoadDrops(item_id));
-        }
-        self.drops
-            .as_ref()
-            .filter(|(id, _)| *id == item_id)
-            .map(|(_, d)| d)
-    }
-
-    /// Zones with known loot once loaded; asks the worker for them (once) otherwise.
-    pub fn zones(&mut self, worker: &WorkerHandle) -> Option<Arc<Vec<Zone>>> {
-        if self.zones.is_none() && !self.zones_asked {
-            self.zones_asked = true;
-            worker.send(Command::LoadZones);
-        }
-        self.zones.clone()
-    }
-
-    /// The monsters of a zone once loaded; asks the worker for them (once) otherwise.
-    pub fn zone_loot(&mut self, zone: &str, worker: &WorkerHandle) -> Option<Arc<ZoneLoot>> {
-        if !self.zone_loot.contains_key(zone) && self.zone_asked.insert(zone.to_owned()) {
-            worker.send(Command::LoadZone(zone.to_owned()));
-        }
-        self.zone_loot.get(zone).cloned()
-    }
-
-    /// Zone shapes once loaded (empty without OpenMap); asks the worker for them (once) otherwise.
-    pub fn map_masks(&mut self, worker: &WorkerHandle) -> Option<Arc<HashMap<i64, Mask>>> {
-        if self.masks.is_none() && !self.masks_asked {
-            self.masks_asked = true;
-            worker.send(Command::LoadMapMasks);
-        }
-        self.masks.clone()
     }
 
     /// Switches to the Objects module on this item's sheet.

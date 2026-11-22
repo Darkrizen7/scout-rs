@@ -48,7 +48,14 @@ pub fn draw(ui: &mut egui::Ui, plot: &PlotResponse<()>) {
             y,
             egui::Stroke::new(1.0, palette.dim_text.gamma_multiply(0.3)),
         );
-        let width = coins::money_width(ui, tick);
+        // Measured by an invisible pass of the same drawing, so the label ends right on the axis.
+        let mut probe = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(frame)
+                .sizing_pass()
+                .invisible(),
+        );
+        let width = coins::money(&mut probe, tick, None).rect.width();
         let area = egui::Rect::from_min_size(
             egui::pos2(frame.left() - width - 4.0, y - 9.0),
             egui::vec2(width, 18.0),
@@ -57,5 +64,19 @@ pub fn draw(ui: &mut egui::Ui, plot: &PlotResponse<()>) {
         label.set_clip_rect(area.expand(6.0));
         coins::money(&mut label, tick, None);
         tick += step;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn steps_are_one_two_or_five_times_a_power_of_ten() {
+        // 30 px at 1 copper per pixel: 30 wanted, 50 given.
+        assert_eq!(nice_step(1.0), 50);
+        assert_eq!(nice_step(0.01), 1);
+        assert_eq!(nice_step(6.0), 200);
+        assert_eq!(nice_step(300.0), 10_000);
     }
 }

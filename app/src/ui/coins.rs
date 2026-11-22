@@ -43,32 +43,6 @@ fn coin(ui: &mut egui::Ui, (fill, rim, highlight): (Color32, Color32, Color32)) 
     );
 }
 
-/// Width `money` takes for an amount in copper (to right-align it).
-pub fn money_width(ui: &egui::Ui, copper: i64) -> f32 {
-    let body = egui::TextStyle::Body;
-    let coin = ui.text_style_height(&body) * 0.72;
-    let c = copper.unsigned_abs();
-    let digits = |v: u64| {
-        let font = body.resolve(ui.style());
-        ui.fonts_mut(|f| {
-            f.layout_no_wrap(v.to_string(), font, Color32::WHITE)
-                .size()
-                .x
-        })
-    };
-    let mut width = 0.0;
-    for (i, v) in [c / 10_000, c / 100 % 100, c % 100].into_iter().enumerate() {
-        if v == 0 && !(i == 2 && width == 0.0) {
-            continue;
-        }
-        width += digits(v) + coin + 9.0;
-    }
-    if copper < 0 {
-        width += 12.0;
-    }
-    width + 4.0
-}
-
 /// Draws an amount in copper with coins; `color` overrides the number color (gain / loss).
 pub fn money(ui: &mut egui::Ui, copper: i64, color: Option<Color32>) -> egui::Response {
     draw(ui, copper, color, false)

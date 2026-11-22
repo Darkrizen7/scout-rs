@@ -110,6 +110,27 @@ impl GameMap {
     }
 }
 
+/// Continents (UiMap ids), in the order the Loot module shows them: Kalimdor, then Eastern Kingdoms.
+pub const CONTINENTS: [i64; 2] = [1414, 1415];
+/// Number of continent ranks, the one for zones without a known continent included.
+pub const RANKS: usize = CONTINENTS.len() + 1;
+
+/// Rank of a zone's continent (order of `CONTINENTS`); zones without a known continent come last.
+pub fn continent_rank(maps: &[GameMap], ui_map: Option<i64>) -> usize {
+    ui_map
+        .and_then(|id| maps.iter().find(|m| m.id == id))
+        .and_then(|m| CONTINENTS.iter().position(|c| *c == m.parent))
+        .unwrap_or(CONTINENTS.len())
+}
+
+/// Name of the continent of a given rank (see `continent_rank`); "Autres" for the last rank.
+pub fn continent_name(maps: &[GameMap], rank: usize) -> String {
+    CONTINENTS
+        .get(rank)
+        .and_then(|id| maps.iter().find(|m| m.id == *id))
+        .map_or_else(|| "Autres".to_owned(), |m| m.name.clone())
+}
+
 /// The zones drawn on a continent: its direct children of type zone, largest first (so smaller ones, like
 /// cities, are drawn over them).
 pub fn zones_of(maps: &[GameMap], continent: i64) -> Vec<&GameMap> {
@@ -216,6 +237,21 @@ mod tests {
         assert!((p.right - 0.508).abs() < 0.001, "{p:?}");
         assert!((p.top - 0.732).abs() < 0.001, "{p:?}");
         assert!((p.bottom - 0.809).abs() < 0.001, "{p:?}");
+    }
+
+    #[test]
+    fn ranks_zones_by_continent() {
+        let maps = vec![
+            map(1414, 947, CONTINENT, (0.0, 1.0), (0.0, 1.0)),
+            map(1415, 947, CONTINENT, (0.0, 1.0), (0.0, 1.0)),
+            map(1431, 1415, ZONE, (0.0, 1.0), (0.0, 1.0)),
+            map(1411, 1414, ZONE, (0.0, 1.0), (0.0, 1.0)),
+        ];
+        assert_eq!(continent_rank(&maps, Some(1411)), 0);
+        assert_eq!(continent_rank(&maps, Some(1431)), 1);
+        assert_eq!(continent_rank(&maps, None), RANKS - 1);
+        assert_eq!(continent_name(&maps, 1), "carte 1415");
+        assert_eq!(continent_name(&maps, RANKS - 1), "Autres");
     }
 
     #[test]

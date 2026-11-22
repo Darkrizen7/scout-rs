@@ -37,7 +37,7 @@ impl Limits {
     /// area), and copied by the quantity plot so both move together.
     pub fn navigate(&self, plot: &mut PlotUi<'_>, role: Role, points: &[Point]) {
         let ctx = plot.ctx().clone();
-        let id = egui::Id::NULL.with("scout-prix/chart-nav");
+        let id = nav_id();
         let pass = ctx.cumulative_pass_nr();
         let mut shared: Shared = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
         let frame = *plot.transform().frame();
@@ -68,9 +68,8 @@ impl Limits {
                 .is_some_and(|p| shared.rects.iter().any(|r| r.contains(p)));
         let drag_own = input.dragging && input.origin.is_some_and(|p| frame.contains(p));
 
-        // "Aujourd'hui" was clicked in this very frame: show every point.
-        let reset = ctx.data(|d| d.get_temp::<u64>(egui::Id::NULL.with("scout-prix/chart-end")))
-            == Some(pass);
+        // "Aujourd'hui" or a period button was clicked in this very frame: move to the end of the data.
+        let reset = ctx.data(|d| d.get_temp::<u64>(end_id())) == Some(pass);
         let mut next = prev;
         let mut active = [false; 2];
         // Time axis: the price plot works it out, the quantity plot follows.
@@ -102,8 +101,7 @@ impl Limits {
             }
             if let (true, Some((_, hi))) = (reset, self.time) {
                 // Same time scale, right edge on the last data day.
-                let wanted =
-                    ctx.data(|d| d.get_temp::<f64>(egui::Id::NULL.with("scout-prix/chart-width")));
+                let wanted = ctx.data(|d| d.get_temp::<f64>(width_id()));
                 let width = wanted
                     .unwrap_or(next[0].1 - next[0].0)
                     .min(allowed[0].1 - allowed[0].0);
@@ -178,21 +176,36 @@ pub enum Role {
     Quantity = 1,
 }
 
+/// Temporary data shared by the two plots within a frame (`Shared`).
+fn nav_id() -> egui::Id {
+    egui::Id::NULL.with("scout-rs/chart-nav")
+}
+
+/// Pass in which the view was asked to move to the end of the data (`show_end`, `show_last`).
+fn end_id() -> egui::Id {
+    egui::Id::NULL.with("scout-rs/chart-end")
+}
+
+/// Time window asked by `show_last`, in seconds.
+fn width_id() -> egui::Id {
+    egui::Id::NULL.with("scout-rs/chart-width")
+}
+
 /// Asks the plots to show the end of the curve: same time scale, value scale zoomed out if needed.
-pub fn show_all(ctx: &egui::Context) {
-    ctx.data_mut(|d| d.remove_temp::<f64>(egui::Id::NULL.with("scout-prix/chart-width")));
+pub fn show_end(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove_temp::<f64>(width_id()));
     request_end(ctx);
 }
 
-/// Like `show_all`, but with a time window of `seconds` ending on the last data day.
+/// Like `show_end`, but with a time window of `seconds` ending on the last data day.
 pub fn show_last(ctx: &egui::Context, seconds: f64) {
-    ctx.data_mut(|d| d.insert_temp(egui::Id::NULL.with("scout-prix/chart-width"), seconds));
+    ctx.data_mut(|d| d.insert_temp(width_id(), seconds));
     request_end(ctx);
 }
 
 fn request_end(ctx: &egui::Context) {
     let pass = ctx.cumulative_pass_nr();
-    ctx.data_mut(|d| d.insert_temp(egui::Id::NULL.with("scout-prix/chart-end"), pass));
+    ctx.data_mut(|d| d.insert_temp(end_id(), pass));
     ctx.request_repaint();
 }
 
@@ -275,5 +288,66 @@ fn resistance((lo, hi): (f64, f64), (min, max): (f64, f64), delta: f64) -> f64 {
         (-over / soft).exp()
     } else {
         1.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn point(ts: i64) -> Point {
+        Point {
+            ts,
+            value: 1.0,
+            origin: scout_core::merge::Origin::Scout,
+        }
+    }
+
+    #[test]
+    fn time_limits_keep_a_margin() {
+        let day = 86_400.0;
+        let points = [point(0), point(100 * 86_400)];
+        let (lo, hi) = Limits::of(points.iter()).time.unwrap();
+        // 5 % of the range on each side.
+        assert_eq!((lo, hi), (-5.0 * day, 105.0 * day));
+        // A single point still gets half a day on each side.
+        let (lo, hi) = Limits::of([point(0)].iter()).time.unwrap();
+        assert_eq!((lo, hi), (-Limits::MIN_MARGIN, Limits::MIN_MARGIN));
+        assert!(Limits::of(std::iter::empty()).time.is_none());
+    }
+
+    #[test]
+    fn zoom_keeps_the_center_in_place() {
+        assert_eq!(zoom_range((0.0, 10.0), 5.0, 2.0), (2.5, 7.5));
+        assert_eq!(zoom_range((0.0, 10.0), 0.0, 0.5), (0.0, 20.0));
+    }
+
+    #[test]
+    fn resistance_grows_past_the_limits() {
+        let allowed = (0.0, 100.0);
+        // Inside, or moving back in: the whole move goes through.
+        assert_eq!(resistance((10.0, 20.0), allowed, -5.0), 1.0);
+        assert_eq!(resistance((-5.0, 5.0), allowed, 2.0), 1.0);
+        // Past the left limit and moving further out: ever less.
+        let a = resistance((-1.0, 9.0), allowed, -1.0);
+        let b = resistance((-5.0, 5.0), allowed, -1.0);
+        assert!(1.0 > a && a > b && b > 0.0);
+    }
+
+    #[test]
+    fn ease_back_moves_toward_the_limits() {
+        let ctx = egui::Context::default();
+        let allowed = (0.0, 100.0);
+        // Already inside: unchanged.
+        assert_eq!(ease_back((10.0, 20.0), allowed, 0.1, &ctx), (10.0, 20.0));
+        // Past the right limit: back left, same width, not all the way at once.
+        let (lo, hi) = ease_back((95.0, 105.0), allowed, 0.016, &ctx);
+        assert!((hi - lo - 10.0).abs() < 1e-9);
+        assert!(lo < 95.0 && lo > 90.0);
+        // Close enough: snaps onto the limit.
+        assert_eq!(
+            ease_back((90.005, 100.005), allowed, 0.016, &ctx),
+            (90.0, 100.0)
+        );
     }
 }

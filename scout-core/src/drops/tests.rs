@@ -123,6 +123,13 @@ fn levels_and_place() {
     assert_eq!(npc.levels(), "24 élite");
     assert!(!npc.is_normal());
     assert_eq!(npc.place(), "Les Mortemines");
+    npc.rank = Some(2);
+    assert_eq!(npc.levels(), "24 rare élite");
+    assert!(npc.is_elite() && npc.is_rare() && !npc.is_boss());
+    npc.rank = Some(4);
+    assert!(!npc.is_elite() && npc.is_rare());
+    npc.rank = Some(3);
+    assert_eq!(npc.levels(), "24 boss");
 }
 
 #[test]
