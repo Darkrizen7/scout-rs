@@ -1,10 +1,13 @@
 //! Reagents table of a recipe: bordered cells, each priced at the cheaper of merchant and auction
-//! house, and a bold total row.
+//! house (or crafted by the same profession, when cheaper), and a bold total row.
 
 use eframe::egui::{self, Rect, Stroke, vec2};
 use egui_extras::{Column, TableBuilder};
 
+use scout_core::crafting::{self, Craft};
 use scout_core::gamedata::{GameData, Recipe};
+use scout_core::money;
+use scout_core::pricing::Source;
 
 use super::detail::{item_link, source_tag};
 use crate::state::State;
@@ -12,6 +15,53 @@ use crate::ui::{coins, fonts, theme, widgets};
 
 const PAD: f32 = 8.0;
 const ROW: f32 = 28.0;
+
+/// How a reagent is priced.
+#[derive(Clone, Copy)]
+enum Price {
+    Buy(f64, Source),
+    /// Crafted, cheaper than buying it (the cheapest purchase, if any).
+    Craft(Craft, Option<(f64, Source)>),
+}
+
+impl Price {
+    fn unit(self) -> f64 {
+        match self {
+            Price::Buy(unit, _) => unit,
+            Price::Craft(craft, _) => craft.unit,
+        }
+    }
+}
+
+/// Cheapest price of a reagent: bought, or crafted by the recipe's profession.
+fn price(game: &GameData, state: &State, profession: i64, item_id: i64) -> Option<Price> {
+    let bought = state.buy_price(item_id);
+    let crafted = crafting::craft_cost(game, item_id, profession, &|id| {
+        state.buy_price(id).map(|(unit, _)| unit)
+    });
+    match (bought, crafted) {
+        (Some(b), Some(c)) if c.unit < b.0 => Some(Price::Craft(c, Some(b))),
+        (None, Some(c)) => Some(Price::Craft(c, None)),
+        (b, _) => b.map(|(unit, source)| Price::Buy(unit, source)),
+    }
+}
+
+/// "Craft" tag; the tooltip names the recipe and what buying would cost.
+fn craft_tag(ui: &mut egui::Ui, game: &GameData, craft: Craft, bought: Option<(f64, Source)>) {
+    let palette = theme::current(ui);
+    let buy = match bought {
+        Some((unit, Source::Merchant)) => {
+            format!("{} chez un marchand", money::format(unit.round() as i64))
+        }
+        Some((unit, Source::Auction)) => format!("{} à l'HdV", money::format(unit.round() as i64)),
+        None => "pas vu à l'HdV ni chez un marchand".to_owned(),
+    };
+    ui.label(egui::RichText::new("Craft").small().color(palette.star))
+        .on_hover_text(format!(
+            "Fabriqué : {}\nÀ l'achat : {buy}",
+            game.recipes[craft.recipe].name
+        ));
+}
 
 /// Draws the table; returns the total cost (of the reagents with a known price).
 pub fn table(
@@ -55,9 +105,9 @@ pub fn table(
                 })
                 .body(|mut body| {
                     for reagent in &r.reagents {
-                        let best = state.buy_price(reagent.item_id);
+                        let best = price(game, state, r.profession, reagent.item_id);
                         match best {
-                            Some((unit, _)) => total += unit * reagent.count as f64,
+                            Some(p) => total += p.unit() * reagent.count as f64,
                             None => missing = true,
                         }
                         body.row(ROW, |mut row| {
@@ -72,10 +122,17 @@ pub fn table(
                             row.col(|ui| {
                                 cell(ui, border, true, true, None);
                                 match best {
-                                    Some((unit, source)) => {
-                                        coins::money(ui, unit.round() as i64, None);
+                                    Some(p) => {
+                                        coins::money(ui, p.unit().round() as i64, None);
                                         ui.add_space(6.0);
-                                        source_tag(ui, state, reagent.item_id, source);
+                                        match p {
+                                            Price::Buy(_, source) => {
+                                                source_tag(ui, state, reagent.item_id, source)
+                                            }
+                                            Price::Craft(c, bought) => {
+                                                craft_tag(ui, game, c, bought)
+                                            }
+                                        }
                                     }
                                     None => {
                                         ui.weak("—");
@@ -84,8 +141,8 @@ pub fn table(
                             });
                             row.col(|ui| {
                                 cell(ui, border, false, true, None);
-                                let sub = best
-                                    .map(|(unit, _)| (unit * reagent.count as f64).round() as i64);
+                                let sub =
+                                    best.map(|p| (p.unit() * reagent.count as f64).round() as i64);
                                 widgets::money_or_dash(ui, sub);
                             });
                         });
