@@ -21,6 +21,36 @@ pub fn guide_vendor_prices(wow_dir: &Path) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
+/// Forever Guide's folder, when that addon is installed (its item sources are the reference for drops).
+pub fn forever_guide(wow_dir: &Path) -> Option<PathBuf> {
+    let path = wow_dir.join("Interface/AddOns/ForeverGuide");
+    path.join("ItemSearchData.lua").is_file().then_some(path)
+}
+
+/// Files the drops export reads from Forever Guide.
+const GUIDE_DROP_FILES: [&str; 4] = [
+    "ItemSearchData.lua",
+    "DungeonLoot.lua",
+    "DataFrFR.lua",
+    "Locale.lua",
+];
+
+/// Size and modification time of the files the drops export reads, plus `format` (bumped when the export
+/// changes): the drops are imported again only when this changes.
+pub fn guide_fingerprint(guide: &Path, format: u32) -> String {
+    let mut text = format!("v{format}");
+    for name in GUIDE_DROP_FILES {
+        let meta = fs::metadata(guide.join(name)).ok();
+        let modified = meta
+            .as_ref()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_secs());
+        text += &format!(";{name}:{}:{modified}", meta.map_or(0, |m| m.len()));
+    }
+    text
+}
+
 /// The most recently written `Scout.lua` among the accounts' SavedVariables.
 pub fn saved_variables(wow_dir: &Path) -> Result<PathBuf> {
     let accounts = wow_dir.join("WTF/Account");

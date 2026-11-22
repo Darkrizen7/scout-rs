@@ -26,7 +26,8 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   catégories dépliables), liste, graphique prix / quantité, analyse, calculateur de rentabilité.
 - **Objets** : les ~19 400 objets du jeu par catégorie, avec prix HdV / achat PNJ / revente ; une **fiche objet**
   à onglets : Market (prix et graphique), Recettes (produit par, utilisé dans, enseigne), PNJ (où l'acheter),
-  Butin (à faire).
+  Butin (monstres, dépeçage, vol à la tire, coffres, conteneurs, quêtes : chance de Forever Guide et chance
+  réelle enregistrée par Scout, avec intervalle à 95 %).
 - **Recettes** : recherche d'une recette ou d'un objet, par métier ; fiche recette (composants au moins cher entre
   PNJ et HdV, bénéfice, patron). Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
   cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
@@ -41,6 +42,11 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
     Imports **idempotents** (`INSERT OR IGNORE`) : la base garde tout, même ce que Scout oublie après 21 jours.
   - `favorites (item_id)` : partagés par Market et Objets.
   - `vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)` : remplacée à chaque import Scout.
+  - Butin de Forever Guide (remplacé en bloc quand ses fichiers changent) : `drop_sources (item_id, kind,
+    source_id, chance, quest_only, more)` (`source_id` 0 = « et `more` autres non listées »), `drop_npcs`,
+    `drop_names` (objets du monde, quêtes), `drop_meta` (`fingerprint`).
+  - Butin réel de Scout (remplacé à chaque import : l'addon garde des totaux) : `loot_npcs (npc_id, name, zone,
+    kills, skins)`, `loot_observed (npc_id, kind, item_id, drops, quantity)`, `kind` ∈ `loot | skin`.
   - Données du jeu `game_*` (remplacées en bloc) : `game_meta` (`build`, `updated`, `format`), `game_items`,
     `game_categories`, `game_professions`, `game_recipes`, `game_reagents`, `game_recipe_items`.
 - Évolution du schéma : `CREATE TABLE IF NOT EXISTS` + colonnes ajoutées si absentes (`ITEM_COLUMNS` dans `scout-db/src/lib.rs`
@@ -59,6 +65,16 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   stock limité ; prioritaire), `ScoutDB.vendor` (anciens relevés sans PNJ), et `VendorPrices.lua` de Forever Guide
   (composants vendus sans limite). `BuyPrice` du client existe pour **tous** les objets : ne jamais s'en servir pour
   dire « vendu par un PNJ ». Revente au marchand = `SellPrice`.
+- **Butin** :
+  - Forever Guide : `scout-sources/lua/drops_export.lua` (intégré), `lua - <AddOns/ForeverGuide> sources | npcs |
+    names`. Lit `ItemSearchData.lua` (`SI_ITEM` : sources par objet, ids en base 36 sauf les quêtes `q=`, `c` =
+    au choix, `pct` suivi de `q` = seulement quête en cours, `+N` = sources non listées ; `SI_NPC`, `SI_OBJ`,
+    `SI_QUEST`), `DungeonLoot.lua` (boss, chances plus récentes : elles remplacent celles de `d=`), `DataFrFR.lua`
+    (noms FR) et `Locale.lua` (zones / donjons FR, via un faux `GetLocale` → `frFR`). Réimporté à l'import Scout
+    seulement si l'empreinte (taille + date des 4 fichiers + `DROPS_FORMAT`, à augmenter quand le script change)
+    a changé : ~3,8 s, ~314 000 sources.
+  - Scout : `export.lua <Scout.lua> --loot` (contrat avec l'addon : `npc_id,name,zone,kills,skins,kind,item_id,drops,quantity`).
+  - Une erreur de butin n'interrompt pas l'import des prix.
 - **Données du jeu** : tables du client Forever (DB2) en CSV, français, depuis
   `https://wago.tools/db2/<Table>/csv?build=<build>&locale=frFR` ; dernière version = produit `wowf` de
   `https://wago.tools/api/builds`, vérifiée au démarrage (Réglages affiche « À jour » ou « Nouvelle version »).
@@ -79,15 +95,15 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 
 | Crate | Rôle |
 |---|---|
-| `scout-core` | Données et logique **pures**, testées (ni disque, ni réseau, ni egui ; `sqlx` seulement avec la feature `sqlx`, pour `#[derive(FromRow)]`). `analysis` + `analysis/stats` : prix du jour = médiane des prix min du jour (date locale) ; week-end vs semaine par **test de permutation** (exact ou Monte-Carlo à graine fixe), effet de marché avec **les jours comme unité** ; prix du jour anormal par **z-score robuste** (MAD, plancher 3 %), seuils en constantes publiques. `gamedata` (types, index `made_by` / `used_in` / `teaches`, `GAME_FORMAT`), `money` (cuivre ↔ texte, rentabilité, commission HdV 5 %), `pricing` (`cheapest` : marchand ou HdV), `time` (dates locales), types partagés (`Row`, `ItemName`, `VendorPrice`, `ItemSummary`, `Snapshot`, `VendorData` / `VendorOffer`, `Theme`). |
+| `scout-core` | Données et logique **pures**, testées (ni disque, ni réseau, ni egui ; `sqlx` seulement avec la feature `sqlx`, pour `#[derive(FromRow)]`). `analysis` + `analysis/stats` : prix du jour = médiane des prix min du jour (date locale) ; week-end vs semaine par **test de permutation** (exact ou Monte-Carlo à graine fixe), effet de marché avec **les jours comme unité** ; prix du jour anormal par **z-score robuste** (MAD, plancher 3 %), seuils en constantes publiques. `gamedata` (types, index `made_by` / `used_in` / `teaches`, `GAME_FORMAT`), `money` (cuivre ↔ texte, rentabilité, commission HdV 5 %), `pricing` (`cheapest` : marchand ou HdV), `time` (dates locales), `drops` (+ `drops/records`) : fusion base Forever Guide / réel Scout, intervalle de Wilson, tri par colonne (`drops/sort` : valeurs inconnues toujours en dernier), `TRUSTED_KILLS` = 20 corps (chance réelle en vert), `format_percent` ; types partagés (`Row`, `ItemName`, `VendorPrice`, `ItemSummary`, `Snapshot`, `VendorData` / `VendorOffer`, `Theme`). |
 | `scout-sources` | Tout ce qui vient de l'extérieur : `import` (scripts Lua de `lua/`, intégrés par `include_str!`, et lecture de leur CSV), `wago` (téléchargement wago.tools) + `wago/assemble` (CSV → recettes, testé), `wow` (dossier `_forever_` : détection Wine, `export_script`, `saved_variables`, liste de Forever Guide). |
-| `scout-db` | SQLite (sqlx) : `lib.rs` (`Db`, schéma, migrations), `market` (objets, favoris, relevés), `game` (données du jeu), `vendor` (prix et offres des marchands). |
+| `scout-db` | SQLite (sqlx) : `lib.rs` (`Db`, schéma, migrations), `market` (objets, favoris, relevés), `game` (données du jeu), `vendor` (prix et offres des marchands), `drops` (butin : base et réel). |
 | `scout-worker` | Thread de fond, runtime tokio `current_thread` : `Command` → `Event` via `mpsc` + callback `notify` (l'app y met `request_repaint`). **Seul** endroit qui touche disque, base, réseau et processus. `config` : réglages, chemins, migration des dossiers `scout-prix` → `scout-rs`. Tests sur la vraie machine dans `tests/local.rs` (`#[ignore]`). |
 | `app` (paquet et binaire `scout-rs`) | UI egui uniquement. `main.rs`, `app.rs` (onglets de modules, barre d'état, module courant), `state.rs` (`State` lu par l'UI : données du worker, module / vue / filtre / sélection ; `revision` change à chaque modification des objets ou favoris, pour les caches ; `auction_price`, `buy_price`). |
 
 `app/src/ui/` : `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
 icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
-`calculator`, `items` (+ `items/{rows,sidebar,sheet}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
+`calculator`, `items` (+ `items/{rows,sidebar,sheet,merchants,drops}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
 couleurs de qualité, prix ou tiret : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.
@@ -110,9 +126,8 @@ couleurs de qualité, prix ou tiret : partagés), `theme` (palettes libadwaita),
 - `Panel::show_inside` est déprécié dans egui 0.37 : `Panel::show(ui, …)` sert aussi à l'intérieur d'un `Ui`.
 
 ## Pistes
-- Onglet **Butin** de la fiche objet : monstres qui lâchent l'objet et chance. Données possibles : la base de butin
-  de Scout (`Scout/Farm/Loot.lua`, générée depuis cmangos classic-db par `Scout/tools/build_loot.py`) ou QuestieDB
-  (données Forever, pas les ajouts Forever).
+- Butin : `ForeverGuide/ForeverBossLoot.lua` (butin confirmé de boss Forever, chances inconnues, appliqué par
+  l'addon à l'exécution) n'est pas lu.
 
 ## Commits
 - Sujet en français, phrase courte avec majuscule, corps qui explique le pourquoi. Branche `master`.

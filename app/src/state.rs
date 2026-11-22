@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use scout_core::analysis::Analysis;
+use scout_core::drops::ItemDrops;
 use scout_core::gamedata::GameData;
 use scout_core::pricing::{self, Source};
 use scout_core::{ItemSummary, Snapshot, VendorData};
@@ -59,6 +60,9 @@ pub struct State {
     pub revision: u64,
     pub selected: Option<i64>,
     pub history: Option<(i64, Vec<Snapshot>)>,
+    /// Where the item of the open sheet comes from, and the item asked for (None once answered).
+    pub drops: Option<(i64, ItemDrops)>,
+    drops_asked: Option<i64>,
     /// Latest analysis and the items revision it was asked for.
     pub analysis: Option<Analysis>,
     pub analysis_for: Option<u64>,
@@ -90,6 +94,8 @@ impl Default for State {
             revision: 0,
             selected: None,
             history: None,
+            drops: None,
+            drops_asked: None,
             analysis: None,
             analysis_for: None,
             favorites: HashSet::new(),
@@ -120,8 +126,15 @@ impl State {
                     .collect();
                 self.items = items;
                 self.revision += 1;
+                // Sent after each import: the drops may have changed, the open sheet asks again.
+                self.drops = None;
+                self.drops_asked = None;
             }
             Event::History(id, history) => self.history = Some((id, history)),
+            Event::Drops(id, drops) => {
+                self.drops = Some((id, *drops));
+                self.drops_asked = None;
+            }
             Event::Analysis(analysis) => self.analysis = Some(*analysis),
             Event::GameData(game) => self.game = game,
             Event::Vendor(vendor) => self.vendor = vendor,
@@ -188,6 +201,19 @@ impl State {
         if self.history.as_ref().is_none_or(|(id, _)| *id != item_id) {
             worker.send(Command::LoadHistory(item_id));
         }
+    }
+
+    /// The sources of an item once loaded; asks the worker for them (once) otherwise.
+    pub fn item_drops(&mut self, item_id: i64, worker: &WorkerHandle) -> Option<&ItemDrops> {
+        let loaded = self.drops.as_ref().is_some_and(|(id, _)| *id == item_id);
+        if !loaded && self.drops_asked != Some(item_id) {
+            self.drops_asked = Some(item_id);
+            worker.send(Command::LoadDrops(item_id));
+        }
+        self.drops
+            .as_ref()
+            .filter(|(id, _)| *id == item_id)
+            .map(|(_, d)| d)
     }
 
     /// Switches to the Objects module on this item's sheet.

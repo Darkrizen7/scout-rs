@@ -45,6 +45,55 @@ async fn imports_local_saved_variables() -> Result<()> {
     Ok(())
 }
 
+/// Forever Guide's drops and Scout's recorded loot into a throwaway database, then a few items' sources.
+#[tokio::test]
+#[ignore = "reads the local WoW install"]
+async fn imports_drops() -> Result<()> {
+    let config = Config::load();
+    let wow_dir = config.wow_dir()?;
+    let guide = wow::forever_guide(wow_dir).expect("Forever Guide installé");
+    let started = std::time::Instant::now();
+    let export = sources::run_drops_export(&guide)?;
+    let exported = started.elapsed();
+
+    let path = throwaway_db("drops");
+    let db = Db::open(&path).await?;
+    let fingerprint = wow::guide_fingerprint(&guide, sources::DROPS_FORMAT);
+    let count = db.save_drops(&export, &fingerprint).await?;
+    assert_eq!(db.drops_fingerprint().await?, Some(fingerprint));
+    let saved_variables = wow::saved_variables(wow_dir)?;
+    let loot = sources::run_scout_loot(&wow::export_script(wow_dir)?, &saved_variables)?;
+    let kills = db.save_observed_loot(&loot).await?;
+    println!(
+        "{count} sources, {} PNJ, {} noms (export {exported:.1?}, total {:.1?}) ; Scout : {kills} kills",
+        export.npcs.len(),
+        export.names.len(),
+        started.elapsed()
+    );
+    // Linen cloth, a Sunken Temple boss item, a quest reward, a pattern found in chests.
+    for id in [2589, 10799, 1431, 2318] {
+        let drops = db.item_drops(id).await?;
+        println!(
+            "{id} : {} sources, plus {:?}",
+            drops.drops.len(),
+            drops.more
+        );
+        for d in drops.drops.iter().take(4) {
+            let (levels, place) = d
+                .npc
+                .as_ref()
+                .map(|n| (n.levels(), n.place()))
+                .unwrap_or_default();
+            println!(
+                "  {:?} {} [{levels}] {place} {:?} {:?}",
+                d.kind, d.name, d.chance, d.observed
+            );
+        }
+    }
+    std::fs::remove_file(&path)?;
+    Ok(())
+}
+
 /// Full download from wago.tools into a throwaway database (about 12 MB).
 #[tokio::test]
 #[ignore = "downloads about 12 MB from wago.tools"]

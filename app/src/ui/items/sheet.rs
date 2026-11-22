@@ -1,5 +1,5 @@
 //! Item sheet: header (name in quality color, category, levels, favorite) and tabs:
-//! Market (auction prices and chart), Recipes (made by, used in, teaches), Merchants, Drops (to come).
+//! Market (auction prices and chart), Recipes (made by, used in, teaches), Merchants, Drops (`drops.rs`).
 
 use eframe::egui::{self, RichText};
 
@@ -7,8 +7,8 @@ use crate::state::State;
 use scout_core::gamedata::GameData;
 use scout_core::time::format_datetime;
 
+use super::{drops, merchants};
 use crate::ui::chart;
-use crate::ui::coins;
 use crate::ui::theme;
 use crate::ui::widgets::{money_or_dash, quality_color, star_button};
 use scout_worker::WorkerHandle;
@@ -30,6 +30,8 @@ pub enum Link {
 pub struct Sheet {
     pub item_id: i64,
     tab: Tab,
+    /// Drops tab: sort and sections shown in full.
+    drops_view: drops::DropsView,
 }
 
 impl Sheet {
@@ -51,7 +53,11 @@ impl Sheet {
         if state.item(item_id).is_some() {
             state.select(item_id, worker);
         }
-        Self { item_id, tab }
+        Self {
+            item_id,
+            tab,
+            drops_view: drops::DropsView::default(),
+        }
     }
 
     pub fn show(
@@ -99,6 +105,7 @@ impl Sheet {
             .map(|m| m.get(&id).map_or(0, Vec::len))
             .sum::<usize>();
         let merchants = state.vendor.merchants(id).len();
+        let drops = state.item_drops(id, worker).map(drops::count);
         ui.horizontal(|ui| {
             ui.selectable_value(&mut self.tab, Tab::Market, "📈 Market");
             ui.selectable_value(
@@ -111,7 +118,8 @@ impl Sheet {
                 Tab::Merchants,
                 format!("🛒 PNJ ({merchants})"),
             );
-            ui.selectable_value(&mut self.tab, Tab::Drops, "💀 Butin");
+            let title = drops.map_or_else(|| "💀 Butin".to_owned(), |n| format!("💀 Butin ({n})"));
+            ui.selectable_value(&mut self.tab, Tab::Drops, title);
         });
         ui.separator();
 
@@ -156,13 +164,15 @@ impl Sheet {
                         );
                     });
             }
-            Tab::Merchants => merchants_tab(ui, state, info.map_or(0, |i| i.sell_price), id),
-            Tab::Drops => {
-                ui.add_space(20.0);
-                ui.vertical_centered(|ui| {
-                    ui.weak("Bientôt : les monstres qui lâchent cet objet, et avec quelle chance.");
-                });
-            }
+            Tab::Merchants => merchants::show(ui, state, info.map_or(0, |i| i.sell_price), id),
+            Tab::Drops => match state.item_drops(id, worker) {
+                Some(d) => {
+                    link = drops::show(ui, d, &mut self.drops_view, palette).map(Link::Item);
+                }
+                None => {
+                    ui.spinner();
+                }
+            },
         }
         link
     }
@@ -199,48 +209,6 @@ fn market(ui: &mut egui::Ui, state: &State, id: i64) {
         _ => {
             ui.spinner();
         }
-    }
-}
-
-fn merchants_tab(ui: &mut egui::Ui, state: &State, sell_price: i64, id: i64) {
-    egui::Grid::new("sheet-merchants")
-        .num_columns(2)
-        .spacing([16.0, 4.0])
-        .show(ui, |ui| {
-            ui.label("Achat chez un marchand");
-            match state.vendor.price(id) {
-                Some(p) => {
-                    coins::money(ui, p.round() as i64, None);
-                }
-                None => {
-                    ui.weak("pas vendu par un PNJ connu");
-                }
-            }
-            ui.end_row();
-            ui.label("Revente au marchand");
-            money_or_dash(ui, Some(sell_price).filter(|&p| p > 0));
-            ui.end_row();
-            ui.label("Prix HdV");
-            money_or_dash(ui, state.auction_price(id));
-            ui.end_row();
-        });
-    ui.add_space(10.0);
-    let merchants = state.vendor.merchants(id);
-    if merchants.is_empty() {
-        if state.vendor.price(id).is_some() {
-            ui.weak("Vendu par un marchand, mais on ne sait pas encore lequel : ouvre-le en jeu avec Scout chargé.");
-        }
-        return;
-    }
-    ui.strong(format!("Vendu par ({})", merchants.len()));
-    for m in merchants {
-        ui.horizontal(|ui| {
-            ui.label(m.place());
-            coins::money(ui, m.price.round() as i64, None);
-            if m.limited {
-                ui.weak("· stock limité");
-            }
-        });
     }
 }
 

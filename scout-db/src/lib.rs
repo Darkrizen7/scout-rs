@@ -5,6 +5,7 @@ use std::path::Path;
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 
+mod drops;
 mod game;
 mod market;
 mod vendor;
@@ -56,6 +57,7 @@ impl Db {
             .await?;
         sqlx::raw_sql(SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(game::SCHEMA).execute(&pool).await?;
+        sqlx::raw_sql(drops::SCHEMA).execute(&pool).await?;
         Self::migrate_game(&pool).await?;
         Self::migrate_vendor(&pool).await?;
         let existing: Vec<(String,)> =

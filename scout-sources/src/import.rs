@@ -6,6 +6,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
+use scout_core::drops::{DropName, DropNpc, DropSource, DropsExport, ObservedLoot};
 use scout_core::{ItemName, Row, VendorPrice};
 use serde::de::DeserializeOwned;
 
@@ -13,6 +14,11 @@ use serde::de::DeserializeOwned;
 const LEGACY_EXPORT: &str = include_str!("../lua/legacy_export.lua");
 /// Exports the items merchants sell (Scout's prices seen in game, Forever Guide's list).
 const VENDOR_EXPORT: &str = include_str!("../lua/vendor_export.lua");
+/// Exports where items come from, according to Forever Guide.
+const DROPS_EXPORT: &str = include_str!("../lua/drops_export.lua");
+
+/// Bumped when `drops_export.lua` changes, so the drops are imported again.
+pub const DROPS_FORMAT: u32 = 1;
 
 /// Scout's history: `lua <AddOns/Scout/tools/export.lua> <Scout.lua>`.
 pub fn run_scout_export(script: &Path, saved_variables: &Path) -> Result<Vec<Row>> {
@@ -28,6 +34,35 @@ pub fn run_scout_names(script: &Path, saved_variables: &Path) -> Result<Vec<Item
             .arg("--names"),
         None,
     )
+}
+
+/// The loot Scout recorded in game: `lua export.lua <Scout.lua> --loot`.
+pub fn run_scout_loot(script: &Path, saved_variables: &Path) -> Result<Vec<ObservedLoot>> {
+    run_lua(
+        Command::new("lua")
+            .arg(script)
+            .arg(saved_variables)
+            .arg("--loot"),
+        None,
+    )
+}
+
+/// Forever Guide's item sources, the NPCs they name and the names of objects and quests:
+/// `lua - <ForeverGuide> <mode>` with the embedded script, once per mode.
+pub fn run_drops_export(guide: &Path) -> Result<DropsExport> {
+    let run = |mode: &str| -> Command {
+        let mut command = Command::new("lua");
+        command.arg("-").arg(guide).arg(mode);
+        command
+    };
+    let sources: Vec<DropSource> = run_lua(&mut run("sources"), Some(DROPS_EXPORT))?;
+    let npcs: Vec<DropNpc> = run_lua(&mut run("npcs"), Some(DROPS_EXPORT))?;
+    let names: Vec<DropName> = run_lua(&mut run("names"), Some(DROPS_EXPORT))?;
+    Ok(DropsExport {
+        sources,
+        npcs,
+        names,
+    })
 }
 
 /// Auctionator and Forever Guide: the embedded script is fed to `lua -` on stdin.
@@ -105,6 +140,23 @@ mod tests {
         assert_eq!(rows[1].price, None);
         assert_eq!(rows[1].quantity, Some(0));
         assert_eq!(rows[1].source, SCOUT);
+    }
+
+    #[test]
+    fn parses_drop_and_loot_rows() {
+        let csv = b"kind,item_id,source_id,chance,quest_only,more\n\
+            npc,2589,3,12,0,0\nnpc,3858,0,,0,614\n";
+        let rows: Vec<DropSource> = parse(csv).unwrap();
+        assert_eq!(rows[0].chance, Some(12.0));
+        assert_eq!((rows[1].chance, rows[1].more), (None, 614));
+        let csv = b"npc_id,name,zone,kills,skins,kind,item_id,drops,quantity\n\
+            3,D\xc3\xa9voreur,Bois,2,1,loot,2589,2,5\n6,,,4,0,,,,\n";
+        let rows: Vec<ObservedLoot> = parse(csv).unwrap();
+        assert_eq!(rows[0].name.as_deref(), Some("D\u{e9}voreur"));
+        assert_eq!(
+            (rows[1].kind.as_deref(), rows[1].item_id, rows[1].kills),
+            (None, None, 4)
+        );
     }
 
     #[test]

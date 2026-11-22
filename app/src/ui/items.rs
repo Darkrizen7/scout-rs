@@ -1,5 +1,7 @@
 //! Objects module: every game item, by category, with prices; a click opens the item sheet.
 
+mod drops;
+mod merchants;
 mod rows;
 mod sheet;
 mod sidebar;

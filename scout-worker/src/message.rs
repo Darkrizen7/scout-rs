@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use scout_core::analysis::Analysis;
+use scout_core::drops::ItemDrops;
 use scout_core::gamedata::GameData;
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
 
@@ -14,6 +15,8 @@ pub enum Command {
     /// One-off import of the prices Auctionator and Forever Guide kept.
     ImportLegacy,
     LoadHistory(i64),
+    /// Where an item comes from (item sheet, Drops tab).
+    LoadDrops(i64),
     Analyze,
     SetFavorite(i64, bool),
     /// Downloads the newest Forever client tables (unless already stored).
@@ -29,6 +32,7 @@ pub enum Event {
     Error(String),
     Items(Vec<ItemSummary>),
     History(i64, Vec<Snapshot>),
+    Drops(i64, Box<ItemDrops>),
     Analysis(Box<Analysis>),
     Favorites(Vec<i64>),
     GameData(Arc<GameData>),

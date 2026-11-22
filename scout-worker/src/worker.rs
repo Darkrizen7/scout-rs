@@ -69,6 +69,9 @@ pub(crate) fn run(commands: Receiver<Command>, send: impl Fn(Event)) {
             Command::LoadHistory(id) => runtime
                 .block_on(db.history(id))
                 .map(|h| send(Event::History(id, h))),
+            Command::LoadDrops(id) => runtime
+                .block_on(db.item_drops(id))
+                .map(|d| send(Event::Drops(id, Box::new(d)))),
             Command::SetWowDir(dir) => {
                 config.wow_dir = Some(dir);
                 send(Event::Config(config.clone()));
@@ -112,7 +115,37 @@ async fn import(db: &Db, config: &Config, send: &impl Fn(Event)) -> Result<()> {
     )?;
     db.save_vendor_prices(&vendor).await?;
     send(Event::Vendor(Arc::new(db.vendor_data().await?)));
+    // Drops are a bonus: a failure there must not stop the price import.
+    if let Err(e) = import_drops(db, config, send).await {
+        send(Event::Error(format!("butin de Forever Guide : {e:#}")));
+    }
+    match sources::run_scout_loot(&script, &saved_variables) {
+        Ok(loot) => {
+            db.save_observed_loot(&loot).await?;
+        }
+        Err(e) => send(Event::Error(format!(
+            "butin enregistré par Scout (addon à jour ?) : {e:#}"
+        ))),
+    }
     store(db, &rows, send).await
+}
+
+/// Forever Guide's item sources, imported again only when its files (or our export) changed.
+async fn import_drops(db: &Db, config: &Config, send: &impl Fn(Event)) -> Result<()> {
+    let Some(guide) = wow::forever_guide(config.wow_dir()?) else {
+        return Ok(());
+    };
+    let fingerprint = wow::guide_fingerprint(&guide, sources::DROPS_FORMAT);
+    if db.drops_fingerprint().await?.as_deref() == Some(fingerprint.as_str()) {
+        return Ok(());
+    }
+    send(Event::Status("Lecture du butin de Forever Guide…".into()));
+    let export = sources::run_drops_export(&guide)?;
+    let count = db.save_drops(&export, &fingerprint).await?;
+    send(Event::Status(format!(
+        "Butin de Forever Guide : {count} sources"
+    )));
+    Ok(())
 }
 
 /// Newest Forever build → 9 client tables → recipes, stored with the build they come from.

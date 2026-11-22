@@ -1,6 +1,7 @@
 //! Scout's domain: plain data and pure logic, with no disk, network or UI.
 
 pub mod analysis;
+pub mod drops;
 pub mod gamedata;
 pub mod money;
 pub mod pricing;
