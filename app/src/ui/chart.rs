@@ -9,9 +9,9 @@ use egui_plot::{GridInput, GridMark, Line, Plot, PlotResponse, Points};
 use crate::state::State;
 use crate::ui::coins;
 use crate::ui::theme;
-use crate::ui::widgets::star_button;
+use crate::ui::widgets::{self, star_button};
 use scout_core::Snapshot;
-use scout_core::merge::{self, Origin, Point};
+use scout_core::merge::{self, Origin, Period, Point};
 use scout_core::time::{self, format_datetime};
 use scout_worker::WorkerHandle;
 
@@ -50,11 +50,12 @@ pub fn show(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
         }
     };
 
-    plots(ui, item_id, history);
+    plots(ui, item_id, history, true);
 }
 
 /// Price (top) and quantity (bottom) over time, one series per source, sharing the time axis.
-pub fn plots(ui: &mut egui::Ui, item_id: i64, history: &[Snapshot]) {
+/// `periods` adds the day / week / month buttons (Market view only).
+pub fn plots(ui: &mut egui::Ui, item_id: i64, history: &[Snapshot], periods: bool) {
     let color = theme::current(ui).series[0];
     // A new item starts from a fresh view, not from the previous item's zoom and offset.
     let seen = egui::Id::NULL.with(("scout-prix/chart-item", ui.scope_id()));
@@ -62,15 +63,43 @@ pub fn plots(ui: &mut egui::Ui, item_id: i64, history: &[Snapshot]) {
     if changed {
         ui.data_mut(|d| d.insert_temp(seen, item_id));
     }
+    // Aggregation of the market view, kept across items; the item sheet always shows days.
+    let period_id = egui::Id::NULL.with("scout-prix/chart-period");
+    let mut period = if periods {
+        ui.data(|d| d.get_temp::<Period>(period_id))
+            .unwrap_or_default()
+    } else {
+        Period::Day
+    };
     let link = egui::Id::unique("scout-prix/time-axis");
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
         if ui.button("Aujourd'hui").clicked() {
             limits::show_all(ui.ctx());
         }
+        if periods {
+            // Aggregators, apart from the "go to the end" button. Right-to-left layout: added in
+            // reverse order.
+            widgets::vertical_separator(ui);
+            for (label, value, days) in [
+                ("Mensuel", Period::Month, 7.0 * 30.0),
+                ("Hebdo", Period::Week, 7.0 * 7.0),
+                ("Journalier", Period::Day, 7.0),
+                ("Détaillé", Period::Detail, 2.0),
+            ] {
+                if ui
+                    .add(egui::Button::new(label).selected(period == value))
+                    .clicked()
+                {
+                    period = value;
+                    ui.data_mut(|d| d.insert_temp(period_id, value));
+                    limits::show_last(ui.ctx(), days * 86_400.0);
+                }
+            }
+        }
     });
     let height = ((ui.available_height() - 20.0) / 2.0).max(90.0);
-    let prices = merge::merge(history, |s| Some(s.price? as f64 / 10_000.0));
-    let quantities = merge::merge(history, |s| Some(s.quantity? as f64));
+    let prices = merge::series(history, period, |s| Some(s.price? as f64 / 10_000.0));
+    let quantities = merge::series(history, period, |s| Some(s.quantity? as f64));
     let limits = limits::Limits::of(prices.iter().chain(&quantities));
     let plot = |id: &'static str, y_axis_money: bool| {
         let mut plot = Plot::new(id)
@@ -147,6 +176,7 @@ fn origin_label(origin: Origin) -> &'static str {
         Origin::Auctionator => "Auctionator",
         Origin::ForeverGuide => "Forever Guide",
         Origin::Average => "Moyenne Auctionator + Forever Guide",
+        Origin::Period => "Moyenne de la période",
     }
 }
 

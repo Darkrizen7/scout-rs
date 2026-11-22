@@ -72,7 +72,22 @@ pub fn show(ui: &mut egui::Ui, state: &mut State) {
         {
             state.view = View::List;
         }
-        ui.label(egui::RichText::new(title(state)).heading());
+        let heading = egui::RichText::new(title(state)).heading();
+        match state.selected.filter(|_| state.view == View::Chart) {
+            // On a chart, the name leads to the item's sheet.
+            Some(item_id) => {
+                let link = ui
+                    .add(egui::Label::new(heading).sense(egui::Sense::click()))
+                    .on_hover_text("Ouvrir la fiche de l'objet")
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                if link.clicked() {
+                    state.show_item(item_id);
+                }
+            }
+            None => {
+                ui.label(heading);
+            }
+        }
     });
 }
 

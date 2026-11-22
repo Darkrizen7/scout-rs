@@ -111,8 +111,13 @@ impl eframe::App for App {
                     .frame(bar(palette.view))
                     .show_separator_line(false)
                     .show(ui, |ui| header::show(ui, state));
+                // Less space under the header than in the other modules.
+                let market = content.inner_margin(egui::Margin {
+                    top: 4,
+                    ..egui::Margin::same(14)
+                });
                 egui::CentralPanel::default()
-                    .frame(content)
+                    .frame(market)
                     .show(ui, |ui| match state.view {
                         View::List => list.show(ui, state, worker),
                         View::Chart => chart::show(ui, state, worker),

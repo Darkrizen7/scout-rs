@@ -102,7 +102,11 @@ impl Limits {
             }
             if let (true, Some((_, hi))) = (reset, self.time) {
                 // Same time scale, right edge on the last data day.
-                let width = (next[0].1 - next[0].0).min(allowed[0].1 - allowed[0].0);
+                let wanted =
+                    ctx.data(|d| d.get_temp::<f64>(egui::Id::NULL.with("scout-prix/chart-width")));
+                let width = wanted
+                    .unwrap_or(next[0].1 - next[0].0)
+                    .min(allowed[0].1 - allowed[0].0);
                 next[0] = (hi - width, hi);
                 active[0] = true;
             }
@@ -176,6 +180,17 @@ pub enum Role {
 
 /// Asks the plots to show the end of the curve: same time scale, value scale zoomed out if needed.
 pub fn show_all(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove_temp::<f64>(egui::Id::NULL.with("scout-prix/chart-width")));
+    request_end(ctx);
+}
+
+/// Like `show_all`, but with a time window of `seconds` ending on the last data day.
+pub fn show_last(ctx: &egui::Context, seconds: f64) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::NULL.with("scout-prix/chart-width"), seconds));
+    request_end(ctx);
+}
+
+fn request_end(ctx: &egui::Context) {
     let pass = ctx.cumulative_pass_nr();
     ctx.data_mut(|d| d.insert_temp(egui::Id::NULL.with("scout-prix/chart-end"), pass));
     ctx.request_repaint();

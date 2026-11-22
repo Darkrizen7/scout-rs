@@ -206,3 +206,11 @@ pub fn skinning_icon(ui: &mut egui::Ui, palette: &theme::Palette) -> egui::Respo
     );
     response
 }
+
+/// Thin vertical line as tall as a button (`ui.separator()` would take the whole available height).
+pub fn vertical_separator(ui: &mut egui::Ui) {
+    let size = egui::vec2(9.0, ui.spacing().interact_size.y);
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+    ui.painter().vline(rect.center().x, rect.y_range(), stroke);
+}
