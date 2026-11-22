@@ -1,5 +1,7 @@
 //! Price and quantity over time for the selected item (two plots sharing the time axis).
 
+mod money_axis;
+
 use eframe::egui;
 use egui_plot::{GridMark, Line, Plot, PlotResponse, Points};
 
@@ -9,7 +11,6 @@ use crate::ui::theme;
 use crate::ui::widgets::star_button;
 use scout_core::Snapshot;
 use scout_core::merge::{self, Origin, Point};
-use scout_core::money;
 use scout_core::time::{self, format_datetime};
 use scout_worker::WorkerHandle;
 
@@ -55,7 +56,7 @@ pub fn show(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
 pub fn plots(ui: &mut egui::Ui, history: &[Snapshot]) {
     let color = theme::current(ui).series[0];
     let link = egui::Id::unique("scout-prix/time-axis");
-    let height = (ui.available_height() - 20.0) / 2.0;
+    let height = ((ui.available_height() - 20.0) / 2.0).max(90.0);
     let prices = merge::merge(history, |s| Some(s.price? as f64 / 10_000.0));
     let quantities = merge::merge(history, |s| Some(s.quantity? as f64));
     let plot = |id: &'static str, y_axis_money: bool| {
@@ -69,14 +70,18 @@ pub fn plots(ui: &mut egui::Ui, history: &[Snapshot]) {
             .label_formatter(|_| None)
             .include_y(0.0);
         if y_axis_money {
-            plot.y_axis_formatter(|mark, _| money::format((mark.value * 10_000.0).round() as i64))
+            // Labels and grid are drawn by `money_axis`, with coins.
+            plot.show_grid([false, false])
+                .y_axis_min_width(money_axis::WIDTH)
+                .y_axis_formatter(|_, _| String::new())
         } else {
-            plot
+            plot.y_axis_min_width(money_axis::WIDTH)
         }
     };
     let response = plot("price", true)
         .height(height * 1.3)
         .show(ui, |plot| add_series(plot, &prices, color));
+    money_axis::draw(ui, &response);
     hover_tooltip(ui, &response, &prices, Unit::Money);
     let response = plot("quantity", false)
         .height(height * 0.7)
