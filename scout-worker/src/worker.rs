@@ -104,6 +104,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     }
     let config = Config::load();
     send(Event::Config(config.clone()));
+    send(Event::ScoutAddon(scout_addon(&config)));
 
     let db = match runtime.block_on(open_db()) {
         Ok(db) => db,
@@ -147,6 +148,11 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
             (shared.send)(Event::Error(format!("{e:#}")));
         }
     }
+}
+
+/// Whether the Scout addon is in the configured WoW folder (false without one).
+fn scout_addon(config: &Config) -> bool {
+    config.wow_dir().is_ok_and(wow::scout_addon_installed)
 }
 
 fn handle(command: Command, shared: &Shared) -> Result<()> {
@@ -206,8 +212,10 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             let mut config = shared.config();
             config.wow_dir = Some(dir);
             send(Event::Config(config.clone()));
+            send(Event::ScoutAddon(scout_addon(&config)));
             config.save()?;
         }
+        Command::CheckScoutAddon => send(Event::ScoutAddon(scout_addon(&shared.config()))),
         Command::SetTheme(theme) => {
             let mut config = shared.config();
             config.theme = theme;

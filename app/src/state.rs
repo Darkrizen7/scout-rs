@@ -97,6 +97,8 @@ pub struct State {
     pub open_recipe: Option<usize>,
     /// Newest Forever build on wago.tools (checked at start), or the error.
     pub latest_build: Option<Result<String, String>>,
+    /// Whether the Scout addon is in the WoW folder (None until the worker has looked).
+    pub scout_addon: Option<bool>,
     /// Items merchants really sell: prices and NPCs.
     pub vendor: Arc<VendorData>,
 }
@@ -133,6 +135,7 @@ impl Default for State {
             game: Arc::default(),
             vendor: Arc::default(),
             latest_build: None,
+            scout_addon: None,
             open_item: None,
             open_recipe: None,
         }

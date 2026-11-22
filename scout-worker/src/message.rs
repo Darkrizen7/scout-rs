@@ -31,6 +31,8 @@ pub enum Command {
     /// Downloads the newest Forever client tables (unless already stored).
     UpdateGameData,
     SetWowDir(PathBuf),
+    /// Is the Scout addon in the WoW folder? (answered by `Event::ScoutAddon`)
+    CheckScoutAddon,
     SetTheme(Theme),
     SetHideObsolete(bool),
 }
@@ -66,6 +68,8 @@ pub enum Event {
     GameData(Arc<GameData>),
     /// Newest Forever build on wago.tools, or why it could not be checked.
     LatestBuild(Result<String, String>),
+    /// Whether the Scout addon is installed in the WoW folder.
+    ScoutAddon(bool),
     /// Merchant prices and which NPCs sell what.
     Vendor(Arc<VendorData>),
 }

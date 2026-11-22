@@ -16,11 +16,14 @@ pub struct Settings {
     wow_dir: String,
     /// "Sources des données" window.
     credits: bool,
+    /// Ask the worker again whether the Scout addon is installed (it may have been since the start).
+    check_addon: bool,
 }
 
 impl Settings {
     pub fn open(&mut self, state: &State) {
         self.open = true;
+        self.check_addon = true;
         self.wow_dir = state
             .config
             .as_ref()
@@ -30,6 +33,9 @@ impl Settings {
     }
 
     pub fn window(&mut self, ctx: &egui::Context, state: &mut State, worker: &WorkerHandle) {
+        if std::mem::take(&mut self.check_addon) {
+            worker.send(Command::CheckScoutAddon);
+        }
         let mut open = self.open;
         egui::Window::new("Réglages")
             .open(&mut open)
@@ -124,13 +130,25 @@ fn appearance(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
 }
 
 fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
+    let missing = state.scout_addon == Some(false);
     ui.horizontal(|ui| {
+        let palette = theme::current(ui);
+        let label = "⟳ Importer depuis Scout";
+        let button = if missing {
+            egui::Button::new(egui::RichText::new(label).color(egui::Color32::WHITE)).fill(palette.loss)
+        } else {
+            egui::Button::new(label)
+        };
+        let hint = if missing {
+            "⚠ Addon Scout introuvable dans Interface/AddOns du dossier WoW (réglage « WoW » plus bas) : \
+             l'import échouera. Installe l'addon, puis rouvre les réglages."
+        } else {
+            "Prix, noms, marchands et butin enregistrés par Scout. Après chaque scan : /reload en jeu, \
+             puis importer. Les relevés déjà là sont ignorés."
+        };
         let import = ui
-            .add_enabled(!state.busy(Task::Import), egui::Button::new("⟳ Importer depuis Scout"))
-            .on_hover_text(
-                "Prix, noms, marchands et butin enregistrés par Scout. Après chaque scan : /reload en jeu, \
-                 puis importer. Les relevés déjà là sont ignorés.",
-            );
+            .add_enabled(!state.busy(Task::Import), button)
+            .on_hover_text(hint);
         if import.clicked() {
             worker.send(Command::Import);
         }
@@ -140,6 +158,13 @@ fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
             None => ui.weak("Jamais importé"),
         };
     });
+    if missing {
+        let palette = theme::current(ui);
+        ui.colored_label(
+            palette.loss,
+            "⚠ Addon Scout introuvable dans le dossier WoW",
+        );
+    }
     let legacy = ui
         .add_enabled(
             !state.busy(Task::ImportLegacy),

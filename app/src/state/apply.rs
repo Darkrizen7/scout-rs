@@ -62,6 +62,7 @@ impl State {
             Event::GameData(game) => self.game = game,
             Event::Vendor(vendor) => self.vendor = vendor,
             Event::LatestBuild(build) => self.latest_build = Some(build),
+            Event::ScoutAddon(installed) => self.scout_addon = Some(installed),
             Event::ZoneFavorites(zones) => self.zone_favorites = zones.into_iter().collect(),
             Event::Favorites(favorites) => {
                 let favorites: HashSet<i64> = favorites.into_iter().collect();

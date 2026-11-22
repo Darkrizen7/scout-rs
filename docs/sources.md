@@ -1,6 +1,7 @@
 # Sources
 
-- **Scout** : `lua <wow_dir>/Interface/AddOns/Scout/tools/export.lua <Scout.lua>` (historique) et `… --names`
+- **Scout** : addon détecté par `Interface/AddOns/Scout/Scout.toc` (sinon bouton d'import rouge dans Réglages,
+  vérifié au démarrage, à l'ouverture des Réglages et quand le dossier WoW change). `lua <wow_dir>/Interface/AddOns/Scout/tools/export.lua <Scout.lua>` (historique) et `… --names`
   (noms + catégories). Format CSV = **contrat avec l'addon** : le changer des deux côtés (`scout-sources/src/import.rs`).
   Rappeler `/reload` en jeu avant d'importer (le jeu n'écrit le fichier qu'à ce moment).
 - **Auctionator / Forever Guide** (import ponctuel) : `scout-sources/lua/legacy_export.lua`, intégré (`include_str!`), passé à
