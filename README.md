@@ -1,7 +1,7 @@
 # scout-rs
 
 Outil de bureau (Rust, egui) pour étudier l'historique des prix de l'HdV relevé par l'addon
-[Scout](https://github.com/Darkrizen7/Scout) sur WoW Forever.
+[Scout](https://github.com/Darkrizen7/scout-addon) sur WoW Forever.
 
 - **Import Scout** : lance `lua Interface/AddOns/Scout/tools/export.lua` sur le `SavedVariables/Scout.lua`
   le plus récent et ajoute les nouveaux relevés à une base SQLite (sqlx). La base garde tout, même ce que

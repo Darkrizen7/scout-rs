@@ -1,6 +1,6 @@
 # scout-rs (Rust)
 
-Outil de bureau compagnon de l'addon [Scout](../Scout) (voir son `CLAUDE.md`) pour **WoW Forever** : prix de
+Outil de bureau compagnon de l'addon [Scout](../scout-addon) (voir son `CLAUDE.md`) pour **WoW Forever** : prix de
 l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 2024, egui / eframe 0.37
 (backend `glow`), SQLite via sqlx 0.9, HTTP via ureq 3. Dépôt privé `github.com/Darkrizen7/scout-rs`.
 
