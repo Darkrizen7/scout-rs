@@ -23,6 +23,8 @@ pub struct Loot {
     search: String,
     /// Side bar folders opened (all folded by default).
     opened: std::collections::HashSet<sidebar::Folder>,
+    /// Zones matching the search, sorted, with what each row needs (rebuilt when they change).
+    listed: sidebar::Listed,
     /// Chosen zones, in the order they were added.
     zones: Vec<String>,
     /// Their monsters together, and the zone data it was made from.
@@ -61,7 +63,7 @@ impl Loot {
                     .fill(palette.sidebar)
                     .inner_margin(egui::Margin::symmetric(8, 10)),
             )
-            .show(ui, |ui| self.sidebar(ui, zones.as_deref(), state, worker));
+            .show(ui, |ui| self.sidebar(ui, zones.as_ref(), state, worker));
         let game = Arc::clone(&state.game);
         if self.show_map || self.zones.is_empty() {
             let masks = state.map_masks(worker);
