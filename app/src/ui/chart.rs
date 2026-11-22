@@ -1,31 +1,20 @@
 //! Price and quantity over time for the selected item (two plots sharing the time axis).
 
 use eframe::egui;
-use egui_plot::{GridMark, HoverPosition, Legend, Line, Plot, Points};
+use egui_plot::{GridMark, Line, Plot, PlotResponse, Points};
 
 use crate::state::State;
+use crate::ui::coins;
 use crate::ui::theme;
 use crate::ui::widgets::star_button;
-use scout_core::SCOUT;
 use scout_core::Snapshot;
+use scout_core::merge::{self, Origin, Point};
 use scout_core::money;
 use scout_core::time::{self, format_datetime};
 use scout_worker::WorkerHandle;
 
 fn time_axis(mark: GridMark, _range: &std::ops::RangeInclusive<f64>) -> String {
     time::format_axis(mark.value as i64)
-}
-
-/// Hovered point, prefixed by its series name when on a data point.
-fn hovered(pos: &HoverPosition<'_>) -> (String, egui_plot::PlotPoint) {
-    match pos {
-        HoverPosition::NearDataPoint {
-            plot_name,
-            position,
-            ..
-        } => (format!("{plot_name} · "), *position),
-        HoverPosition::Elsewhere { position } => (String::new(), *position),
-    }
 }
 
 pub fn show(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
@@ -70,83 +59,101 @@ pub fn plots(ui: &mut egui::Ui, history: &[Snapshot]) {
         history.len()
     ));
 
-    let colors = theme::current(ui).series;
+    let color = theme::current(ui).series[0];
     let link = egui::Id::unique("scout-prix/time-axis");
     let height = (ui.available_height() - 20.0) / 2.0;
-    Plot::new("price")
+    let prices = merge::merge(history, |s| Some(s.price? as f64 / 10_000.0));
+    let quantities = merge::merge(history, |s| Some(s.quantity? as f64));
+    let plot = |id: &'static str, y_axis_money: bool| {
+        let plot = Plot::new(id)
+            .show_grid([false, true])
+            .grid_spacing(egui::Rangef::new(40.0, 300.0))
+            .link_axis(link, [true, false])
+            .link_cursor(link, [true, false])
+            .x_axis_formatter(time_axis)
+            // The tooltip is drawn by `hover_tooltip`, with coins.
+            .label_formatter(|_| None)
+            .include_y(0.0);
+        if y_axis_money {
+            plot.y_axis_formatter(|mark, _| money::format((mark.value * 10_000.0).round() as i64))
+        } else {
+            plot
+        }
+    };
+    let response = plot("price", true)
         .height(height * 1.3)
-        .show_grid([false, true])
-        .grid_spacing(egui::Rangef::new(40.0, 300.0))
-        .legend(Legend::default())
-        .link_axis(link, [true, false])
-        .link_cursor(link, [true, false])
-        .x_axis_formatter(time_axis)
-        .y_axis_formatter(|mark, _| money::format((mark.value * 10_000.0).round() as i64))
-        .label_formatter(|pos| {
-            let (source, p) = hovered(pos);
-            let price = money::format((p.y * 10_000.0).round() as i64);
-            Some(format!("{source}{}\n{price}", format_datetime(p.x as i64)))
-        })
-        .include_y(0.0)
-        .show(ui, |plot| {
-            for ((source, label), color) in SOURCES.into_iter().zip(colors) {
-                let points = series(history, source, |s| Some(s.price? as f64 / 10_000.0));
-                add_series(plot, label, color, points);
-            }
-        });
-    Plot::new("quantity")
+        .show(ui, |plot| add_series(plot, &prices, color));
+    hover_tooltip(ui, &response, &prices, Unit::Money);
+    let response = plot("quantity", false)
         .height(height * 0.7)
-        .show_grid([false, true])
-        .grid_spacing(egui::Rangef::new(40.0, 300.0))
-        .legend(Legend::default())
-        .link_axis(link, [true, false])
-        .link_cursor(link, [true, false])
-        .x_axis_formatter(time_axis)
-        .label_formatter(|pos| {
-            let (source, p) = hovered(pos);
-            Some(format!(
-                "{source}{}\n{} en vente",
-                format_datetime(p.x as i64),
-                p.y.round()
-            ))
-        })
-        .include_y(0.0)
-        .show(ui, |plot| {
-            for ((source, label), color) in SOURCES.into_iter().zip(colors) {
-                let points = series(history, source, |s| Some(s.quantity? as f64));
-                add_series(plot, label, color, points);
-            }
-        });
+        .show(ui, |plot| add_series(plot, &quantities, color));
+    hover_tooltip(ui, &response, &quantities, Unit::Count);
 }
 
-/// (source in the database, legend label); colors come from the theme palette, same order.
-const SOURCES: [(&str, &str); 3] = [
-    (SCOUT, "Scout"),
-    ("auctionator", "Auctionator"),
-    ("foreverguide", "Forever Guide"),
-];
+#[derive(Clone, Copy)]
+enum Unit {
+    /// Values are in gold (price charts).
+    Money,
+    Count,
+}
 
-fn series(
-    history: &[Snapshot],
-    source: &str,
-    value: impl Fn(&Snapshot) -> Option<f64>,
-) -> Vec<[f64; 2]> {
-    history
+fn origin_label(origin: Origin) -> &'static str {
+    match origin {
+        Origin::Scout => "Scout",
+        Origin::Auctionator => "Auctionator",
+        Origin::ForeverGuide => "Forever Guide",
+        Origin::Average => "Moyenne Auctionator + Forever Guide",
+    }
+}
+
+/// Distance in pixels under which the pointer counts as hovering a point.
+const HOVER_RADIUS: f32 = 12.0;
+
+/// Tooltip on the point nearest to the pointer: source, date, then the value (coins for prices).
+fn hover_tooltip(ui: &egui::Ui, plot: &PlotResponse<()>, points: &[Point], unit: Unit) {
+    let Some(pointer) = plot.response.hover_pos() else {
+        return;
+    };
+    let screen = |p: &Point| {
+        plot.transform
+            .position_from_point(&egui_plot::PlotPoint::new(p.ts as f64, p.value))
+    };
+    let Some(point) = points
         .iter()
-        .filter(|s| s.source == source)
-        .filter_map(|s| Some([s.ts as f64, value(s)?]))
-        .collect()
+        .min_by(|a, b| {
+            let (da, db) = (screen(a).distance(pointer), screen(b).distance(pointer));
+            da.total_cmp(&db)
+        })
+        .filter(|p| screen(p).distance(pointer) <= HOVER_RADIUS)
+    else {
+        return;
+    };
+    egui::Tooltip::always_open(
+        ui.ctx().clone(),
+        plot.response.layer_id,
+        plot.response.id.with("point"),
+        egui::PopupAnchor::Pointer,
+    )
+    .show(|ui| {
+        ui.strong(origin_label(point.origin));
+        ui.weak(format_datetime(point.ts));
+        match unit {
+            Unit::Money => {
+                coins::money(ui, (point.value * 10_000.0).round() as i64, None);
+            }
+            Unit::Count => {
+                ui.label(format!("{} en vente", point.value.round()));
+            }
+        }
+    });
 }
 
-fn add_series(
-    plot: &mut egui_plot::PlotUi<'_>,
-    label: &str,
-    color: egui::Color32,
-    points: Vec<[f64; 2]>,
-) {
+/// One line through all points, with a marker on each.
+fn add_series(plot: &mut egui_plot::PlotUi<'_>, points: &[Point], color: egui::Color32) {
     if points.is_empty() {
         return;
     }
-    plot.line(Line::new(label, points.clone()).color(color));
-    plot.points(Points::new(label, points).color(color).radius(3.0));
+    let line: Vec<[f64; 2]> = points.iter().map(|p| [p.ts as f64, p.value]).collect();
+    plot.line(Line::new("", line.clone()).color(color));
+    plot.points(Points::new("", line).color(color).radius(3.5));
 }
