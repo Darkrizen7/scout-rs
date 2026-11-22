@@ -69,7 +69,8 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 - GNOME/Wayland ne dessine pas les barres de titre : la feature winit `wayland-csd-adwaita` (dépendance directe
   `winit` dans `app/Cargo.toml`, non utilisée dans le code) donne des boutons fermer / réduire au style GNOME.
 - `style.interaction.selectable_labels = false` : sinon le texte des cellules capte les clics des lignes.
-- Axes et bulles des graphiques (egui_plot) : texte seulement (`1g 20s`) ; pièces dessinées partout ailleurs.
+- Axes egui_plot : texte seulement (`1g 20s`), sauf l'axe des prix de `ui/chart`, dessiné à la main avec des pièces
+  (`chart/money_axis.rs`) ; bulles au survol et pièces ailleurs : dessinées.
 - `Panel::show_inside` est déprécié dans egui 0.37 : `Panel::show(ui, …)` sert aussi à l'intérieur d'un `Ui`.
 - OpenMap : images de Blizzard, lues dans le dossier AddOns, jamais copiées dans le dépôt.
 

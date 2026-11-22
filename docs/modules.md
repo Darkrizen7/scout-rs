@@ -29,7 +29,7 @@
 
 ## Fichiers de l'UI (`app/src/ui/`)
 `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
-icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
+icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet ; `chart/money_axis` : axe des prix avec pièces), `analysis_view` (+ `charts`),
 `calculator`, `credits` (fenêtre « Sources des données »), `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`),
 `loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/{results,detail}`), `widgets` (étoile de favori,
 couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chance et chance réelle : partagés),
