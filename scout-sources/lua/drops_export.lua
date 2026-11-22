@@ -6,7 +6,7 @@
 --   source_id  : NPC, world object (chest, vein…), container item or quest; 0 = "and `more` others" row
 --   chance     : percent per kill / opening, empty when unknown (Questie / Forever lists, containers, quests)
 --   quest_only : 1 when it only drops while the quest is active
--- npcs    : npc_id,name,min_level,max_level,rank,zone,x,y,dungeon   (NPCs used by `sources` only)
+-- npcs    : npc_id,name,min_level,max_level,rank,zone,x,y,dungeon,ui_map   (NPCs used by `sources` only)
 -- names   : kind,id,name   (kind object | quest)
 -- Names in French (Forever Guide's DataFrFR.lua, from QuestieDB), English otherwise.
 local dir, mode = arg[1], arg[2]
@@ -146,7 +146,7 @@ elseif mode == "npcs" then
             if NPC_KINDS[s.kind] then used[s.id] = true end
         end
     end
-    io.write("npc_id,name,min_level,max_level,rank,zone,x,y,dungeon\n")
+    io.write("npc_id,name,min_level,max_level,rank,zone,x,y,dungeon,ui_map\n")
     for _, npc in ipairs(sortedKeys(used)) do
         local s = ns.SI_NPC and ns.SI_NPC[npc]
         local boss = bosses[npc]
@@ -158,12 +158,12 @@ elseif mode == "npcs" then
             if not dungeon and boss and ns.DungeonName then dungeon = ns.DungeonName({ key = boss.dungeon }) end
             io.write(table.concat({ npc, field(name("n", npc, f[2], f[1])), field(tonumber(f[3])),
                 field(tonumber(f[4])), field(tonumber(f[5])), field(zone), field(tonumber(f[7])),
-                field(tonumber(f[8])), field(dungeon ~= "" and dungeon or nil) }, ","), "\n")
+                field(tonumber(f[8])), field(dungeon ~= "" and dungeon or nil), field(map ~= 0 and map or nil) }, ","), "\n")
             rows = rows + 1
         elseif boss then
             local dungeon = ns.DungeonName and ns.DungeonName({ key = boss.dungeon }) or nil
             io.write(table.concat({ npc, field(name("n", npc, boss.name, "")), field(boss.level),
-                field(boss.level), "1", "", "", "", field(dungeon ~= "" and dungeon or nil) }, ","), "\n")
+                field(boss.level), "1", "", "", "", field(dungeon ~= "" and dungeon or nil), "" }, ","), "\n")
             rows = rows + 1
         end
     end

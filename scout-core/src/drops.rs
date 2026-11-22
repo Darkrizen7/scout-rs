@@ -66,6 +66,9 @@ pub struct DropNpc {
     pub x: Option<f64>,
     pub y: Option<f64>,
     pub dungeon: Option<String>,
+    /// Map (UiMap id) of its zone, the one `x` and `y` are on.
+    #[serde(default)]
+    pub ui_map: Option<i64>,
 }
 
 /// The user's own results for a source: `drops` corpses out of `total` gave the item.
@@ -165,6 +168,7 @@ impl ItemDrops {
                     x: row.x,
                     y: row.y,
                     dungeon: row.dungeon,
+                    ui_map: None,
                 }),
             });
         }
@@ -221,6 +225,11 @@ impl ItemDrops {
 }
 
 impl DropNpc {
+    /// Neither elite, rare nor boss (unknown rank counts as normal).
+    pub fn is_normal(&self) -> bool {
+        matches!(self.rank, None | Some(0))
+    }
+
     /// "24", "24-25", with "élite" / "rare" / "boss".
     pub fn levels(&self) -> String {
         let mut text = match (self.min_level, self.max_level) {
@@ -279,7 +288,9 @@ mod sort;
 mod zone;
 pub use records::{BaseRow, DropName, DropSource, DropsExport, ObservedLoot, ObservedRow};
 pub use sort::{DropColumn, compare};
-pub use zone::{NpcDrop, Zone, ZoneDropRow, ZoneLoot, ZoneNpc, ZoneNpcRow, ZoneObservedRow};
+pub use zone::{
+    NpcDrop, Zone, ZoneDropRow, ZoneLoot, ZoneNpc, ZoneNpcLevel, ZoneNpcRow, ZoneObservedRow, zones,
+};
 
 #[cfg(test)]
 mod tests;

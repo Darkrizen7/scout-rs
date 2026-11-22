@@ -1,5 +1,7 @@
 //! Game reference data in SQLite, replaced as a whole at each update, with the Forever build it comes from.
 
+pub(crate) mod maps;
+
 use std::collections::HashMap;
 
 use anyhow::Result;
@@ -200,6 +202,7 @@ impl Db {
                     .await?;
             }
         }
+        maps::save(&mut tx, &data.maps).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -295,6 +298,7 @@ impl Db {
                     name,
                 })
                 .collect(),
+            maps: self.load_maps().await?,
         };
         let mut game = GameData::new(
             meta.get("build").cloned().unwrap_or_default(),

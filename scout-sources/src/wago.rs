@@ -9,8 +9,8 @@ use serde::Deserialize;
 
 pub use assemble::assemble;
 
-/// Client tables the Recipes module needs.
-pub const TABLES: [&str; 11] = [
+/// Client tables the Objects, Recipes and Loot modules need.
+pub const TABLES: [&str; 13] = [
     "ItemClass",
     "ItemSubClass",
     "ItemSparse",
@@ -22,6 +22,8 @@ pub const TABLES: [&str; 11] = [
     "SpellReagents",
     "SkillLineAbility",
     "SkillLine",
+    "UiMap",
+    "UiMapAssignment",
 ];
 
 /// WoW Forever's product on wago.tools.

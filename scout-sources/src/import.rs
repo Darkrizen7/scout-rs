@@ -18,7 +18,7 @@ const VENDOR_EXPORT: &str = include_str!("../lua/vendor_export.lua");
 const DROPS_EXPORT: &str = include_str!("../lua/drops_export.lua");
 
 /// Bumped when `drops_export.lua` changes, so the drops are imported again.
-pub const DROPS_FORMAT: u32 = 1;
+pub const DROPS_FORMAT: u32 = 2;
 
 /// Scout's history: `lua <AddOns/Scout/tools/export.lua> <Scout.lua>`.
 pub fn run_scout_export(script: &Path, saved_variables: &Path) -> Result<Vec<Row>> {

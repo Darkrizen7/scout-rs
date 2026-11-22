@@ -3,6 +3,7 @@
 pub mod analysis;
 pub mod drops;
 pub mod gamedata;
+pub mod map;
 pub mod money;
 pub mod pricing;
 pub mod time;

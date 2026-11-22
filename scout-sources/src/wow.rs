@@ -21,6 +21,12 @@ pub fn guide_vendor_prices(wow_dir: &Path) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
+/// OpenMap's zone shapes (`MapTerritory` masks), if the addon is installed.
+pub fn open_map_masks(wow_dir: &Path) -> Option<PathBuf> {
+    let dir = wow_dir.join("Interface/AddOns/OpenMap/Media/Textures/Forever/MapTerritory");
+    dir.is_dir().then_some(dir)
+}
+
 /// Forever Guide's folder, when that addon is installed (its item sources are the reference for drops).
 pub fn forever_guide(wow_dir: &Path) -> Option<PathBuf> {
     let path = wow_dir.join("Interface/AddOns/ForeverGuide");

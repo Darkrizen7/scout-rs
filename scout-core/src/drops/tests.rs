@@ -114,11 +114,13 @@ fn levels_and_place() {
         ..DropNpc::default()
     };
     assert_eq!(npc.levels(), "24-25");
+    assert!(npc.is_normal());
     assert_eq!(npc.place(), "Bois de la Pénombre (25.1, 38.2)");
     npc.max_level = Some(24);
     npc.rank = Some(1);
     npc.dungeon = Some("Les Mortemines".into());
     assert_eq!(npc.levels(), "24 élite");
+    assert!(!npc.is_normal());
     assert_eq!(npc.place(), "Les Mortemines");
 }
 
@@ -170,6 +172,7 @@ fn zone_merges_monsters_and_estimates_value() {
         x: None,
         y: None,
         dungeon: None,
+        ui_map: Some(1413),
         kills: Some(kills),
         skins: Some(0),
     };
@@ -223,4 +226,25 @@ fn zone_merges_monsters_and_estimates_value() {
     };
     assert_eq!(zhevra.value_per_kill(price), Some(5.0));
     assert_eq!(zone.npcs[0].value_per_kill(price), None);
+}
+
+#[test]
+fn sums_up_zones_with_usual_levels() {
+    let row = |zone: &str, level, kills| ZoneNpcLevel {
+        zone: zone.into(),
+        dungeon: false,
+        ui_map: Some(1431),
+        level: Some(level),
+        kills,
+    };
+    let mut rows: Vec<ZoneNpcLevel> = (20..=30).map(|l| row("Bois", l, None)).collect();
+    rows.push(row("Bois", 1, Some(4)));
+    rows.push(row("Bois", 62, Some(6)));
+    rows.push(row("Azshara", 50, None));
+    let zones = zones(rows);
+    assert_eq!(zones[0].name, "Azshara");
+    let bois = &zones[1];
+    assert_eq!((bois.npcs, bois.kills, bois.ui_map), (13, 10, Some(1431)));
+    // The level 1 critter and the level 62 guard are left out.
+    assert_eq!((bois.min_level, bois.max_level), (Some(20), Some(30)));
 }

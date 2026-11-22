@@ -6,6 +6,7 @@ use std::sync::Arc;
 use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
+use scout_core::map::Mask;
 use scout_core::pricing::{self, Source};
 use scout_core::{ItemSummary, Snapshot, VendorData};
 use scout_worker::Config;
@@ -71,6 +72,9 @@ pub struct State {
     /// Monsters of the zone open in the Loot module, and the zone asked for (None once answered).
     zone_loot: Option<Arc<ZoneLoot>>,
     zone_asked: Option<String>,
+    /// Zone shapes for the map (UiMap id → mask), and whether they were asked for.
+    masks: Option<Arc<HashMap<i64, Mask>>>,
+    masks_asked: bool,
     /// Latest analysis and the items revision it was asked for.
     pub analysis: Option<Analysis>,
     pub analysis_for: Option<u64>,
@@ -108,6 +112,8 @@ impl Default for State {
             zones_asked: false,
             zone_loot: None,
             zone_asked: None,
+            masks: None,
+            masks_asked: false,
             analysis: None,
             analysis_for: None,
             favorites: HashSet::new(),
@@ -156,6 +162,7 @@ impl State {
                 self.zone_loot = Some(Arc::from(loot));
                 self.zone_asked = None;
             }
+            Event::MapMasks(masks) => self.masks = Some(masks),
             Event::Analysis(analysis) => self.analysis = Some(*analysis),
             Event::GameData(game) => self.game = game,
             Event::Vendor(vendor) => self.vendor = vendor,
@@ -254,6 +261,15 @@ impl State {
             worker.send(Command::LoadZone(zone.to_owned()));
         }
         self.zone_loot.clone().filter(|z| z.zone == zone)
+    }
+
+    /// Zone shapes once loaded (empty without OpenMap); asks the worker for them (once) otherwise.
+    pub fn map_masks(&mut self, worker: &WorkerHandle) -> Option<Arc<HashMap<i64, Mask>>> {
+        if self.masks.is_none() && !self.masks_asked {
+            self.masks_asked = true;
+            worker.send(Command::LoadMapMasks);
+        }
+        self.masks.clone()
     }
 
     /// Switches to the Objects module on this item's sheet.

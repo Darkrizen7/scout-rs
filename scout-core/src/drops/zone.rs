@@ -4,16 +4,68 @@
 use super::{DropKind, DropNpc, Observed, TRUSTED_KILLS};
 
 /// A zone or dungeon with monsters whose loot is known.
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Zone {
     pub name: String,
     pub dungeon: bool,
     pub npcs: i64,
+    /// Map (UiMap id) of the zone, None for a dungeon or a zone only Scout knows.
+    pub ui_map: Option<i64>,
+    /// Usual monster levels: 10th and 90th percentiles (a few odd NPCs, like a level 1 critter or a
+    /// level 62 guard, would stretch a plain min / max).
     pub min_level: Option<i64>,
     pub max_level: Option<i64>,
     /// Corpses of this zone looted by the user (Scout).
     pub kills: i64,
+}
+
+/// A monster and its zone, as the database returns it, to sum up the zones.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
+pub struct ZoneNpcLevel {
+    pub zone: String,
+    pub dungeon: bool,
+    pub ui_map: Option<i64>,
+    pub level: Option<i64>,
+    pub kills: Option<i64>,
+}
+
+/// One entry per zone name, sorted by name.
+pub fn zones(rows: Vec<ZoneNpcLevel>) -> Vec<Zone> {
+    let mut by_name: std::collections::BTreeMap<String, (Zone, Vec<i64>)> = Default::default();
+    for r in rows {
+        let (zone, levels) = by_name.entry(r.zone.clone()).or_insert_with(|| {
+            let zone = Zone {
+                name: r.zone,
+                dungeon: false,
+                npcs: 0,
+                ui_map: None,
+                min_level: None,
+                max_level: None,
+                kills: 0,
+            };
+            (zone, Vec::new())
+        });
+        zone.dungeon |= r.dungeon;
+        zone.npcs += 1;
+        zone.ui_map = zone.ui_map.max(r.ui_map);
+        zone.kills += r.kills.unwrap_or(0);
+        levels.extend(r.level);
+    }
+    let mut zones: Vec<Zone> = by_name
+        .into_values()
+        .map(|(mut zone, mut levels)| {
+            levels.sort_unstable();
+            let rank = |p: f64| levels.get(((levels.len() - 1) as f64 * p).round() as usize);
+            if !levels.is_empty() {
+                zone.min_level = rank(0.1).copied();
+                zone.max_level = rank(0.9).copied();
+            }
+            zone
+        })
+        .collect();
+    zones.sort_by_key(|z| z.name.to_lowercase());
+    zones
 }
 
 /// A monster of the zone, as the database returns it.
@@ -29,6 +81,7 @@ pub struct ZoneNpcRow {
     pub x: Option<f64>,
     pub y: Option<f64>,
     pub dungeon: Option<String>,
+    pub ui_map: Option<i64>,
     pub kills: Option<i64>,
     pub skins: Option<i64>,
 }
@@ -151,6 +204,7 @@ impl ZoneLoot {
                     x: r.x,
                     y: r.y,
                     dungeon: r.dungeon,
+                    ui_map: r.ui_map,
                 },
             })
             .collect();

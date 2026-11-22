@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS drop_npcs (
     zone      TEXT,
     x         REAL,
     y         REAL,
-    dungeon   TEXT
+    dungeon   TEXT,
+    ui_map    INTEGER  -- map of its zone (UiMap id)
 );
 CREATE TABLE IF NOT EXISTS drop_names (
     kind TEXT    NOT NULL,  -- object, quest
@@ -78,6 +79,20 @@ FROM loot_observed o JOIN loot_npcs n ON n.npc_id = o.npc_id
 WHERE o.item_id = ?";
 
 impl Db {
+    /// Adds `drop_npcs.ui_map` to databases made before it (filled by the next import: `DROPS_FORMAT` 2).
+    pub(super) async fn migrate_drops(pool: &sqlx::SqlitePool) -> Result<()> {
+        let columns: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM pragma_table_info('drop_npcs')")
+                .fetch_all(pool)
+                .await?;
+        if !columns.iter().any(|(c,)| c == "ui_map") {
+            sqlx::raw_sql("ALTER TABLE drop_npcs ADD COLUMN ui_map INTEGER")
+                .execute(pool)
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Fingerprint of the Forever Guide files the stored drops come from.
     pub async fn drops_fingerprint(&self) -> Result<Option<String>> {
         let row: Option<(String,)> =
@@ -113,8 +128,8 @@ impl Db {
         }
         for n in &export.npcs {
             sqlx::query(
-                "INSERT OR REPLACE INTO drop_npcs (npc_id, name, min_level, max_level, rank, zone, x, y, dungeon)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO drop_npcs (npc_id, name, min_level, max_level, rank, zone, x, y, dungeon, ui_map)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(n.npc_id)
             .bind(&n.name)
@@ -125,6 +140,7 @@ impl Db {
             .bind(n.x)
             .bind(n.y)
             .bind(&n.dungeon)
+            .bind(n.ui_map)
             .execute(&mut *tx)
             .await?;
         }

@@ -1,11 +1,13 @@
 //! What the UI asks (`Command`) and what the worker answers (`Event`).
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
+use scout_core::map::Mask;
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
 
 use crate::Config;
@@ -21,6 +23,8 @@ pub enum Command {
     LoadZones,
     /// The monsters of a zone and their loot.
     LoadZone(String),
+    /// Zone shapes for the map (OpenMap's masks; none without it).
+    LoadMapMasks,
     Analyze,
     SetFavorite(i64, bool),
     /// Downloads the newest Forever client tables (unless already stored).
@@ -39,6 +43,8 @@ pub enum Event {
     Drops(i64, Box<ItemDrops>),
     Zones(Vec<Zone>),
     ZoneLoot(Box<ZoneLoot>),
+    /// UiMap id → shape of the zone.
+    MapMasks(Arc<HashMap<i64, Mask>>),
     Analysis(Box<Analysis>),
     Favorites(Vec<i64>),
     GameData(Arc<GameData>),

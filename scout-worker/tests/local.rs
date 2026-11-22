@@ -116,6 +116,16 @@ async fn downloads_assembles_and_stores_latest_build() -> Result<()> {
         (loaded.recipes.len(), loaded.items.len()),
         (game.recipes.len(), game.items.len())
     );
+    assert_eq!(loaded.maps, game.maps);
+    for continent in [1415, 1414] {
+        let zones = scout_core::map::zones_of(&loaded.maps, continent);
+        let names: Vec<&str> = zones.iter().map(|m| m.name.as_str()).collect();
+        println!(
+            "carte {continent} : {} zones : {}",
+            zones.len(),
+            names.join(", ")
+        );
+    }
     println!(
         "Forever {build}: {} recettes, {} objets, {} métiers",
         loaded.recipes.len(),
@@ -229,5 +239,25 @@ async fn lists_zone_loot() -> Result<()> {
     }
     assert!(loot.npcs.len() > 100);
     std::fs::remove_file(&path)?;
+    Ok(())
+}
+
+/// OpenMap's zone shapes from the local install.
+#[test]
+#[ignore = "reads the local WoW install"]
+fn reads_open_map_masks() -> Result<()> {
+    let config = Config::load();
+    let dir = wow::open_map_masks(config.wow_dir()?).expect("OpenMap installé");
+    let started = std::time::Instant::now();
+    let masks = sources::zone_masks(&dir)?;
+    println!("{} masks in {:?}", masks.len(), started.elapsed());
+    let duskwood = &masks[&1431];
+    println!(
+        "1431: {}x{}, center {:?}",
+        duskwood.width,
+        duskwood.height,
+        duskwood.center()
+    );
+    assert!(masks.len() > 40);
     Ok(())
 }

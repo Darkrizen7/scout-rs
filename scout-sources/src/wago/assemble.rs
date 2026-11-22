@@ -2,6 +2,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+mod maps;
+
 use anyhow::{Context, Result};
 use csv::StringRecord;
 
@@ -317,17 +319,27 @@ pub fn assemble(tables: &HashMap<&str, Vec<u8>>) -> Result<Tables> {
             }),
     );
 
+    let maps = maps::maps(&table("UiMap")?, &table("UiMapAssignment")?)?;
+
     Ok(Tables {
         items,
         professions,
         recipes: recipes.into_values().collect(),
         categories,
+        maps,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn kingdoms_place(maps: &[scout_core::map::GameMap]) -> scout_core::map::Frac {
+        maps[0].place(&scout_core::map::GameMap {
+            y_max: 0.0,
+            ..maps[1].clone()
+        })
+    }
 
     /// A tiny Forever: linen cloth → bolt (tailoring, through a child skill line), and a pattern for boots.
     fn tables() -> HashMap<&'static str, Vec<u8>> {
@@ -384,6 +396,18 @@ mod tests {
             "SkillLine",
             "ID,DisplayName_lang,ParentSkillLineID\n197,Couture,0\n2948,Couture,197\n26,Armes,0\n",
         );
+        put(
+            "UiMap",
+            "Name_lang,ID,ParentUiMapID,Type\nAzeroth,947,0,1\nRoyaumes de l'est,1415,947,2\n\
+             Bois de la Pénombre,1431,1415,3\n",
+        );
+        put(
+            "UiMapAssignment",
+            "UiMin_0,UiMin_1,UiMax_0,UiMax_1,Region_0,Region_1,Region_2,Region_3,Region_4,Region_5,UiMapID\n\
+             0.55,0.09,0.89,0.86,-16000,-7466,-1000000,6933,8000,1000000,947\n\
+             0,0,1,1,-16000,-1000,-1000000,8000,1000,1000000,1415\n\
+             0,0,1,1,-11516.5,-1866.75,-1000000,-9716.5,833.25,1000000,1431\n",
+        );
         t
     }
 
@@ -394,7 +418,13 @@ mod tests {
             professions,
             recipes,
             categories,
+            maps,
         } = assemble(&tables()).unwrap();
+        // Continent and zone kept, world map left out (it has two partial assignments).
+        assert_eq!(maps.len(), 2);
+        assert_eq!(maps[1].name, "Bois de la Pénombre");
+        assert_eq!((maps[1].x_min, maps[1].y_max), (-11516.5, 833.25));
+        assert_eq!(kingdoms_place(&maps).left, 0.5);
         assert_eq!(categories.len(), 3);
         assert_eq!(
             categories[2].name, "Tissu",

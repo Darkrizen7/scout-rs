@@ -28,7 +28,9 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   à onglets : Market (prix et graphique), Recettes (produit par, utilisé dans, enseigne), PNJ (où l'acheter),
   Butin (monstres, dépeçage, vol à la tire, coffres, conteneurs, quêtes : chance de Forever Guide et chance
   réelle enregistrée par Scout, avec intervalle à 95 %).
-- **Butin** : par zone de la carte. Barre latérale des zones puis des donjons et raids (recherche), monstres de
+- **Butin** : par zone de la carte. **Carte cliquable** des deux continents (zones à leur place, contour d'OpenMap,
+  couleur selon le niveau habituel des monstres ; affichée tant qu'aucune zone n'est choisie, bouton « 🗺 Carte »).
+  Barre latérale des zones puis des donjons et raids (recherche), monstres de
   la zone (recherche par nom **ou par objet lâché**, tri par niveau ou par valeur estimée par kill), butin du
   monstre choisi (butin, dépeçage, vol à la tire : chance Forever Guide, chance réelle, prix). Zone d'un monstre =
   son donjon, sinon sa zone Forever Guide ; un monstre que seul Scout connaît va dans la zone où il a été fouillé.
@@ -48,11 +50,13 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   - `vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)` : remplacée à chaque import Scout.
   - Butin de Forever Guide (remplacé en bloc quand ses fichiers changent) : `drop_sources (item_id, kind,
     source_id, chance, quest_only, more)` (`source_id` 0 = « et `more` autres non listées »), `drop_npcs`,
-    `drop_names` (objets du monde, quêtes), `drop_meta` (`fingerprint`).
+    `drop_names` (objets du monde, quêtes), `drop_meta` (`fingerprint`). `drop_npcs.ui_map` = carte (UiMap) de la
+    zone du PNJ : lien avec la carte du jeu (les noms de zone de Forever Guide et du client diffèrent parfois).
   - Butin réel de Scout (remplacé à chaque import : l'addon garde des totaux) : `loot_npcs (npc_id, name, zone,
     kills, skins)`, `loot_observed (npc_id, kind, item_id, drops, quantity)`, `kind` ∈ `loot | skin`.
   - Données du jeu `game_*` (remplacées en bloc) : `game_meta` (`build`, `updated`, `format`), `game_items`,
-    `game_categories`, `game_professions`, `game_recipes`, `game_reagents`, `game_recipe_items`.
+    `game_categories`, `game_professions`, `game_recipes`, `game_reagents`, `game_recipe_items`, `game_maps`
+    (continents et zones : UiMap, rectangle en coordonnées monde).
 - Évolution du schéma : `CREATE TABLE IF NOT EXISTS` + colonnes ajoutées si absentes (`ITEM_COLUMNS` dans `scout-db/src/lib.rs`
   et `game.rs`). Ne jamais supprimer de données sans demander ; copier `prix.db` avant toute manipulation.
 - Les numéros d'objet sont ceux du jeu, identiques dans Scout, Auctionator, Forever Guide et les tables du client.
@@ -79,16 +83,22 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
     a changé : ~3,8 s, ~314 000 sources.
   - Scout : `export.lua <Scout.lua> --loot` (contrat avec l'addon : `npc_id,name,zone,kills,skins,kind,item_id,drops,quantity`).
   - Une erreur de butin n'interrompt pas l'import des prix.
+- **Contours des zones** : addon **OpenMap** (`Media/Textures/Forever/MapTerritory/<UiMap>.tga`, 256×256, forme dans
+  l'alpha, lignes de bas en haut), lus par `scout-sources/src/tga.rs` quand la carte s'ouvre. Ce sont des
+  images de Blizzard : on les lit dans le dossier AddOns, on ne les copie jamais dans le dépôt. Sans OpenMap,
+  zones en rectangles.
 - **Données du jeu** : tables du client Forever (DB2) en CSV, français, depuis
   `https://wago.tools/db2/<Table>/csv?build=<build>&locale=frFR` ; dernière version = produit `wowf` de
   `https://wago.tools/api/builds`, vérifiée au démarrage (Réglages affiche « À jour » ou « Nouvelle version »).
-  11 tables (`gamedata::TABLES`) ; assemblage comme le dépôt public `alcaras/forever-ref` : métiers = lignes 171,
+  13 tables (`TABLES` dans `scout-sources/src/wago.rs`) ; assemblage comme le dépôt public `alcaras/forever-ref` : métiers = lignes 171,
   164, 333, 202, 182, 165, 186, 393, 197, 185, 129, 356, 40 (+ lignes enfants via `ParentSkillLineID`, ex. 2948 →
   197) ; objet produit = effet 24 (`EffectItemType`, quantité `EffectBasePointsF`) ; composants `Reagent_0..7` ;
   objets de recette = `ItemEffect.TriggerType` 6 (niveau requis = leur `RequiredSkillRank`) ; catégories =
   `ItemClass` / `ItemSubClass` (nom détaillé `VerboseName_lang` sinon `DisplayName_lang`). ~2 500 recettes
   (Classic ≈ 1 300 + ajouts Forever), cohérent avec Forever Guide ; sont écartés à raison : rangs de métier,
-  récolte, spécialisations, invocations, sorts sans nom.
+  récolte, spécialisations, invocations, sorts sans nom. Cartes : `UiMap` (nom, parent, type) +
+  `UiMapAssignment` (rectangle monde `Region_0/1` min `x,y`, `Region_3/4` max, gardé seulement s'il couvre toute la
+  carte : UiMin 0,0 / UiMax 1,1). Monde : `x` vers le nord, `y` vers l'ouest (`scout-core/src/map.rs`).
   **`GAME_FORMAT`** (`scout-core/src/gamedata.rs`) est stocké avec la version : l'augmenter quand on garde de nouvelles colonnes ou
   tables, pour que « Mettre à jour » retélécharge même si la version de Forever n'a pas changé.
 
@@ -99,15 +109,16 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 
 | Crate | Rôle |
 |---|---|
-| `scout-core` | Données et logique **pures**, testées (ni disque, ni réseau, ni egui ; `sqlx` seulement avec la feature `sqlx`, pour `#[derive(FromRow)]`). `analysis` + `analysis/stats` : prix du jour = médiane des prix min du jour (date locale) ; week-end vs semaine par **test de permutation** (exact ou Monte-Carlo à graine fixe), effet de marché avec **les jours comme unité** ; prix du jour anormal par **z-score robuste** (MAD, plancher 3 %), seuils en constantes publiques. `gamedata` (types, index `made_by` / `used_in` / `teaches`, `GAME_FORMAT`), `money` (cuivre ↔ texte, rentabilité, commission HdV 5 %), `pricing` (`cheapest` : marchand ou HdV ; `sale_value` : ce que rapporte un objet ramassé, `AUCTION_CUT`), `time` (dates locales), `drops` (+ `drops/records`, `drops/zone` : butin par zone et valeur par kill) : fusion base Forever Guide / réel Scout, intervalle de Wilson, tri par colonne (`drops/sort` : valeurs inconnues toujours en dernier), `TRUSTED_KILLS` = 20 corps (chance réelle en vert), `format_percent` ; types partagés (`Row`, `ItemName`, `VendorPrice`, `ItemSummary`, `Snapshot`, `VendorData` / `VendorOffer`, `Theme`). |
-| `scout-sources` | Tout ce qui vient de l'extérieur : `import` (scripts Lua de `lua/`, intégrés par `include_str!`, et lecture de leur CSV), `wago` (téléchargement wago.tools) + `wago/assemble` (CSV → recettes, testé), `wow` (dossier `_forever_` : détection Wine, `export_script`, `saved_variables`, liste de Forever Guide). |
-| `scout-db` | SQLite (sqlx) : `lib.rs` (`Db`, schéma, migrations), `market` (objets, favoris, relevés), `game` (données du jeu), `vendor` (prix et offres des marchands), `drops` (butin : base et réel ; `drops/zones` : par zone). |
+| `scout-core` | Données et logique **pures**, testées (ni disque, ni réseau, ni egui ; `sqlx` seulement avec la feature `sqlx`, pour `#[derive(FromRow)]`). `analysis` + `analysis/stats` : prix du jour = médiane des prix min du jour (date locale) ; week-end vs semaine par **test de permutation** (exact ou Monte-Carlo à graine fixe), effet de marché avec **les jours comme unité** ; prix du jour anormal par **z-score robuste** (MAD, plancher 3 %), seuils en constantes publiques. `gamedata` (types, index `made_by` / `used_in` / `teaches`, `GAME_FORMAT`), `money` (cuivre ↔ texte, rentabilité, commission HdV 5 %), `pricing` (`cheapest` : marchand ou HdV ; `sale_value` : ce que rapporte un objet ramassé, `AUCTION_CUT`), `time` (dates locales), `map` (cartes, placement d'une zone sur son continent, masques), `drops` (+ `drops/records`, `drops/zone` : butin par zone,
+niveaux habituels = 10ᵉ / 90ᵉ centiles, valeur par kill) : fusion base Forever Guide / réel Scout, intervalle de Wilson, tri par colonne (`drops/sort` : valeurs inconnues toujours en dernier), `TRUSTED_KILLS` = 20 corps (chance réelle en vert), `format_percent` ; types partagés (`Row`, `ItemName`, `VendorPrice`, `ItemSummary`, `Snapshot`, `VendorData` / `VendorOffer`, `Theme`). |
+| `scout-sources` | Tout ce qui vient de l'extérieur : `import` (scripts Lua de `lua/`, intégrés par `include_str!`, et lecture de leur CSV), `wago` (téléchargement wago.tools) + `wago/assemble` (+ `assemble/maps`) (CSV → recettes et cartes, testé), `tga` (masques d'OpenMap), `wow` (dossier `_forever_` : détection Wine, `export_script`, `saved_variables`, liste de Forever Guide). |
+| `scout-db` | SQLite (sqlx) : `lib.rs` (`Db`, schéma, migrations), `market` (objets, favoris, relevés), `game` (données du jeu), `vendor` (prix et offres des marchands), `drops` (butin : base et réel ; `drops/zones` : par zone), `game/maps`. |
 | `scout-worker` | Thread de fond, runtime tokio `current_thread` : `Command` → `Event` via `mpsc` + callback `notify` (l'app y met `request_repaint`). **Seul** endroit qui touche disque, base, réseau et processus. `config` : réglages, chemins, migration des dossiers `scout-prix` → `scout-rs`. Tests sur la vraie machine dans `tests/local.rs` (`#[ignore]`). |
 | `app` (paquet et binaire `scout-rs`) | UI egui uniquement. `main.rs`, `app.rs` (onglets de modules, barre d'état, module courant), `state.rs` (`State` lu par l'UI : données du worker, module / vue / filtre / sélection ; `revision` change à chaque modification des objets ou favoris, pour les caches ; `auction_price`, `buy_price`). |
 
 `app/src/ui/` : `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
 icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
-`calculator`, `items` (+ `items/{rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/npc`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
+`calculator`, `items` (+ `items/{rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,npcs,npc}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
 couleurs de qualité, prix ou tiret, chance et chance réelle : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.
@@ -132,6 +143,8 @@ couleurs de qualité, prix ou tiret, chance et chance réelle : partagés), `the
 ## Pistes
 - Butin : `ForeverGuide/ForeverBossLoot.lua` (butin confirmé de boss Forever, chances inconnues, appliqué par
   l'addon à l'exécution) n'est pas lu.
+- Carte : points des monstres de la zone (coordonnées Forever Guide `x`, `y` sur `ui_map`), entrées des donjons
+  (`OpenMap/Data/Forever/Places.lua`, coordonnées monde), fond peint (`MapZones` d'OpenMap, BLP).
 
 ## Commits
 - Sujet en français, phrase courte avec majuscule, corps qui explique le pourquoi. Branche `master`.

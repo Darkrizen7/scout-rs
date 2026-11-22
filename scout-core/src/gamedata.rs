@@ -5,10 +5,12 @@
 
 use std::collections::HashMap;
 
+use crate::map::GameMap;
+
 /// Version of what is stored from the client tables: bumped when new columns are kept,
 /// so the next update downloads again even if the Forever build did not change.
-/// 2: merchant buy / sell prices. 3: item category names.
-pub const GAME_FORMAT: i64 = 3;
+/// 2: merchant buy / sell prices. 3: item category names. 4: maps.
+pub const GAME_FORMAT: i64 = 4;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
@@ -74,6 +76,7 @@ pub struct Tables {
     pub professions: Vec<Profession>,
     pub recipes: Vec<Recipe>,
     pub categories: Vec<Category>,
+    pub maps: Vec<GameMap>,
 }
 
 /// Everything the Objects and Recipes modules show, with lookups.
@@ -95,6 +98,8 @@ pub struct GameData {
     /// item → recipes (indices) it teaches.
     pub teaches: HashMap<i64, Vec<usize>>,
     pub categories: Vec<Category>,
+    /// Continents and zones (Loot module's map).
+    pub maps: Vec<GameMap>,
 }
 
 impl GameData {
@@ -107,6 +112,7 @@ impl GameData {
             professions: tables.professions,
             recipes: tables.recipes,
             categories: tables.categories,
+            maps: tables.maps,
             ..Self::default()
         };
         for (index, recipe) in data.recipes.iter().enumerate() {

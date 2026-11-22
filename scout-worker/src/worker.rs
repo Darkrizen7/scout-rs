@@ -76,6 +76,17 @@ pub(crate) fn run(commands: Receiver<Command>, send: impl Fn(Event)) {
             Command::LoadZone(zone) => runtime
                 .block_on(db.zone_loot(&zone))
                 .map(|z| send(Event::ZoneLoot(Box::new(z)))),
+            Command::LoadMapMasks => {
+                let dir = config.wow_dir().ok().and_then(wow::open_map_masks);
+                // Without OpenMap, the zones are drawn as rectangles: an empty answer is enough.
+                let (masks, result) =
+                    match dir.map_or_else(|| Ok(HashMap::new()), |d| sources::zone_masks(&d)) {
+                        Ok(masks) => (masks, Ok(())),
+                        Err(e) => (HashMap::new(), Err(e)),
+                    };
+                send(Event::MapMasks(Arc::new(masks)));
+                result
+            }
             Command::SetWowDir(dir) => {
                 config.wow_dir = Some(dir);
                 send(Event::Config(config.clone()));
