@@ -32,7 +32,10 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   couleur selon le niveau habituel des monstres ; affichée tant qu'aucune zone n'est choisie, bouton « 🗺 Carte »).
   Barre latérale des zones puis des donjons et raids (recherche), monstres de
   la zone (recherche par nom **ou par objet lâché**, tri par niveau ou par valeur estimée par kill), butin du
-  monstre choisi (butin, dépeçage, vol à la tire : chance Forever Guide, chance réelle, prix). Zone d'un monstre =
+  monstre choisi (butin, dépeçage, vol à la tire : chance Forever Guide, chance réelle, prix).
+- **Positions cliquables** (fiche objet : Butin et PNJ ; module Butin) : copient `/way #<UiMap> x y Nom` (syntaxe
+  TomTom ; l'addon Scout fournit `/way` quand TomTom est absent) à coller dans le chat du jeu. L'outil ne fait que
+  remplir le presse-papiers : c'est le joueur qui colle. Zone d'un monstre =
   son donjon, sinon sa zone Forever Guide ; un monstre que seul Scout connaît va dans la zone où il a été fouillé.
 - **Recettes** : recherche d'une recette ou d'un objet, par métier ; fiche recette (composants au moins cher entre
   PNJ et HdV, bénéfice, patron). Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
@@ -118,7 +121,7 @@ niveaux habituels = 10ᵉ / 90ᵉ centiles, valeur par kill) : fusion base Forev
 
 `app/src/ui/` : `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
 icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
-`calculator`, `items` (+ `items/{rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,npcs,npc}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
+`calculator`, `items` (+ `items/{rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
 couleurs de qualité, prix ou tiret, chance et chance réelle : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.

@@ -15,6 +15,7 @@ fn base(kind: &str, source_id: i64, chance: Option<f64>, kills: Option<i64>) -> 
         x: Some(25.1),
         y: Some(38.2),
         dungeon: None,
+        ui_map: Some(1431),
         kills,
         skins: None,
     }
@@ -247,4 +248,42 @@ fn sums_up_zones_with_usual_levels() {
     assert_eq!((bois.npcs, bois.kills, bois.ui_map), (13, 10, Some(1431)));
     // The level 1 critter and the level 62 guard are left out.
     assert_eq!((bois.min_level, bois.max_level), (Some(20), Some(30)));
+}
+
+#[test]
+fn merges_zones_and_rates_value_per_level() {
+    let npc = |npc_id, level, zone: &str| ZoneNpc {
+        npc: DropNpc {
+            npc_id,
+            name: Some(format!("Monstre {npc_id}")),
+            min_level: Some(level),
+            max_level: Some(level + 2),
+            zone: Some(zone.into()),
+            ..DropNpc::default()
+        },
+        kills: 0,
+        skins: 0,
+        drops: vec![NpcDrop {
+            kind: DropKind::Npc,
+            item_id: 10,
+            chance: Some(50.0),
+            quest_only: false,
+            observed: None,
+        }],
+    };
+    let a = ZoneLoot {
+        zone: "Durotar".into(),
+        npcs: vec![npc(1, 10, "Durotar"), npc(2, 4, "Durotar")],
+    };
+    let b = ZoneLoot {
+        zone: "Les Tarides".into(),
+        npcs: vec![npc(3, 15, "Les Tarides"), npc(1, 10, "Durotar")],
+    };
+    let both = ZoneLoot::merge([&a, &b]);
+    assert_eq!(both.zone, "Durotar + Les Tarides");
+    let ids: Vec<i64> = both.npcs.iter().map(|n| n.npc.npc_id).collect();
+    assert_eq!(ids, [2, 1, 3]);
+    // 0.5 × 100 copper = 50 per kill; level 10-12 → 11.
+    let price = |_| Some(100.0);
+    assert_eq!(both.npcs[1].value_per_level(price), Some(50.0 / 11.0));
 }

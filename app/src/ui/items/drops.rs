@@ -165,7 +165,8 @@ fn row(
     match &drop.npc {
         Some(npc) => {
             ui.weak(npc.levels());
-            ui.weak(npc.place());
+            let waypoint = scout_core::map::waypoint(npc.ui_map, npc.x, npc.y, &drop.name);
+            widgets::place_label(ui, &npc.place(), waypoint);
         }
         None => {
             ui.label("");

@@ -168,7 +168,7 @@ impl ItemDrops {
                     x: row.x,
                     y: row.y,
                     dungeon: row.dungeon,
-                    ui_map: None,
+                    ui_map: row.ui_map,
                 }),
             });
         }

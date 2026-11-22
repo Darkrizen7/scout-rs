@@ -94,6 +94,31 @@ fn area(m: &GameMap) -> f64 {
     (m.x_max - m.x_min) * (m.y_max - m.y_min)
 }
 
+/// Chat command placing a map pin, TomTom's syntax (the Scout addon has it when TomTom is absent):
+/// "/way #1431 25.1 38.2 Dévoreur". None without a map or a position.
+pub fn waypoint(
+    ui_map: Option<i64>,
+    x: Option<f64>,
+    y: Option<f64>,
+    label: &str,
+) -> Option<String> {
+    let (ui_map, x, y) = (ui_map?, x?, y?);
+    Some(
+        format!("/way #{ui_map} {x:.1} {y:.1} {label}")
+            .trim_end()
+            .to_owned(),
+    )
+}
+
+/// A zone's map id from its name as Scout or Forever Guide write it (case, apostrophes and hyphens aside).
+pub fn find_zone(maps: &[GameMap], name: &str) -> Option<i64> {
+    let key = |s: &str| s.to_lowercase().replace('’', "'").replace('-', " ");
+    let name = key(name);
+    maps.iter()
+        .find(|m| m.kind == ZONE && key(&m.name) == name)
+        .map(|m| m.id)
+}
+
 /// A zone's shape on its own map: opacity per pixel, rows from the top (OpenMap's `MapTerritory` masks).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Mask {
@@ -172,6 +197,25 @@ mod tests {
         ];
         let ids: Vec<i64> = zones_of(&maps, 1415).iter().map(|m| m.id).collect();
         assert_eq!(ids, [1429, 1453]);
+    }
+
+    #[test]
+    fn writes_waypoints() {
+        assert_eq!(
+            waypoint(Some(1431), Some(25.12), Some(38.0), "Dévoreur").as_deref(),
+            Some("/way #1431 25.1 38.0 Dévoreur")
+        );
+        assert_eq!(
+            waypoint(Some(1431), Some(25.0), Some(38.0), "").as_deref(),
+            Some("/way #1431 25.0 38.0")
+        );
+        assert_eq!(waypoint(None, Some(25.0), Some(38.0), "x"), None);
+        let maps = [GameMap {
+            name: "Forêt des Pins argentés".into(),
+            ..map(1421, 1415, ZONE, (0.0, 1.0), (0.0, 1.0))
+        }];
+        assert_eq!(find_zone(&maps, "Forêt des Pins-Argentés"), Some(1421));
+        assert_eq!(find_zone(&maps, "Durotar"), None);
     }
 
     #[test]

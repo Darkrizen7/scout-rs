@@ -1,6 +1,8 @@
 //! Loot by map zone: the monsters of a zone or dungeon and everything each one drops, Forever Guide's chance
 //! next to what Scout recorded.
 
+mod merge;
+
 use super::{DropKind, DropNpc, Observed, TRUSTED_KILLS};
 
 /// A zone or dungeon with monsters whose loot is known.
@@ -284,12 +286,7 @@ impl ZoneLoot {
                 })
             });
         }
-        npcs.sort_by(|a, b| {
-            let level = |n: &ZoneNpc| n.npc.min_level.or(n.npc.max_level).unwrap_or(i64::MAX);
-            level(a)
-                .cmp(&level(b))
-                .then_with(|| a.name().to_lowercase().cmp(&b.name().to_lowercase()))
-        });
+        merge::sort_by_level(&mut npcs);
         Self { zone, npcs }
     }
 }

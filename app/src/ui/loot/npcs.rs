@@ -1,4 +1,5 @@
-//! Monster list of the Loot module: search by monster or item, sort by level or value per kill.
+//! Monster list of the Loot module: search by monster or item, sort by level, value per kill or value per
+//! level.
 
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
@@ -9,10 +10,21 @@ use crate::ui::coins;
 use scout_core::drops::{DropKind, ZoneLoot, ZoneNpc};
 use scout_core::gamedata::GameData;
 
+/// Order of the monster list.
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+pub(super) enum Sort {
+    #[default]
+    Level,
+    Value,
+    /// Value per kill divided by the level.
+    ValuePerLevel,
+}
+
 /// A monster of the list.
 pub(super) struct Row {
     /// Index in `ZoneLoot::npcs`.
     index: usize,
+    /// Value per kill, or per level when sorted by it (copper).
     value: Option<f64>,
     /// Item matching the filter (not the monster's name) and its best chance.
     matched: Option<(String, Option<f64>)>,
@@ -26,14 +38,7 @@ impl Loot {
         game: &GameData,
         state: &State,
     ) {
-        let Some(zone) = &self.zone else {
-            ui.vertical_centered(|ui| {
-                ui.add_space(60.0);
-                ui.weak("Choisis une zone ou un donjon à gauche.");
-            });
-            return;
-        };
-        ui.heading(zone);
+        self.heading(ui);
         let Some(loot) = loot else {
             ui.spinner();
             return;
@@ -45,13 +50,19 @@ impl Loot {
         );
         ui.horizontal(|ui| {
             ui.weak("Trier par");
-            ui.selectable_value(&mut self.by_value, false, "Niveau");
-            ui.selectable_value(&mut self.by_value, true, "Valeur / kill")
+            ui.selectable_value(&mut self.sort, Sort::Level, "Niveau");
+            ui.selectable_value(&mut self.sort, Sort::Value, "Valeur / kill")
                 .on_hover_text(VALUE_HINT);
+            ui.selectable_value(&mut self.sort, Sort::ValuePerLevel, "÷ niveau")
+                .on_hover_text(
+                    "Valeur par kill divisée par le niveau du monstre (milieu de sa fourchette) : \
+                     ce que rapporte un kill pour sa difficulté. La colonne de droite montre ce rapport.",
+                );
         });
         ui.checkbox(&mut self.normal_only, "Masquer élites, rares et boss");
         self.rebuild(loot, game, state);
         ui.weak(format!("{} monstres", self.rows.len()));
+        let several = self.zones.len() > 1;
         let mut clicked = None;
         TableBuilder::new(ui)
             .sense(egui::Sense::click())
@@ -66,7 +77,7 @@ impl Loot {
                     row.col(|ui| {
                         ui.vertical(|ui| {
                             ui.label(npc.name());
-                            ui.weak(subtitle(npc, r));
+                            ui.weak(subtitle(npc, r, several));
                         });
                     });
                     row.col(|ui| {
@@ -88,12 +99,37 @@ impl Loot {
         }
     }
 
+    /// The chosen zones: a title for one, removable chips for several.
+    fn heading(&mut self, ui: &mut egui::Ui) {
+        if let [zone] = self.zones.as_slice() {
+            ui.heading(zone);
+            ui.weak("Ctrl+clic sur une autre zone pour l'ajouter");
+            return;
+        }
+        ui.heading(format!("{} zones", self.zones.len()));
+        let mut removed = None;
+        ui.horizontal_wrapped(|ui| {
+            for (i, zone) in self.zones.iter().enumerate() {
+                if ui
+                    .small_button(format!("{zone}  ×"))
+                    .on_hover_text("Retirer")
+                    .clicked()
+                {
+                    removed = Some(i);
+                }
+            }
+        });
+        if let Some(i) = removed {
+            self.zones.remove(i);
+        }
+    }
+
     /// Monsters whose name or one of whose items matches the filter, in the chosen order.
     fn rebuild(&mut self, loot: &ZoneLoot, game: &GameData, state: &State) {
         let key = (
             loot as *const ZoneLoot as usize,
             self.filter.clone(),
-            self.by_value,
+            self.sort,
             self.normal_only,
             state.revision,
             game as *const GameData as usize,
@@ -117,14 +153,19 @@ impl Loot {
                         .find(|d| game.item_name(d.item_id).to_lowercase().contains(&needle))?;
                     Some((game.item_name(drop.item_id), drop.best_chance()))
                 };
+                let price = |id| unit_value(state, game, id);
+                let value = match self.sort {
+                    Sort::ValuePerLevel => npc.value_per_level(price),
+                    _ => npc.value_per_kill(price),
+                };
                 Some(Row {
                     index,
-                    value: npc.value_per_kill(|id| unit_value(state, game, id)),
+                    value,
                     matched,
                 })
             })
             .collect();
-        if self.by_value {
+        if self.sort != Sort::Level {
             // Highest value first, monsters without a priced drop last (stable: by level among them).
             self.rows.sort_by(|a, b| match (a.value, b.value) {
                 (Some(x), Some(y)) => y.total_cmp(&x),
@@ -136,14 +177,26 @@ impl Loot {
 }
 
 /// Second line of a monster: the matching item and its chance, or levels and observed kills.
-fn subtitle(npc: &ZoneNpc, row: &Row) -> String {
+fn subtitle(npc: &ZoneNpc, row: &Row, several: bool) -> String {
+    let zone = npc
+        .npc
+        .dungeon
+        .as_ref()
+        .or(npc.npc.zone.as_ref())
+        .filter(|_| several);
     if let Some((item, chance)) = &row.matched {
         let chance = chance.map_or_else(|| "?".to_owned(), scout_core::drops::format_percent);
-        return format!("{item} · {chance}");
+        return match zone {
+            Some(zone) => format!("{item} · {chance} · {zone}"),
+            None => format!("{item} · {chance}"),
+        };
     }
     let mut text = npc.npc.levels();
     if text.is_empty() {
         text = "niveau inconnu".to_owned();
+    }
+    if let Some(zone) = zone {
+        text += &format!(" · {zone}");
     }
     if npc.kills > 0 {
         text += &format!(" · {} kills", npc.kills);

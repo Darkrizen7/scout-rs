@@ -66,6 +66,7 @@ pub struct BaseRow {
     pub x: Option<f64>,
     pub y: Option<f64>,
     pub dungeon: Option<String>,
+    pub ui_map: Option<i64>,
     /// Corpses looted / skinned by the user (Scout), when that NPC was ever killed.
     pub kills: Option<i64>,
     pub skins: Option<i64>,

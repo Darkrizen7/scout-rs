@@ -62,7 +62,7 @@ CREATE INDEX IF NOT EXISTS drop_sources_source ON drop_sources (source_id);
 const BASE_QUERY: &str = "
 SELECT s.kind, s.source_id, s.chance, s.quest_only != 0 AS quest_only, s.more,
        COALESCE(n.name, d.name, g.name) AS name,
-       n.min_level, n.max_level, n.rank, n.zone, n.x, n.y, n.dungeon,
+       n.min_level, n.max_level, n.rank, n.zone, n.x, n.y, n.dungeon, n.ui_map,
        l.kills, l.skins
 FROM drop_sources s
 LEFT JOIN drop_npcs n ON n.npc_id = s.source_id AND s.kind IN ('npc', 'skinning', 'pickpocket')

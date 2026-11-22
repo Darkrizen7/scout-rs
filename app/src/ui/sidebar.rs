@@ -244,6 +244,7 @@ pub fn entry(
     let (rect, response) =
         ui.allocate_exact_size(egui::vec2(ui.available_width(), height), Sense::click());
     let response = response.on_hover_cursor(egui::CursorIcon::PointingHand);
+    let mut elided = false;
     if ui.is_rect_visible(rect) {
         let fill = if selected {
             Some(palette.sidebar_selected)
@@ -268,22 +269,32 @@ pub fn entry(
             );
             x += 26.0;
         }
-        painter.text(
-            egui::pos2(x, rect.center().y),
-            Align2::LEFT_CENTER,
-            label,
-            FontId::proportional(size),
-            palette.text,
-        );
+        // Count first: the label gets the room left and is shortened with "…" when too long.
+        let mut right = rect.right() - 10.0;
         if let Some(count) = count {
-            painter.text(
-                egui::pos2(rect.right() - 10.0, rect.center().y),
+            let count = painter.text(
+                egui::pos2(right, rect.center().y),
                 Align2::RIGHT_CENTER,
                 count.to_string(),
                 FontId::proportional(12.0),
                 palette.dim_text,
             );
+            right = count.left() - 8.0;
         }
+        let mut job = egui::text::LayoutJob::simple_singleline(
+            label.to_owned(),
+            FontId::proportional(size),
+            palette.text,
+        );
+        job.wrap = egui::text::TextWrapping::truncate_at_width((right - x).max(0.0));
+        let galley = painter.layout_job(job);
+        elided = galley.elided;
+        let at = egui::pos2(x, rect.center().y - galley.size().y / 2.0);
+        painter.galley(at, galley, palette.text);
     }
-    response
+    if elided {
+        response.on_hover_text(label)
+    } else {
+        response
+    }
 }

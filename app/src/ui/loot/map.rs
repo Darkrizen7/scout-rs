@@ -1,6 +1,8 @@
 //! Clickable map of a continent: each zone in its place (client tables), with its shape (OpenMap's masks,
 //! else a rectangle), colored by the usual level of its monsters.
 
+mod paint;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -11,6 +13,7 @@ use scout_core::drops::Zone;
 use scout_core::gamedata::GameData;
 use scout_core::map::{self, Frac, GameMap, Mask};
 
+/// Continents (UiMap ids), Eastern Kingdoms first.
 /// Continents (UiMap ids), Eastern Kingdoms first.
 const CONTINENTS: [i64; 2] = [1415, 1414];
 /// Opacity above which a mask pixel belongs to the zone.
@@ -52,7 +55,7 @@ impl WorldMap {
         game: &GameData,
         zones: &[Zone],
         masks: &Arc<HashMap<i64, Mask>>,
-        selected: Option<&str>,
+        selected: &[String],
         palette: &Palette,
     ) -> Option<String> {
         if game.maps.is_empty() {
@@ -66,12 +69,9 @@ impl WorldMap {
         self.make_textures(ui.ctx(), masks);
         ui.horizontal(|ui| {
             for id in CONTINENTS {
-                let name = game
-                    .maps
-                    .iter()
-                    .find(|m| m.id == id)
-                    .map_or("?", |m| &m.name);
-                ui.selectable_value(&mut self.continent, id, name);
+                if let Some(m) = game.maps.iter().find(|m| m.id == id) {
+                    ui.selectable_value(&mut self.continent, id, &m.name);
+                }
             }
             if masks.is_empty() {
                 ui.weak("· zones en rectangles : installe l'addon OpenMap pour leurs contours");
@@ -105,7 +105,7 @@ impl WorldMap {
 
         for m in &shapes {
             let zone = by_map.get(&m.id).copied();
-            let strength = if selected.is_some() && zone.map(|z| z.name.as_str()) == selected {
+            let strength = if zone.is_some_and(|z| selected.contains(&z.name)) {
                 255
             } else if hovered.is_some_and(|h| h.id == m.id) {
                 220
@@ -113,7 +113,7 @@ impl WorldMap {
                 140
             };
             let color = match zone {
-                Some(z) => level_color(z, strength),
+                Some(z) => paint::level_color(z, strength),
                 None => palette
                     .dim_text
                     .gamma_multiply(if hovered.is_some_and(|h| h.id == m.id) {
@@ -144,7 +144,7 @@ impl WorldMap {
                 r.left() + r.width() * u as f32,
                 r.top() + r.height() * v as f32,
             );
-            label(&painter, at, &m.name, zone, palette);
+            paint::label(&painter, at, &m.name, zone, palette);
         }
 
         let zone = hovered.and_then(|m| by_map.get(&m.id).copied());
@@ -153,14 +153,16 @@ impl WorldMap {
                 ui.strong(&m.name);
                 match zone {
                     Some(z) => {
-                        ui.label(levels(z));
+                        ui.label(paint::levels(z));
                         ui.weak(format!("{} monstres avec du butin", z.npcs));
                         if z.kills > 0 {
                             ui.weak(format!("{} corps fouillés (Scout)", z.kills));
                         }
+                        ui.weak("Clic : ses monstres · Ctrl+clic : l'ajouter à la sélection");
                     }
                     None => {
-                        ui.weak("Aucun butin connu");
+                        ui.weak("Aucun butin connu : Forever Guide n'a pas cette zone.");
+                        ui.weak("Scout l'apprendra quand tu y fouilleras des monstres (puis /reload et import).");
                     }
                 }
             });
@@ -234,63 +236,4 @@ fn screen(rect: Rect, f: Frac) -> Rect {
         )
     };
     Rect::from_min_max(at(f.left, f.top), at(f.right, f.bottom))
-}
-
-fn levels(z: &Zone) -> String {
-    match (z.min_level, z.max_level) {
-        (Some(a), Some(b)) if a != b => format!("Niveaux {a}-{b}"),
-        (Some(a), _) => format!("Niveau {a}"),
-        _ => "Niveau inconnu".to_owned(),
-    }
-}
-
-/// Green for low levels, through yellow, orange and red, to purple at 60.
-fn level_color(z: &Zone, alpha: u8) -> Color32 {
-    const STOPS: [(f32, [u8; 3]); 5] = [
-        (1.0, [0x33, 0xd1, 0x7a]),
-        (20.0, [0xf6, 0xd3, 0x2d]),
-        (35.0, [0xff, 0x78, 0x00]),
-        (48.0, [0xe0, 0x1b, 0x24]),
-        (60.0, [0x91, 0x41, 0xac]),
-    ];
-    let level = match (z.min_level, z.max_level) {
-        (Some(a), Some(b)) => (a + b) as f32 / 2.0,
-        (Some(a), None) | (None, Some(a)) => a as f32,
-        (None, None) => return Color32::from_white_alpha(alpha / 2),
-    };
-    let i = STOPS.iter().rposition(|(l, _)| level >= *l).unwrap_or(0);
-    let (l0, c0) = STOPS[i];
-    let (l1, c1) = STOPS[(i + 1).min(STOPS.len() - 1)];
-    let t = if l1 > l0 {
-        ((level - l0) / (l1 - l0)).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
-    Color32::from_rgba_unmultiplied(
-        mix(c0[0], c1[0]),
-        mix(c0[1], c1[1]),
-        mix(c0[2], c1[2]),
-        alpha,
-    )
-}
-
-/// Zone name and levels, with a halo so they read over any color.
-fn label(painter: &egui::Painter, at: Pos2, name: &str, zone: Option<&Zone>, palette: &Palette) {
-    let text = match zone.map(|z| (z.min_level, z.max_level)) {
-        Some((Some(a), Some(b))) => format!("{name}\n{a}-{b}"),
-        _ => name.to_owned(),
-    };
-    let font = egui::FontId::proportional(11.0);
-    let halo = palette.view.gamma_multiply(0.8);
-    for (dx, dy) in [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)] {
-        painter.text(
-            at + egui::vec2(dx, dy),
-            egui::Align2::CENTER_CENTER,
-            &text,
-            font.clone(),
-            halo,
-        );
-    }
-    painter.text(at, egui::Align2::CENTER_CENTER, &text, font, palette.text);
 }

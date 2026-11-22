@@ -4,7 +4,8 @@ use eframe::egui;
 
 use crate::state::State;
 use crate::ui::coins;
-use crate::ui::widgets::money_or_dash;
+use crate::ui::widgets::{self, money_or_dash};
+use scout_core::map;
 
 pub fn show(ui: &mut egui::Ui, state: &State, sell_price: i64, id: i64) {
     egui::Grid::new("sheet-merchants")
@@ -39,7 +40,12 @@ pub fn show(ui: &mut egui::Ui, state: &State, sell_price: i64, id: i64) {
     ui.strong(format!("Vendu par ({})", merchants.len()));
     for m in merchants {
         ui.horizontal(|ui| {
-            ui.label(m.place());
+            let ui_map = m
+                .zone
+                .as_deref()
+                .and_then(|z| map::find_zone(&state.game.maps, z));
+            let name = m.npc.as_deref().unwrap_or("");
+            widgets::place_label(ui, &m.place(), map::waypoint(ui_map, m.x, m.y, name));
             coins::money(ui, m.price.round() as i64, None);
             if m.limited {
                 ui.weak("· stock limité");

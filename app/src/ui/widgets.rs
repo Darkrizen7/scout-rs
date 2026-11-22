@@ -84,3 +84,17 @@ pub fn observed_label(ui: &mut egui::Ui, observed: Option<Observed>, palette: &t
     }
     ui.label(label).on_hover_text(hint);
 }
+
+/// A position: with a map pin command, a link that copies it for the game's chat; plain dim text otherwise.
+pub fn place_label(ui: &mut egui::Ui, text: &str, waypoint: Option<String>) {
+    let Some(command) = waypoint else {
+        ui.weak(text);
+        return;
+    };
+    let hint = format!(
+        "Clic : copie « {command} »\nColle-le dans le chat du jeu (Ctrl+V, Entrée) pour mettre un point sur la carte."
+    );
+    if ui.link(text).on_hover_text(hint).clicked() {
+        ui.ctx().copy_text(command);
+    }
+}

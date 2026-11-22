@@ -1,5 +1,5 @@
-//! Loot module: pick a zone or dungeon, see its monsters (filtered by name or by an item they drop, sorted by
-//! level or by value per kill) and what the selected one drops.
+//! Loot module: pick zones or dungeons (Ctrl+click adds one), see their monsters together (filtered by name or
+//! by an item they drop, sorted by level, value per kill or value per level) and what the selected one drops.
 
 mod map;
 mod npc;
@@ -12,7 +12,7 @@ use eframe::egui;
 use crate::state::State;
 use crate::ui::sidebar::{entry, rgb, tint};
 use crate::ui::theme;
-use scout_core::drops::Zone;
+use scout_core::drops::{Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::pricing;
 use scout_worker::WorkerHandle;
@@ -21,10 +21,13 @@ use scout_worker::WorkerHandle;
 pub struct Loot {
     /// Zone search (side bar).
     search: String,
-    zone: Option<String>,
+    /// Chosen zones, in the order they were added.
+    zones: Vec<String>,
+    /// Their monsters together, and the zone data it was made from.
+    merged: Option<(Vec<usize>, Arc<ZoneLoot>)>,
     /// Monster or item search (monster list).
     filter: String,
-    by_value: bool,
+    sort: npcs::Sort,
     /// Elites, rares and bosses hidden.
     normal_only: bool,
     /// Selected monster (NPC id).
@@ -34,7 +37,7 @@ pub struct Loot {
     show_map: bool,
     map: map::WorldMap,
     /// What the rows were built for: zone data address, filter, sort, items revision, game data address.
-    built_for: Option<(usize, String, bool, bool, u64, usize)>,
+    built_for: Option<(usize, String, npcs::Sort, bool, u64, usize)>,
 }
 
 /// What one unit of an item brings once looted (copper): auction price after the cut, or the merchant's.
@@ -57,7 +60,7 @@ impl Loot {
             )
             .show(ui, |ui| self.sidebar(ui, zones.as_deref(), &state.game));
         let game = Arc::clone(&state.game);
-        if self.show_map || self.zone.is_none() {
+        if self.show_map || self.zones.is_empty() {
             let masks = state.map_masks(worker);
             let mut picked = None;
             egui::CentralPanel::default()
@@ -68,23 +71,21 @@ impl Loot {
                 )
                 .show(ui, |ui| match (&zones, &masks) {
                     (Some(zones), Some(masks)) => {
-                        picked =
-                            self.map
-                                .show(ui, &game, zones, masks, self.zone.as_deref(), palette);
+                        picked = self.map.show(ui, &game, zones, masks, &self.zones, palette);
                     }
                     _ => {
                         ui.spinner();
                     }
                 });
             if let Some(zone) = picked {
-                self.pick(zone);
+                // Ctrl+click picks several zones and stays on the map.
+                let add = ui.input(|i| i.modifiers.command);
+                self.pick(zone, add);
+                self.show_map = add;
             }
             return;
         }
-        let loot = match &self.zone {
-            Some(zone) => state.zone_loot(zone, worker),
-            None => None,
-        };
+        let loot = self.loot(state, worker);
         egui::Panel::left("loot-npcs")
             .exact_size(340.0)
             .resizable(false)
@@ -120,25 +121,50 @@ impl Loot {
         }
     }
 
-    /// Opens a zone's monsters (from the list or the map).
-    fn pick(&mut self, zone: String) {
-        if self.zone.as_ref() != Some(&zone) {
-            self.selection = None;
+    /// Chooses a zone (from the list or the map): alone, or added to / removed from the chosen ones.
+    fn pick(&mut self, zone: String, add: bool) {
+        if !add {
+            self.zones.clear();
         }
-        self.zone = Some(zone);
+        match self.zones.iter().position(|z| *z == zone) {
+            Some(i) if add => {
+                self.zones.remove(i);
+            }
+            Some(_) => {}
+            None => self.zones.push(zone),
+        }
         self.show_map = false;
     }
 
+    /// Monsters of the chosen zones once all are loaded (asked from the worker otherwise).
+    fn loot(&mut self, state: &mut State, worker: &WorkerHandle) -> Option<Arc<ZoneLoot>> {
+        let parts: Option<Vec<Arc<ZoneLoot>>> = self
+            .zones
+            .iter()
+            .map(|z| state.zone_loot(z, worker))
+            .collect();
+        let parts = parts?;
+        if let [one] = parts.as_slice() {
+            return Some(Arc::clone(one));
+        }
+        let key: Vec<usize> = parts.iter().map(|p| Arc::as_ptr(p) as usize).collect();
+        if self.merged.as_ref().is_none_or(|(k, _)| *k != key) {
+            let merged = ZoneLoot::merge(parts.iter().map(|p| p.as_ref()));
+            self.merged = Some((key, Arc::new(merged)));
+        }
+        self.merged.as_ref().map(|(_, m)| Arc::clone(m))
+    }
+
     fn sidebar(&mut self, ui: &mut egui::Ui, zones: Option<&Vec<Zone>>, game: &GameData) {
-        let on_map = self.show_map || self.zone.is_none();
+        let on_map = self.show_map || self.zones.is_empty();
         let map = ui.add_sized(
             [ui.available_width(), 28.0],
             egui::Button::selectable(on_map, "🗺 Carte"),
         );
-        if map.clicked() && self.zone.is_some() {
+        if map.clicked() && !self.zones.is_empty() {
             self.show_map = !self.show_map;
-            let ui_map = zones.and_then(|z| z.iter().find(|z| Some(&z.name) == self.zone.as_ref()));
-            self.map.focus(game, ui_map.and_then(|z| z.ui_map));
+            let last = zones.and_then(|z| z.iter().find(|z| self.zones.last() == Some(&z.name)));
+            self.map.focus(game, last.and_then(|z| z.ui_map));
         }
         ui.add_space(6.0);
         ui.add(
@@ -170,7 +196,7 @@ impl Loot {
                         z.dungeon == dungeon
                             && (needle.is_empty() || z.name.to_lowercase().contains(&needle))
                     }) {
-                        let selected = self.zone.as_deref() == Some(z.name.as_str());
+                        let selected = self.zones.contains(&z.name);
                         let response = entry(
                             ui,
                             Some((icon, tint(color, dark))),
@@ -181,8 +207,11 @@ impl Loot {
                         )
                         .on_hover_text(zone_hint(z));
                         if response.clicked() {
+                            let add = ui.input(|i| i.modifiers.command);
+                            let map_open = self.show_map;
                             self.map.focus(game, z.ui_map);
-                            self.pick(z.name.clone());
+                            self.pick(z.name.clone(), add);
+                            self.show_map = map_open && add;
                         }
                     }
                 }
@@ -203,5 +232,5 @@ fn zone_hint(z: &Zone) -> String {
     if z.kills > 0 {
         text += &format!(" · {} corps fouillés", z.kills);
     }
-    text
+    text + "\nCtrl+clic : ajouter à la sélection (monstres de plusieurs zones)"
 }

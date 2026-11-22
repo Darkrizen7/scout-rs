@@ -8,6 +8,7 @@ use crate::ui::theme::Palette;
 use crate::ui::{coins, widgets};
 use scout_core::drops::{DropKind, ZoneNpc};
 use scout_core::gamedata::GameData;
+use scout_core::map;
 
 const KINDS: [(DropKind, &str); 3] = [
     (DropKind::Npc, "Butin"),
@@ -25,13 +26,19 @@ pub fn show(
 ) -> Option<i64> {
     let mut clicked = None;
     ui.heading(npc.name());
-    let mut about = vec![npc.npc.levels(), npc.npc.place()];
-    about.push(match npc.kills {
-        0 => "jamais fouillé (Scout)".to_owned(),
-        n => format!("{n} corps fouillés (Scout)"),
+    ui.horizontal(|ui| {
+        let levels = npc.npc.levels();
+        if !levels.is_empty() {
+            ui.weak(format!("{levels} ·"));
+        }
+        let n = &npc.npc;
+        let waypoint = map::waypoint(n.ui_map, n.x, n.y, &npc.name());
+        widgets::place_label(ui, &n.place(), waypoint);
+        ui.weak(match npc.kills {
+            0 => "· jamais fouillé (Scout)".to_owned(),
+            k => format!("· {k} corps fouillés (Scout)"),
+        });
     });
-    about.retain(|s| !s.is_empty());
-    ui.weak(about.join(" · "));
     if let Some(value) = npc.value_per_kill(|id| unit_value(state, game, id)) {
         ui.horizontal(|ui| {
             ui.label("Valeur estimée par kill :");

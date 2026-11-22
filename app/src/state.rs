@@ -69,9 +69,9 @@ pub struct State {
     /// Zones with known loot, and whether they were asked for.
     zones: Option<Arc<Vec<Zone>>>,
     zones_asked: bool,
-    /// Monsters of the zone open in the Loot module, and the zone asked for (None once answered).
-    zone_loot: Option<Arc<ZoneLoot>>,
-    zone_asked: Option<String>,
+    /// Monsters of the zones opened in the Loot module (kept until the next import), and those asked for.
+    zone_loot: HashMap<String, Arc<ZoneLoot>>,
+    zone_asked: HashSet<String>,
     /// Zone shapes for the map (UiMap id → mask), and whether they were asked for.
     masks: Option<Arc<HashMap<i64, Mask>>>,
     masks_asked: bool,
@@ -110,8 +110,8 @@ impl Default for State {
             drops_asked: None,
             zones: None,
             zones_asked: false,
-            zone_loot: None,
-            zone_asked: None,
+            zone_loot: HashMap::new(),
+            zone_asked: HashSet::new(),
             masks: None,
             masks_asked: false,
             analysis: None,
@@ -149,8 +149,8 @@ impl State {
                 self.drops_asked = None;
                 self.zones = None;
                 self.zones_asked = false;
-                self.zone_loot = None;
-                self.zone_asked = None;
+                self.zone_loot.clear();
+                self.zone_asked.clear();
             }
             Event::History(id, history) => self.history = Some((id, history)),
             Event::Drops(id, drops) => {
@@ -159,8 +159,8 @@ impl State {
             }
             Event::Zones(zones) => self.zones = Some(Arc::new(zones)),
             Event::ZoneLoot(loot) => {
-                self.zone_loot = Some(Arc::from(loot));
-                self.zone_asked = None;
+                self.zone_asked.remove(&loot.zone);
+                self.zone_loot.insert(loot.zone.clone(), Arc::from(loot));
             }
             Event::MapMasks(masks) => self.masks = Some(masks),
             Event::Analysis(analysis) => self.analysis = Some(*analysis),
@@ -255,12 +255,10 @@ impl State {
 
     /// The monsters of a zone once loaded; asks the worker for them (once) otherwise.
     pub fn zone_loot(&mut self, zone: &str, worker: &WorkerHandle) -> Option<Arc<ZoneLoot>> {
-        let loaded = self.zone_loot.as_ref().is_some_and(|z| z.zone == zone);
-        if !loaded && self.zone_asked.as_deref() != Some(zone) {
-            self.zone_asked = Some(zone.to_owned());
+        if !self.zone_loot.contains_key(zone) && self.zone_asked.insert(zone.to_owned()) {
             worker.send(Command::LoadZone(zone.to_owned()));
         }
-        self.zone_loot.clone().filter(|z| z.zone == zone)
+        self.zone_loot.get(zone).cloned()
     }
 
     /// Zone shapes once loaded (empty without OpenMap); asks the worker for them (once) otherwise.
