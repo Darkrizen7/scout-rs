@@ -137,3 +137,72 @@ pub fn landing_search(
         ui.weak(caption);
     });
 }
+
+/// Level range, then an icon for elite / rare (name on hover); bosses stay in text.
+pub fn level_label(ui: &mut egui::Ui, npc: &scout_core::drops::DropNpc, palette: &theme::Palette) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.spacing_mut().interact_size.y = 12.0;
+        let range = npc.level_range();
+        if !range.is_empty() {
+            ui.weak(range);
+        }
+        let (elite, rare) = match npc.rank {
+            Some(1) => (true, false),
+            Some(2) => (true, true),
+            Some(4) => (false, true),
+            Some(3) => {
+                ui.weak("boss");
+                return;
+            }
+            _ => return,
+        };
+        if elite {
+            rank_icon(ui, true, palette).on_hover_text("Élite");
+        }
+        if rare {
+            rank_icon(ui, false, palette).on_hover_text("Rare");
+        }
+    });
+}
+
+/// Elite: gold diamond. Rare: silver ring.
+fn rank_icon(ui: &mut egui::Ui, elite: bool, palette: &theme::Palette) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
+    let painter = ui.painter();
+    let c = rect.center();
+    if elite {
+        let r = 6.0;
+        let points = vec![
+            c + egui::vec2(0.0, -r),
+            c + egui::vec2(r, 0.0),
+            c + egui::vec2(0.0, r),
+            c + egui::vec2(-r, 0.0),
+        ];
+        painter.add(egui::Shape::convex_polygon(
+            points,
+            palette.star,
+            egui::Stroke::NONE,
+        ));
+    } else {
+        painter.circle_stroke(c, 4.5, egui::Stroke::new(2.0, palette.dim_text));
+    }
+    response
+}
+
+/// Skinning knife: a small blade with a handle.
+pub fn skinning_icon(ui: &mut egui::Ui, palette: &theme::Palette) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
+    let painter = ui.painter();
+    let p = |x: f32, y: f32| rect.min + egui::vec2(x, y);
+    painter.add(egui::Shape::convex_polygon(
+        vec![p(1.0, 11.0), p(2.0, 3.0), p(9.0, 1.0), p(8.0, 8.0)],
+        palette.dim_text,
+        egui::Stroke::NONE,
+    ));
+    painter.line_segment(
+        [p(6.0, 6.0), p(11.0, 11.0)],
+        egui::Stroke::new(2.0, palette.dim_text),
+    );
+    response
+}

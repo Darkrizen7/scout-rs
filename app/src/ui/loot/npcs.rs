@@ -4,22 +4,24 @@
 use eframe::egui;
 use egui_extras::{Column, TableBuilder};
 
-use super::{Loot, VALUE_HINT, unit_value};
+use super::{Loot, unit_value};
 use crate::state::State;
-use crate::ui::coins;
+use crate::ui::{coins, theme, widgets};
 use scout_core::drops::{DropKind, ZoneLoot, ZoneNpc};
 use scout_core::gamedata::GameData;
 use scout_core::search::Query;
 
 /// Order of the monster list.
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Sort {
-    #[default]
     Level,
     Value,
     /// Value per kill divided by the level.
     ValuePerLevel,
 }
+
+/// Zone data address, filter, sort, hide normal flag, items revision, game data address.
+pub(super) type BuiltFor = (usize, String, Option<(Sort, bool)>, bool, u64, usize);
 
 /// A monster of the list.
 pub(super) struct Row {
@@ -51,14 +53,9 @@ impl Loot {
         );
         ui.horizontal(|ui| {
             ui.weak("Trier par");
-            ui.selectable_value(&mut self.sort, Sort::Level, "Niveau");
-            ui.selectable_value(&mut self.sort, Sort::Value, "Valeur / kill")
-                .on_hover_text(VALUE_HINT);
-            ui.selectable_value(&mut self.sort, Sort::ValuePerLevel, "÷ niveau")
-                .on_hover_text(
-                    "Valeur par kill divisée par le niveau du monstre (milieu de sa fourchette) : \
-                     ce que rapporte un kill pour sa difficulté. La colonne de droite montre ce rapport.",
-                );
+            self.sort_button(ui, Sort::Level, "Niveau");
+            self.sort_button(ui, Sort::Value, "Valeur / kill");
+            self.sort_button(ui, Sort::ValuePerLevel, "÷ niveau");
         });
         ui.checkbox(&mut self.normal_only, "Masquer élites, rares et boss");
         self.rebuild(loot, game, state);
@@ -71,15 +68,13 @@ impl Loot {
             .column(Column::remainder().clip(true))
             .column(Column::exact(90.0))
             .body(|body| {
-                body.rows(40.0, self.rows.len(), |mut row| {
+                body.rows(28.0, self.rows.len(), |mut row| {
                     let r = &self.rows[row.index()];
                     let npc = &loot.npcs[r.index];
                     row.set_selected(self.selection == Some(npc.npc.npc_id));
                     row.col(|ui| {
-                        ui.vertical(|ui| {
-                            ui.label(npc.name());
-                            ui.weak(subtitle(npc, r, several));
-                        });
+                        ui.label(npc.name());
+                        details(ui, npc, r, several);
                     });
                     row.col(|ui| {
                         if let Some(v) = r.value {
@@ -125,6 +120,27 @@ impl Loot {
         }
     }
 
+    /// Sort button: click cycles first direction, the opposite one, then off.
+    fn sort_button(&mut self, ui: &mut egui::Ui, sort: Sort, label: &str) {
+        // Value sorts start with the best first, the level with the lowest.
+        let first = sort != Sort::Level;
+        let text = match self.sort {
+            Some((s, descending)) if s == sort => {
+                format!("{label} {}", if descending { "⏷" } else { "⏶" })
+            }
+            _ => label.to_owned(),
+        };
+        let active = self.sort.is_some_and(|(s, _)| s == sort);
+        if ui.selectable_label(active, text).clicked() {
+            self.sort = match self.sort {
+                Some((s, descending)) if s == sort => {
+                    (descending == first).then_some((sort, !first))
+                }
+                _ => Some((sort, first)),
+            };
+        }
+    }
+
     /// Monsters whose name or one of whose items matches the filter, in the chosen order.
     fn rebuild(&mut self, loot: &ZoneLoot, game: &GameData, state: &State) {
         let key = (
@@ -155,8 +171,8 @@ impl Loot {
                     Some((game.item_name(drop.item_id), drop.best_chance()))
                 };
                 let price = |id| unit_value(state, game, id);
-                let value = match self.sort {
-                    Sort::ValuePerLevel => npc.value_per_level(price),
+                let value = match self.sort.map(|(sort, _)| sort) {
+                    Some(Sort::ValuePerLevel) => npc.value_per_level(price),
                     _ => npc.value_per_kill(price),
                 };
                 Some(Row {
@@ -166,19 +182,24 @@ impl Loot {
                 })
             })
             .collect();
-        if self.sort != Sort::Level {
-            // Highest value first, monsters without a priced drop last (stable: by level among them).
-            self.rows.sort_by(|a, b| match (a.value, b.value) {
-                (Some(x), Some(y)) => y.total_cmp(&x),
-                (x, y) => y.is_some().cmp(&x.is_some()),
-            });
+        match self.sort {
+            Some((Sort::Level, true)) => self.rows.reverse(),
+            Some((Sort::Level, false)) | None => {}
+            Some((_, descending)) => {
+                // Monsters without a priced drop last (stable: by level among them).
+                self.rows.sort_by(|a, b| match (a.value, b.value) {
+                    (Some(x), Some(y)) if descending => y.total_cmp(&x),
+                    (Some(x), Some(y)) => x.total_cmp(&y),
+                    (x, y) => y.is_some().cmp(&x.is_some()),
+                });
+            }
         }
         self.built_for = Some(key);
     }
 }
 
-/// Second line of a monster: the matching item and its chance, or levels and observed kills.
-fn subtitle(npc: &ZoneNpc, row: &Row, several: bool) -> String {
+/// After the name, in grey: the matching item and its chance, or the level with rank and skinning icons.
+fn details(ui: &mut egui::Ui, npc: &ZoneNpc, row: &Row, several: bool) {
     let zone = npc
         .npc
         .dungeon
@@ -187,24 +208,22 @@ fn subtitle(npc: &ZoneNpc, row: &Row, several: bool) -> String {
         .filter(|_| several);
     if let Some((item, chance)) = &row.matched {
         let chance = chance.map_or_else(|| "?".to_owned(), scout_core::drops::format_percent);
-        return match zone {
+        ui.weak(match zone {
             Some(zone) => format!("{item} · {chance} · {zone}"),
             None => format!("{item} · {chance}"),
-        };
+        });
+        return;
     }
-    let mut text = npc.npc.levels();
-    if text.is_empty() {
-        text = "niveau inconnu".to_owned();
+    ui.spacing_mut().item_spacing.x = 4.0;
+    ui.spacing_mut().interact_size.y = 12.0;
+    if npc.npc.level_range().is_empty() {
+        ui.weak("?");
+    }
+    widgets::level_label(ui, &npc.npc, theme::current(ui));
+    if npc.of(DropKind::Skinning).next().is_some() {
+        widgets::skinning_icon(ui, theme::current(ui)).on_hover_text("Dépeçable");
     }
     if let Some(zone) = zone {
-        text += &format!(" · {zone}");
+        ui.weak(format!("· {zone}"));
     }
-    if npc.kills > 0 {
-        text += &format!(" · {} kills", npc.kills);
-    }
-    let skinnable = npc.of(DropKind::Skinning).next().is_some();
-    if skinnable {
-        text += " · dépeçable";
-    }
-    text
 }

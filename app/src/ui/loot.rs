@@ -28,7 +28,8 @@ pub struct Loot {
     merged: Option<(Vec<usize>, Arc<ZoneLoot>)>,
     /// Monster or item search (monster list).
     filter: String,
-    sort: npcs::Sort,
+    /// Active sort and whether it is descending; `None` keeps the natural (level) order.
+    sort: Option<(npcs::Sort, bool)>,
     /// Elites, rares and bosses hidden.
     normal_only: bool,
     /// Selected monster (NPC id).
@@ -38,7 +39,7 @@ pub struct Loot {
     show_map: bool,
     map: map::WorldMap,
     /// What the rows were built for: zone data address, filter, sort, items revision, game data address.
-    built_for: Option<(usize, String, npcs::Sort, bool, u64, usize)>,
+    built_for: Option<npcs::BuiltFor>,
 }
 
 /// What one unit of an item brings once looted (copper): auction price after the cut, or the merchant's.

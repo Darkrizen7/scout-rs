@@ -27,10 +27,8 @@ pub fn show(
     let mut clicked = None;
     ui.heading(npc.name());
     ui.horizontal(|ui| {
-        let levels = npc.npc.levels();
-        if !levels.is_empty() {
-            ui.weak(format!("{levels} ·"));
-        }
+        widgets::level_label(ui, &npc.npc, palette);
+        ui.weak("·");
         let n = &npc.npc;
         let waypoint = map::waypoint(n.ui_map, n.x, n.y, &npc.name());
         widgets::place_label(ui, &n.place(), waypoint);

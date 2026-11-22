@@ -230,13 +230,18 @@ impl DropNpc {
         matches!(self.rank, None | Some(0))
     }
 
-    /// "24", "24-25", with "élite" / "rare" / "boss".
-    pub fn levels(&self) -> String {
-        let mut text = match (self.min_level, self.max_level) {
+    /// "24" or "24-25", without the rank.
+    pub fn level_range(&self) -> String {
+        match (self.min_level, self.max_level) {
             (Some(a), Some(b)) if a != b => format!("{a}-{b}"),
             (Some(a), _) | (None, Some(a)) => a.to_string(),
             (None, None) => String::new(),
-        };
+        }
+    }
+
+    /// "24", "24-25", with "élite" / "rare" / "boss".
+    pub fn levels(&self) -> String {
+        let mut text = self.level_range();
         let rank = match self.rank {
             Some(1) => "élite",
             Some(2) => "rare élite",

@@ -55,12 +55,6 @@ pub fn show(
     egui::ScrollArea::vertical()
         .auto_shrink(false)
         .show(ui, |ui| {
-            let real = match drops.total_kills {
-                0 => "aucun kill enregistré par Scout pour l'instant".to_owned(),
-                n => format!("{n} corps fouillés enregistrés par Scout"),
-            };
-            ui.weak(format!("Base : Forever Guide · Réel : {real}"));
-            ui.add_space(6.0);
             if drops.drops.is_empty() && drops.more.is_empty() {
                 ui.add_space(14.0);
                 ui.vertical_centered(|ui| {
@@ -164,7 +158,7 @@ fn row(
     });
     match &drop.npc {
         Some(npc) => {
-            ui.weak(npc.levels());
+            widgets::level_label(ui, npc, palette);
             let waypoint = scout_core::map::waypoint(npc.ui_map, npc.x, npc.y, &drop.name);
             widgets::place_label(ui, &npc.place(), waypoint);
         }
