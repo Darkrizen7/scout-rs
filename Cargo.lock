@@ -2588,24 +2588,64 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
-name = "scout-prix"
+name = "scout-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "sqlx",
+]
+
+[[package]]
+name = "scout-db"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "scout-core",
+ "sqlx",
+ "tokio",
+]
+
+[[package]]
+name = "scout-rs"
+version = "0.1.0"
+dependencies = [
  "chrono",
- "csv",
- "directories",
  "eframe",
  "egui",
  "egui_extras",
  "egui_plot",
+ "scout-core",
+ "scout-worker",
+ "winit",
+]
+
+[[package]]
+name = "scout-sources"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "csv",
+ "directories",
+ "scout-core",
  "serde",
  "serde_json",
- "sqlx",
+ "ureq",
+]
+
+[[package]]
+name = "scout-worker"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "directories",
+ "scout-core",
+ "scout-db",
+ "scout-sources",
+ "serde",
  "tokio",
  "toml",
- "ureq",
- "winit",
 ]
 
 [[package]]

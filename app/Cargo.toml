@@ -1,0 +1,19 @@
+[package]
+name = "scout-rs"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "wayland", "x11", "clipboard"] }
+egui = { version = "0.37", default-features = false, features = ["monochrome_emoji_fonts"] }
+egui_extras = { version = "0.37", default-features = false }
+egui_plot = "0.38.0"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+scout-core = { path = "../scout-core" }
+scout-worker = { path = "../scout-worker" }
+# Not used directly: enables GNOME-style (Adwaita) title bar and buttons on Wayland, where GNOME
+# does not draw server-side decorations and winit otherwise falls back to a bare frame.
+winit = { version = "0.30.13", default-features = false, features = ["wayland-csd-adwaita"] }
+
+[lints]
+workspace = true

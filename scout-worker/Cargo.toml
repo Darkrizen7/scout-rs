@@ -1,0 +1,21 @@
+[package]
+name = "scout-worker"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+directories = "6.0.0"
+scout-core = { path = "../scout-core" }
+scout-db = { path = "../scout-db" }
+scout-sources = { path = "../scout-sources" }
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.54.1", features = ["rt"] }
+toml = "1.2.2"
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["macros", "rt"] }
+
+[lints]
+workspace = true
