@@ -3,6 +3,7 @@
 
 pub(crate) mod detail;
 mod results;
+mod skill_bar;
 
 use std::sync::Arc;
 

@@ -80,11 +80,7 @@ fn recipe(ui: &mut egui::Ui, game: &GameData, state: &State, r: &Recipe, next: &
                 format!("requis {required}"),
             );
         }
-        ui.colored_label(
-            Color32::from_rgb(0xc8, 0x9b, 0x00),
-            format!("jaune {}", r.yellow),
-        );
-        ui.colored_label(palette.dim_text, format!("gris {}", r.grey));
+        super::skill_bar::show(ui, r);
     });
     ui.add_space(10.0);
 

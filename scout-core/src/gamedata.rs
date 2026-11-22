@@ -61,6 +61,13 @@ pub struct Recipe {
     pub taught_by: Vec<i64>,
 }
 
+impl Recipe {
+    /// Skill from which the recipe turns green: the game puts it halfway between yellow and grey.
+    pub fn green(&self) -> i64 {
+        (self.yellow + self.grey) / 2
+    }
+}
+
 /// An item category: a class (`subclass_id` None) or one of its subclasses, named in French.
 #[derive(Debug, Clone)]
 pub struct Category {
@@ -218,6 +225,22 @@ pub fn is_obsolete(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn green_is_halfway_between_yellow_and_grey() {
+        let recipe = Recipe {
+            spell_id: 1,
+            name: String::new(),
+            profession: 171,
+            required: None,
+            yellow: 50,
+            grey: 90,
+            creates: None,
+            reagents: vec![],
+            taught_by: vec![],
+        };
+        assert_eq!(recipe.green(), 70);
+    }
 
     #[test]
     fn recipe_items_missing_from_the_tables() {
