@@ -47,7 +47,9 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
 
 ## Données
 - Base `~/.local/share/scout-rs/prix.db`, réglages `~/.config/scout-rs/config.toml` (`wow_dir` = dossier
-  `_forever_`, détecté dans les préfixes Wine usuels ; `theme` = `light` / `dark`). Chemins via `directories`.
+  `_forever_`, détecté dans les préfixes Wine usuels ; `theme` = `light` / `dark` ; `hide_obsolete`,
+  vrai par défaut : masque les objets « Deprecated / Unused / [INUTILISÉ] / périmé », `gamedata::is_obsolete` ;
+  `last_import` = date du dernier import Scout réussi). Chemins via `directories`.
 - Tables :
   - Market : `items (item_id, name, class_id, subclass_id, class_name, subclass_name)` (noms et catégories vus par
     Scout), `snapshots (item_id, source, ts, price, quantity)` clé `(item_id, source, ts)`, `source` ∈

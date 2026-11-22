@@ -154,3 +154,39 @@ impl GameData {
             .map_or("?", |p| p.name.as_str())
     }
 }
+
+/// Words Blizzard puts in the names of items left in the tables but not in the game
+/// ("Deprecated …", "Unused …", "[INUTILISÉ] …", "Poison périmé").
+const OBSOLETE_WORDS: [&str; 4] = ["deprecated", "unused", "inutilisé", "périmé"];
+
+/// Whether an item name marks it as obsolete (never obtainable).
+pub fn is_obsolete(name: &str) -> bool {
+    let name = name.to_lowercase();
+    OBSOLETE_WORDS.iter().any(|w| name.contains(w))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn obsolete_names() {
+        for name in [
+            "Deprecated Book of Cyclone",
+            "Unused Black Night Elf Pants",
+            "Torka's Egg Cracker [UNUSED]",
+            "[INUTILISÉ] Fiole rayée",
+            "Gantelets en mithril électrifiés INUTILISÉS",
+            "Poison périmé",
+        ] {
+            assert!(is_obsolete(name), "{name}");
+        }
+        for name in [
+            "Ration de la semaine passée",
+            "Charge explosive",
+            "Lingot de fer",
+        ] {
+            assert!(!is_obsolete(name), "{name}");
+        }
+    }
+}

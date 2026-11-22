@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
-use scout_core::gamedata::GameData;
+use scout_core::gamedata::{self, GameData};
 use scout_core::map::Mask;
 use scout_core::pricing::{self, Source};
 use scout_core::{ItemSummary, Snapshot, VendorData};
@@ -129,7 +129,12 @@ impl Default for State {
 impl State {
     pub fn apply(&mut self, event: Event) {
         match event {
-            Event::Config(config) => self.config = Some(config),
+            Event::Config(config) => {
+                if self.config.as_ref().map(|c| c.hide_obsolete) != Some(config.hide_obsolete) {
+                    self.revision += 1;
+                }
+                self.config = Some(config);
+            }
             Event::Busy(busy) => self.busy = busy,
             Event::Status(status) => {
                 self.status = status;
@@ -205,8 +210,29 @@ impl State {
         worker.send(Command::SetFavorite(item_id, favorite));
     }
 
-    /// Whether the item passes the side bar filter.
+    /// Whether an item is left out of the lists: obsolete name and the setting on (default).
+    pub fn hides(&self, name: &str) -> bool {
+        self.config.as_ref().is_none_or(|c| c.hide_obsolete) && gamedata::is_obsolete(name)
+    }
+
+    /// Changes the "hide obsolete items" setting; the lists are rebuilt.
+    pub fn set_hide_obsolete(&mut self, hide: bool, worker: &WorkerHandle) {
+        if let Some(config) = &mut self.config {
+            config.hide_obsolete = hide;
+        }
+        self.revision += 1;
+        worker.send(Command::SetHideObsolete(hide));
+    }
+
+    /// Whether the item passes the side bar filter (and is not a hidden obsolete one).
     pub fn shown(&self, item_id: i64) -> bool {
+        if self
+            .item(item_id)
+            .and_then(|i| i.name.as_deref())
+            .is_some_and(|n| self.hides(n))
+        {
+            return false;
+        }
         let f = &self.filter;
         if f.favorites && !self.is_favorite(item_id) {
             return false;

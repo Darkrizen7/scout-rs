@@ -13,15 +13,33 @@ const APP: &str = "scout-rs";
 /// Name used before the tool was renamed; its folders are moved to the new name at start.
 const OLD_APP: &str = "scout-prix";
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     /// The `_forever_` folder of the WoW install.
     pub wow_dir: Option<PathBuf>,
     #[serde(default)]
     pub theme: Theme,
+    /// Hide items whose name marks them as obsolete ("Deprecated", "Unused", "périmé"…).
+    #[serde(default = "yes")]
+    pub hide_obsolete: bool,
     /// When the last import from Scout succeeded (Unix seconds).
     #[serde(default)]
     pub last_import: Option<i64>,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            wow_dir: None,
+            theme: Theme::default(),
+            hide_obsolete: true,
+            last_import: None,
+        }
+    }
+}
+
+fn yes() -> bool {
+    true
 }
 
 fn project_dirs(app: &str) -> Result<ProjectDirs> {

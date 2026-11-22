@@ -31,6 +31,7 @@ pub enum Command {
     UpdateGameData,
     SetWowDir(PathBuf),
     SetTheme(Theme),
+    SetHideObsolete(bool),
 }
 
 pub enum Event {

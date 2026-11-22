@@ -22,7 +22,12 @@ impl Items {
             ui,
             Some(("📦", palette.accent)),
             "Tous les objets",
-            Some(game.items.len()),
+            Some(
+                game.items
+                    .values()
+                    .filter(|i| !state.hides(&i.name))
+                    .count(),
+            ),
             self.filter == all,
             0,
         )
@@ -53,7 +58,7 @@ impl Items {
         ui.separator();
         // class → (count, subclass → count)
         let mut counts: BTreeMap<i64, (usize, BTreeMap<i64, usize>)> = BTreeMap::new();
-        for item in game.items.values() {
+        for item in game.items.values().filter(|i| !state.hides(&i.name)) {
             if let (Some(class), Some(sub)) = (item.class_id, item.subclass_id) {
                 let entry = counts.entry(class).or_default();
                 entry.0 += 1;

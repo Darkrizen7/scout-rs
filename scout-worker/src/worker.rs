@@ -102,6 +102,10 @@ pub(crate) fn run(commands: Receiver<Command>, send: impl Fn(Event)) {
                 config.theme = theme;
                 config.save()
             }
+            Command::SetHideObsolete(hide) => {
+                config.hide_obsolete = hide;
+                config.save()
+            }
         };
         if let Err(e) = result {
             send(Event::Error(format!("{e:#}")));

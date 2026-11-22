@@ -23,6 +23,7 @@ impl Items {
         let mut rows: Vec<&GameItem> = game
             .items
             .values()
+            .filter(|i| !state.hides(&i.name))
             .filter(|i| !f.favorites || state.is_favorite(i.id))
             .filter(|i| f.class_id.is_none() || i.class_id == f.class_id)
             .filter(|i| f.subclass_id.is_none() || i.subclass_id == f.subclass_id)

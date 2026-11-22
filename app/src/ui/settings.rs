@@ -97,6 +97,17 @@ fn appearance(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
     if config.theme != before {
         worker.send(Command::SetTheme(config.theme));
     }
+    let mut hide = config.hide_obsolete;
+    let changed = ui
+        .checkbox(&mut hide, "Masquer les objets périmés et inutilisés")
+        .on_hover_text(
+            "Objets restés dans les tables du jeu sans être obtenables : « Deprecated », « Unused », \
+             « [INUTILISÉ] », « périmé » dans le nom.",
+        )
+        .changed();
+    if changed {
+        state.set_hide_obsolete(hide, worker);
+    }
 }
 
 fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
