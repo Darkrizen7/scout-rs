@@ -24,7 +24,9 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
 ## Modules (onglets en haut)
 - **Market** : historique HdV. Barre latérale façon Fichiers (tous les objets, favoris, Analyse, Rentabilité,
   catégories dépliables), liste, graphique prix / quantité, analyse, calculateur de rentabilité.
-- **Objets** : les ~19 400 objets du jeu par catégorie, avec prix HdV / achat PNJ / revente ; une **fiche objet**
+- **Objets** : les ~19 400 objets du jeu par catégorie (icône de catégorie aussi dans le tableau), avec prix HdV /
+  achat PNJ / revente. À l'arrivée, seule la recherche, au milieu de la page (`widgets::landing_search`) ; le
+  tableau s'affiche dès qu'on tape ou qu'on choisit une catégorie. Une **fiche objet**
   à onglets : Market (prix et graphique), Recettes (produit par, utilisé dans, enseigne), PNJ (où l'acheter),
   Butin (monstres, dépeçage, vol à la tire, coffres, conteneurs, quêtes : chance de Forever Guide et chance
   réelle enregistrée par Scout, avec intervalle à 95 %).
@@ -128,8 +130,8 @@ niveaux habituels = 10ᵉ / 90ᵉ centiles, valeur par kill) : fusion base Forev
 
 `app/src/ui/` : `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
 icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
-`calculator`, `items` (+ `items/{rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
-couleurs de qualité, prix ou tiret, chance et chance réelle : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
+`calculator`, `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
+couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chance et chance réelle : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.
 - Une règle métier utilisée par l'UI va dans `scout-core` ; un widget utilisé par deux panneaux va dans `ui/widgets.rs`.

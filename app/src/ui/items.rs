@@ -1,6 +1,7 @@
 //! Objects module: every game item, by category, with prices; a click opens the item sheet.
 
 mod drops;
+mod list;
 mod merchants;
 mod rows;
 mod sheet;
@@ -10,11 +11,9 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use eframe::egui::{self, RichText};
-use egui_extras::{Column, TableBuilder};
 
 use crate::state::State;
 use crate::ui::theme;
-use crate::ui::widgets::{money_or_dash, quality_color, star_button};
 use scout_core::gamedata::{GameData, GameItem};
 use scout_worker::{Command, WorkerHandle};
 
@@ -32,12 +31,22 @@ struct Filter {
     subclass_id: Option<i64>,
 }
 
+impl Filter {
+    const ALL: Self = Self {
+        favorites: false,
+        class_id: None,
+        subclass_id: None,
+    };
+}
+
 pub struct Items {
     search: String,
     filter: Filter,
     sort: Sort,
     descending: bool,
     expanded: HashSet<i64>,
+    /// False on arrival: the search sits in the middle of the page until a category is chosen or text typed.
+    browsing: bool,
     /// Item ids shown, filtered and sorted.
     rows: Vec<i64>,
     built_for: Option<(usize, u64, Filter, String, Sort, bool)>,
@@ -50,14 +59,11 @@ impl Default for Items {
     fn default() -> Self {
         Self {
             search: String::new(),
-            filter: Filter {
-                favorites: false,
-                class_id: None,
-                subclass_id: None,
-            },
+            filter: Filter::ALL,
             sort: Sort::Name,
             descending: false,
             expanded: HashSet::new(),
+            browsing: false,
             rows: Vec::new(),
             built_for: None,
             sheet: None,
@@ -118,6 +124,13 @@ impl Items {
             });
     }
 
+    /// Shows the list of a side bar entry.
+    fn choose(&mut self, filter: Filter) {
+        self.filter = filter;
+        self.sheet = None;
+        self.browsing = true;
+    }
+
     /// Opens an item sheet, remembering the one shown before.
     fn open(&mut self, item_id: i64, state: &mut State, worker: &WorkerHandle) {
         if let Some(current) = &self.sheet {
@@ -127,138 +140,6 @@ impl Items {
             self.back.push(current.item_id);
         }
         self.sheet = Some(sheet::Sheet::new(item_id, state, worker));
-    }
-
-    fn list(
-        &mut self,
-        ui: &mut egui::Ui,
-        game: &GameData,
-        state: &mut State,
-        worker: &WorkerHandle,
-    ) {
-        ui.horizontal(|ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut self.search)
-                    .hint_text("🔍 Rechercher un objet (nom ou numéro)")
-                    .desired_width(340.0),
-            );
-            let all = Filter {
-                favorites: false,
-                class_id: None,
-                subclass_id: None,
-            };
-            let filtered = !self.search.is_empty() || self.filter != all;
-            if ui
-                .add_enabled(filtered, egui::Button::new("✖ Effacer les filtres"))
-                .clicked()
-            {
-                self.search.clear();
-                self.filter = all;
-            }
-        });
-        ui.add_space(6.0);
-        self.rebuild(game, state);
-        ui.weak(format!("{} objets", self.rows.len()));
-
-        let palette = theme::current(ui);
-        let mut open = None;
-        let mut star = None;
-        TableBuilder::new(ui)
-            .sense(egui::Sense::click())
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(Column::remainder().at_least(200.0).clip(true))
-            .column(Column::exact(160.0).clip(true))
-            .column(Column::exact(55.0))
-            .column(Column::exact(115.0))
-            .column(Column::exact(115.0))
-            .column(Column::exact(100.0))
-            .column(Column::exact(34.0))
-            .header(26.0, |mut header| {
-                self.sort_header(&mut header, "Nom", Some(Sort::Name));
-                self.sort_header(&mut header, "Catégorie", None);
-                self.sort_header(&mut header, "Niv.", Some(Sort::Level));
-                self.sort_header(&mut header, "Prix HdV", Some(Sort::Auction));
-                self.sort_header(&mut header, "Achat PNJ", None);
-                self.sort_header(&mut header, "Revente", None);
-                header.col(|_| {});
-            })
-            .body(|body| {
-                body.rows(30.0, self.rows.len(), |mut row| {
-                    let id = self.rows[row.index()];
-                    let Some(item) = game.items.get(&id) else {
-                        return;
-                    };
-                    row.col(|ui| {
-                        let mut name = RichText::new(&item.name);
-                        if let Some(color) = quality_color(item.quality, palette.dark) {
-                            name = name.color(color);
-                        }
-                        ui.label(name);
-                    });
-                    row.col(|ui| {
-                        ui.weak(category(game, item));
-                    });
-                    row.col(|ui| {
-                        ui.weak(if item.item_level > 0 {
-                            item.item_level.to_string()
-                        } else {
-                            String::new()
-                        });
-                    });
-                    row.col(|ui| money_or_dash(ui, state.auction_price(id)));
-                    row.col(|ui| {
-                        money_or_dash(ui, state.vendor.price(id).map(|p| p.round() as i64))
-                    });
-                    row.col(|ui| money_or_dash(ui, Some(item.sell_price).filter(|&p| p > 0)));
-                    row.col(|ui| {
-                        if star_button(ui, state.is_favorite(id), palette).clicked() {
-                            star = Some(id);
-                        }
-                    });
-                    if row
-                        .response()
-                        .on_hover_cursor(egui::CursorIcon::PointingHand)
-                        .clicked()
-                    {
-                        open = Some(id);
-                    }
-                });
-            });
-        if let Some(id) = star {
-            state.toggle_favorite(id, worker);
-        } else if let Some(id) = open {
-            self.open(id, state, worker);
-        }
-    }
-
-    fn sort_header(
-        &mut self,
-        header: &mut egui_extras::TableRow<'_, '_>,
-        label: &str,
-        sort: Option<Sort>,
-    ) {
-        header.col(|ui| {
-            let dim = theme::current(ui).dim_text;
-            let Some(sort) = sort else {
-                ui.label(RichText::new(label).color(dim));
-                return;
-            };
-            let arrow = match (self.sort == sort, self.descending) {
-                (false, _) => "",
-                (true, false) => " ⏶",
-                (true, true) => " ⏷",
-            };
-            if ui
-                .add(
-                    egui::Button::new(RichText::new(format!("{label}{arrow}")).color(dim))
-                        .frame(false),
-                )
-                .clicked()
-            {
-                self.descending = self.sort == sort && !self.descending;
-                self.sort = sort;
-            }
-        });
     }
 }
 

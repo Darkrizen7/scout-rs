@@ -13,11 +13,7 @@ use scout_core::gamedata::GameData;
 impl Items {
     pub(super) fn sidebar(&mut self, ui: &mut egui::Ui, game: &GameData, state: &State) {
         let palette = theme::current(ui);
-        let all = Filter {
-            favorites: false,
-            class_id: None,
-            subclass_id: None,
-        };
+        let all = Filter::ALL;
         if entry(
             ui,
             Some(("📦", palette.accent)),
@@ -28,13 +24,12 @@ impl Items {
                     .filter(|i| !state.hides(&i.name))
                     .count(),
             ),
-            self.filter == all,
+            self.browsing && self.filter == all,
             0,
         )
         .clicked()
         {
-            self.filter = all;
-            self.sheet = None;
+            self.choose(all);
         }
         let favorites = self.filter.favorites;
         if entry(
@@ -47,12 +42,11 @@ impl Items {
         )
         .clicked()
         {
-            self.filter = Filter {
+            self.choose(Filter {
                 favorites: true,
                 class_id: None,
                 subclass_id: None,
-            };
-            self.sheet = None;
+            });
         }
         ui.add_space(4.0);
         ui.separator();
@@ -92,12 +86,11 @@ impl Items {
                         if !self.expanded.remove(&class) {
                             self.expanded.insert(class);
                         }
-                        self.filter = Filter {
+                        self.choose(Filter {
                             favorites: false,
                             class_id: Some(class),
                             subclass_id: None,
-                        };
-                        self.sheet = None;
+                        });
                     }
                     if !open {
                         continue;
@@ -112,12 +105,11 @@ impl Items {
                     for (sub, sub_name, n) in subs {
                         let selected = chosen && self.filter.subclass_id == Some(sub);
                         if entry(ui, None, sub_name, Some(n), selected, 1).clicked() {
-                            self.filter = Filter {
+                            self.choose(Filter {
                                 favorites: false,
                                 class_id: Some(class),
                                 subclass_id: Some(sub),
-                            };
-                            self.sheet = None;
+                            });
                         }
                     }
                 }

@@ -98,3 +98,42 @@ pub fn place_label(ui: &mut egui::Ui, text: &str, waypoint: Option<String>) {
         ui.ctx().copy_text(command);
     }
 }
+
+/// A search field whose id does not depend on where it is drawn: the landing page and the list header share
+/// it, so the focus stays while the first letters are typed.
+pub fn search_box(
+    ui: &mut egui::Ui,
+    id: &str,
+    hint: &str,
+    text: &mut String,
+    width: f32,
+) -> egui::Response {
+    ui.add(
+        egui::TextEdit::singleline(text)
+            .id(egui::Id::unique(id))
+            .hint_text(hint)
+            .desired_width(width),
+    )
+}
+
+/// Arrival page of a module: a big icon, the search in the middle of the page (focused), a caption under it.
+pub fn landing_search(
+    ui: &mut egui::Ui,
+    icon: &str,
+    id: &str,
+    hint: &str,
+    text: &mut String,
+    caption: &str,
+) {
+    ui.vertical_centered(|ui| {
+        ui.add_space((ui.available_height() * 0.35 - 40.0).max(0.0));
+        ui.label(RichText::new(icon).size(40.0));
+        ui.add_space(4.0);
+        let search = search_box(ui, id, hint, text, 420.0);
+        if ui.memory(|m| m.focused().is_none()) {
+            search.request_focus();
+        }
+        ui.add_space(4.0);
+        ui.weak(caption);
+    });
+}
