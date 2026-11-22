@@ -90,7 +90,7 @@ impl Loot {
         }
         let loot = self.loot(state, worker);
         egui::Panel::left("loot-npcs")
-            .exact_size(340.0)
+            .exact_size(375.0)
             .resizable(false)
             .frame(
                 egui::Frame::new()
