@@ -13,9 +13,14 @@ egui = { version = "0.37", default-features = false, features = ["monochrome_emo
 egui_extras = { version = "0.37", default-features = false }
 egui_plot = "0.38.0"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "sqlite", "derive"] }
 tokio = { version = "1.54.1", features = ["rt"] }
 toml = "1.2.2"
+ureq = "3"
+# Not used directly: enables GNOME-style (Adwaita) title bar and buttons on Wayland, where GNOME
+# does not draw server-side decorations and winit otherwise falls back to a bare frame.
+winit = { version = "0.30.13", default-features = false, features = ["wayland-csd-adwaita"] }
 
 [lints.clippy]
 mod_module_files = { level = "warn" }

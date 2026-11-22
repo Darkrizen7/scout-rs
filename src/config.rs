@@ -15,14 +15,15 @@ pub struct Config {
     pub theme: Theme,
 }
 
+/// GNOME (libadwaita) colors, like the Files app.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
-    /// Dark slate with gold accents.
     #[default]
-    Slate,
-    /// Light, warm beige.
-    Parchment,
+    #[serde(alias = "parchment")]
+    Light,
+    #[serde(alias = "slate")]
+    Dark,
 }
 
 fn project_dirs() -> Result<ProjectDirs> {
@@ -77,6 +78,15 @@ impl Config {
             bail!("script d'export introuvable : {}", path.display());
         }
         Ok(path)
+    }
+
+    /// Forever Guide's list of merchant prices for profession reagents, when that addon is installed.
+    pub fn guide_vendor_prices(&self) -> Option<PathBuf> {
+        let path = self
+            .wow_dir
+            .as_ref()?
+            .join("Interface/AddOns/ForeverGuide/VendorPrices.lua");
+        path.is_file().then_some(path)
     }
 
     /// The most recently written `Scout.lua` among the accounts' SavedVariables.

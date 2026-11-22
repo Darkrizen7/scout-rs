@@ -5,12 +5,22 @@ use std::path::Path;
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 
+mod game;
+mod vendor;
+
+pub use game::GAME_FORMAT;
+pub use vendor::{VendorData, VendorOffer};
+
+use crate::analysis::Observation;
 use crate::import::{ItemName, Row};
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS items (
     item_id INTEGER PRIMARY KEY,
     name    TEXT
+);
+CREATE TABLE IF NOT EXISTS favorites (
+    item_id INTEGER PRIMARY KEY
 );
 CREATE TABLE IF NOT EXISTS snapshots (
     item_id  INTEGER NOT NULL REFERENCES items(item_id),
@@ -22,11 +32,29 @@ CREATE TABLE IF NOT EXISTS snapshots (
 ) WITHOUT ROWID;
 ";
 
+/// Columns added after the first release: (name, statement adding it when missing).
+const ITEM_COLUMNS: [(&str, &str); 4] = [
+    ("class_id", "ALTER TABLE items ADD COLUMN class_id INTEGER"),
+    (
+        "subclass_id",
+        "ALTER TABLE items ADD COLUMN subclass_id INTEGER",
+    ),
+    ("class_name", "ALTER TABLE items ADD COLUMN class_name TEXT"),
+    (
+        "subclass_name",
+        "ALTER TABLE items ADD COLUMN subclass_name TEXT",
+    ),
+];
+
 /// An item with its latest scan, for the list view.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct ItemSummary {
     pub item_id: i64,
     pub name: Option<String>,
+    pub class_id: Option<i64>,
+    pub subclass_id: Option<i64>,
+    pub class_name: Option<String>,
+    pub subclass_name: Option<String>,
     pub price: Option<i64>,
     pub quantity: Option<i64>,
     pub ts: i64,
@@ -55,7 +83,36 @@ impl Db {
             .connect_with(options)
             .await?;
         sqlx::raw_sql(SCHEMA).execute(&pool).await?;
+        sqlx::raw_sql(game::SCHEMA).execute(&pool).await?;
+        Self::migrate_game(&pool).await?;
+        Self::migrate_vendor(&pool).await?;
+        let existing: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM pragma_table_info('items')")
+                .fetch_all(&pool)
+                .await?;
+        for (column, add) in ITEM_COLUMNS {
+            if !existing.iter().any(|(name,)| name == column) {
+                sqlx::raw_sql(add).execute(&pool).await?;
+            }
+        }
         Ok(Self { pool })
+    }
+
+    pub async fn favorites(&self) -> Result<Vec<i64>> {
+        let rows: Vec<(i64,)> = sqlx::query_as("SELECT item_id FROM favorites")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    pub async fn set_favorite(&self, item_id: i64, favorite: bool) -> Result<()> {
+        let sql = if favorite {
+            "INSERT OR IGNORE INTO favorites (item_id) VALUES (?)"
+        } else {
+            "DELETE FROM favorites WHERE item_id = ?"
+        };
+        sqlx::query(sql).bind(item_id).execute(&self.pool).await?;
+        Ok(())
     }
 
     /// Inserts the rows not already stored; returns how many scans were new.
@@ -93,11 +150,21 @@ impl Db {
         let mut tx = self.pool.begin().await?;
         for n in names.iter().filter(|n| !n.name.is_empty()) {
             sqlx::query(
-                "INSERT INTO items (item_id, name) VALUES (?, ?)
-                 ON CONFLICT (item_id) DO UPDATE SET name = excluded.name",
+                "INSERT INTO items (item_id, name, class_id, subclass_id, class_name, subclass_name)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 ON CONFLICT (item_id) DO UPDATE SET
+                     name = excluded.name,
+                     class_id = COALESCE(excluded.class_id, items.class_id),
+                     subclass_id = COALESCE(excluded.subclass_id, items.subclass_id),
+                     class_name = COALESCE(excluded.class_name, items.class_name),
+                     subclass_name = COALESCE(excluded.subclass_name, items.subclass_name)",
             )
             .bind(n.item_id)
             .bind(&n.name)
+            .bind(n.class_id)
+            .bind(n.subclass_id)
+            .bind(n.class.as_deref().filter(|c| !c.is_empty()))
+            .bind(n.subclass.as_deref().filter(|c| !c.is_empty()))
             .execute(&mut *tx)
             .await?;
         }
@@ -108,7 +175,8 @@ impl Db {
     pub async fn items(&self) -> Result<Vec<ItemSummary>> {
         let items = sqlx::query_as(
             // Latest snapshot of each item, any source (Scout wins a tie).
-            "SELECT i.item_id, i.name, s.price, s.quantity, s.ts, s.scans
+            "SELECT i.item_id, i.name, i.class_id, i.subclass_id, i.class_name, i.subclass_name,
+                    s.price, s.quantity, s.ts, s.scans
              FROM items i
              JOIN (SELECT item_id, price, quantity, ts,
                           COUNT(*) OVER w AS scans,
@@ -120,6 +188,24 @@ impl Db {
         .fetch_all(&self.pool)
         .await?;
         Ok(items)
+    }
+
+    /// Every priced snapshot, for the analysis.
+    pub async fn observations(&self) -> Result<Vec<Observation>> {
+        let rows: Vec<(i64, i64, i64, Option<i64>)> = sqlx::query_as(
+            "SELECT item_id, ts, price, quantity FROM snapshots WHERE price IS NOT NULL",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(item_id, ts, price, quantity)| Observation {
+                item_id,
+                ts,
+                price,
+                quantity,
+            })
+            .collect())
     }
 
     pub async fn history(&self, item_id: i64) -> Result<Vec<Snapshot>> {
@@ -202,9 +288,24 @@ mod tests {
         db.set_names(&[ItemName {
             item_id: 1,
             name: "Tissu de lin".into(),
+            class_id: Some(7),
+            subclass_id: Some(5),
+            class: Some("Artisanat".into()),
+            subclass: Some("Tissu".into()),
         }])
         .await?;
-        assert_eq!(db.items().await?[0].name.as_deref(), Some("Tissu de lin"));
+        let item = &db.items().await?[0];
+        assert_eq!(item.name.as_deref(), Some("Tissu de lin"));
+        assert_eq!(
+            (item.class_id, item.subclass_name.as_deref()),
+            (Some(7), Some("Tissu"))
+        );
+
+        db.set_favorite(1, true).await?;
+        db.set_favorite(1, true).await?;
+        assert_eq!(db.favorites().await?, vec![1]);
+        db.set_favorite(1, false).await?;
+        assert!(db.favorites().await?.is_empty());
 
         std::fs::remove_dir_all(&dir)?;
         Ok(())

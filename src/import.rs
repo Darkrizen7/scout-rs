@@ -11,6 +11,8 @@ use serde::de::DeserializeOwned;
 
 /// Exports past prices from Auctionator and Forever Guide SavedVariables.
 const LEGACY_EXPORT: &str = include_str!("../tools/legacy_export.lua");
+/// Exports the items merchants sell (Scout's prices seen in game, Forever Guide's list).
+const VENDOR_EXPORT: &str = include_str!("../tools/vendor_export.lua");
 
 pub const SCOUT: &str = "scout";
 
@@ -44,6 +46,15 @@ pub fn run_scout_export(script: &Path, saved_variables: &Path) -> Result<Vec<Row
 pub struct ItemName {
     pub item_id: i64,
     pub name: String,
+    /// Item class / subclass ids and their names in the game client's language (empty with older exports).
+    #[serde(default)]
+    pub class_id: Option<i64>,
+    #[serde(default)]
+    pub subclass_id: Option<i64>,
+    #[serde(default)]
+    pub class: Option<String>,
+    #[serde(default)]
+    pub subclass: Option<String>,
 }
 
 /// Every item name Scout knows: `lua export.lua <Scout.lua> --names`.
@@ -63,6 +74,32 @@ pub fn run_legacy_export(saved_variables_dir: &Path) -> Result<Vec<Row>> {
         Command::new("lua").arg("-").arg(saved_variables_dir),
         Some(LEGACY_EXPORT),
     )
+}
+
+/// An item a merchant sells, with its unit price (copper, may be fractional) and, when Scout saw it, the NPC.
+#[derive(Debug, Deserialize)]
+pub struct VendorPrice {
+    /// `scout` (seen in game) or `foreverguide` (its list of unlimited profession reagents).
+    pub source: String,
+    pub item_id: i64,
+    pub price: f64,
+    pub npc_id: Option<i64>,
+    pub npc: Option<String>,
+    pub zone: Option<String>,
+    pub x: Option<f64>,
+    pub y: Option<f64>,
+    /// 1 when the merchant has a limited stock.
+    pub limited: u8,
+}
+
+/// `lua - <Scout.lua> [<ForeverGuide/VendorPrices.lua>]` with the embedded script.
+pub fn run_vendor_export(saved_variables: &Path, guide: Option<&Path>) -> Result<Vec<VendorPrice>> {
+    let mut command = Command::new("lua");
+    command.arg("-").arg(saved_variables);
+    if let Some(guide) = guide {
+        command.arg(guide);
+    }
+    run_lua(&mut command, Some(VENDOR_EXPORT))
 }
 
 fn run_lua<T: DeserializeOwned>(command: &mut Command, stdin: Option<&str>) -> Result<Vec<T>> {

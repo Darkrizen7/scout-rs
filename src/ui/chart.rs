@@ -4,11 +4,13 @@ use chrono::{Local, TimeZone};
 use eframe::egui;
 use egui_plot::{GridMark, HoverPosition, Legend, Line, Plot, Points};
 
-use crate::app::{State, item_name};
 use crate::db::Snapshot;
 use crate::import;
 use crate::money;
+use crate::state::State;
+use crate::ui::item_list::star_button;
 use crate::ui::theme;
+use crate::worker::WorkerHandle;
 
 pub fn format_datetime(ts: i64) -> String {
     Local
@@ -38,20 +40,42 @@ fn hovered(pos: &HoverPosition<'_>) -> (String, egui_plot::PlotPoint) {
     }
 }
 
-pub fn show(ui: &mut egui::Ui, state: &State) {
+pub fn show(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
     let Some(item) = state.selected_item() else {
-        ui.centered_and_justified(|ui| ui.label("Choisis un objet dans l'onglet Objets."));
+        ui.centered_and_justified(|ui| ui.label("Choisis un objet dans la liste."));
         return;
     };
-    ui.heading(item_name(item));
+    let item_id = item.item_id;
+    let category = [&item.class_name, &item.subclass_name]
+        .into_iter()
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(" › ");
+    let mut toggle = false;
+    ui.horizontal(|ui| {
+        toggle = star_button(ui, state.is_favorite(item_id), theme::current(ui)).clicked();
+        ui.weak(format!("n° {item_id}"));
+        if !category.is_empty() {
+            ui.weak(format!("· {category}"));
+        }
+    });
+    if toggle {
+        state.toggle_favorite(item_id, worker);
+    }
     let history = match &state.history {
-        Some((id, history)) if *id == item.item_id => history,
+        Some((id, history)) if *id == item_id => history,
         _ => {
             ui.spinner();
             return;
         }
     };
 
+    plots(ui, history);
+}
+
+/// Price (top) and quantity (bottom) over time, one series per source, sharing the time axis.
+pub fn plots(ui: &mut egui::Ui, history: &[Snapshot]) {
     let with_price = history.iter().filter(|s| s.price.is_some()).count();
     ui.label(format!(
         "{} relevés · {with_price} avec un prix",
@@ -63,6 +87,8 @@ pub fn show(ui: &mut egui::Ui, state: &State) {
     let height = (ui.available_height() - 20.0) / 2.0;
     Plot::new("price")
         .height(height * 1.3)
+        .show_grid([false, true])
+        .grid_spacing(egui::Rangef::new(40.0, 300.0))
         .legend(Legend::default())
         .link_axis(link, [true, false])
         .link_cursor(link, [true, false])
@@ -82,6 +108,8 @@ pub fn show(ui: &mut egui::Ui, state: &State) {
         });
     Plot::new("quantity")
         .height(height * 0.7)
+        .show_grid([false, true])
+        .grid_spacing(egui::Rangef::new(40.0, 300.0))
         .legend(Legend::default())
         .link_axis(link, [true, false])
         .link_cursor(link, [true, false])

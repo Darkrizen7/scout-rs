@@ -2,9 +2,9 @@
 
 use eframe::egui;
 
-use crate::app::{State, item_name};
 use crate::money;
-use crate::ui::theme;
+use crate::state::{State, item_name};
+use crate::ui::{coins, theme};
 
 pub struct Calculator {
     buy: String,
@@ -26,7 +26,6 @@ impl Default for Calculator {
 
 impl Calculator {
     pub fn show(&mut self, ui: &mut egui::Ui, state: &State) {
-        ui.heading("Calculateur de rentabilité");
         ui.small("Prix unitaires : « 1g 20s 5c », « 75s » ou un nombre en or (« 1,5 » = 1g 50s).");
         ui.add_space(8.0);
 
@@ -72,41 +71,30 @@ impl Calculator {
             palette.loss
         };
 
+        let q = i64::from(self.quantity);
         egui::Grid::new("result")
             .num_columns(2)
             .spacing([12.0, 6.0])
             .show(ui, |ui| {
-                row(
-                    ui,
-                    "Coût d'achat",
-                    money::format(buy * i64::from(self.quantity)),
-                );
-                row(
-                    ui,
-                    "Vente brute",
-                    money::format(sell * i64::from(self.quantity)),
-                );
-                row(
-                    ui,
-                    "Commission",
-                    format!("-{}", money::format(p.commission)),
-                );
+                money_row(ui, "Coût d'achat", buy * q, None);
+                money_row(ui, "Vente brute", sell * q, None);
+                money_row(ui, "Commission", -p.commission, None);
                 ui.strong("Bénéfice net");
-                ui.colored_label(color, egui::RichText::new(money::format(p.total)).strong());
+                coins::money(ui, p.total, Some(color));
                 ui.end_row();
-                row(ui, "Par unité", money::format(p.per_unit.round() as i64));
-                row(
-                    ui,
-                    "Rentabilité",
-                    p.roi
-                        .map(|r| format!("{r:+.1} %"))
-                        .unwrap_or_else(|| "—".into()),
+                money_row(ui, "Par unité", p.per_unit.round() as i64, Some(color));
+                ui.label("Rentabilité");
+                ui.colored_label(
+                    color,
+                    p.roi.map_or_else(|| "—".into(), |r| format!("{r:+.1} %")),
                 );
-                row(
-                    ui,
-                    "Prix de vente minimum",
-                    format!("{} (pour ne rien perdre)", money::format(p.break_even)),
-                );
+                ui.end_row();
+                ui.label("Prix de vente minimum");
+                ui.horizontal(|ui| {
+                    coins::money(ui, p.break_even, None);
+                    ui.weak("pour ne rien perdre");
+                });
+                ui.end_row();
             });
     }
 }
@@ -119,14 +107,14 @@ fn money_field(ui: &mut egui::Ui, label: &str, text: &mut String) {
         edit.on_hover_text("Format non reconnu");
         ui.colored_label(ui.visuals().error_fg_color, "?");
     } else if let Some(copper) = money::parse(text) {
-        ui.weak(money::format(copper));
+        coins::money(ui, copper, None);
     } else {
         ui.label("");
     }
 }
 
-fn row(ui: &mut egui::Ui, label: &str, value: String) {
+fn money_row(ui: &mut egui::Ui, label: &str, copper: i64, color: Option<egui::Color32>) {
     ui.label(label);
-    ui.label(value);
+    coins::money(ui, copper, color);
     ui.end_row();
 }

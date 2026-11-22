@@ -1,10 +1,13 @@
 //! Scout price history: imports Scout's auction house scans into SQLite and shows them.
 
+mod analysis;
 mod app;
 mod config;
 mod db;
+mod gamedata;
 mod import;
 mod money;
+mod state;
 mod ui;
 mod worker;
 

@@ -1,99 +1,41 @@
-//! Application state and top-level layout.
+//! Top-level layout: header bar, side bar, content (Files-like).
 
 use eframe::egui;
 
-use crate::config::{Config, Theme};
-use crate::db::{ItemSummary, Snapshot};
-use crate::ui::{calculator, chart, item_list, theme, toolbar};
-use crate::worker::{Command, Event, WorkerHandle};
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum View {
-    List,
-    Chart,
-    Calculator,
-}
-
-/// Everything the panels read; only changed by worker events and user input.
-pub struct State {
-    pub view: View,
-    pub config: Option<Config>,
-    pub busy: bool,
-    pub status: String,
-    pub error: Option<String>,
-    pub items: Vec<ItemSummary>,
-    /// Bumped whenever `items` changes, so panels can refresh their caches.
-    pub revision: u64,
-    pub selected: Option<i64>,
-    pub history: Option<(i64, Vec<Snapshot>)>,
-}
-
-impl State {
-    fn apply(&mut self, event: Event) {
-        match event {
-            Event::Config(config) => self.config = Some(config),
-            Event::Busy(busy) => self.busy = busy,
-            Event::Status(status) => {
-                self.status = status;
-                self.error = None;
-            }
-            Event::Error(error) => self.error = Some(error),
-            Event::Items(items) => {
-                self.items = items;
-                self.revision += 1;
-            }
-            Event::History(id, history) => self.history = Some((id, history)),
-        }
-    }
-
-    pub fn selected_item(&self) -> Option<&ItemSummary> {
-        let id = self.selected?;
-        self.items.iter().find(|i| i.item_id == id)
-    }
-
-    /// Selects an item and asks for its history if not already loaded.
-    pub fn select(&mut self, item_id: i64, worker: &WorkerHandle) {
-        self.selected = Some(item_id);
-        if self.history.as_ref().is_none_or(|(id, _)| *id != item_id) {
-            worker.send(Command::LoadHistory(item_id));
-        }
-    }
-}
-
-pub fn item_name(item: &ItemSummary) -> String {
-    item.name
-        .clone()
-        .unwrap_or_else(|| format!("objet #{}", item.item_id))
-}
+use crate::config::Theme;
+use crate::state::{Module, State, View};
+use crate::ui::{
+    analysis_view, calculator, chart, fonts, header, item_list, items, recipes, sidebar, theme,
+};
+use crate::worker::WorkerHandle;
 
 pub struct App {
     worker: WorkerHandle,
     state: State,
     list: item_list::ItemList,
     calculator: calculator::Calculator,
-    settings: toolbar::Settings,
+    analysis: analysis_view::AnalysisView,
+    sidebar: sidebar::Sidebar,
+    recipes: recipes::Recipes,
+    items: items::Items,
+    settings: header::Settings,
     /// Theme currently applied to the egui context.
     theme: Option<Theme>,
 }
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        fonts::install(&cc.egui_ctx);
         Self {
             worker: WorkerHandle::spawn(cc.egui_ctx.clone()),
-            state: State {
-                view: View::List,
-                config: None,
-                busy: false,
-                status: String::new(),
-                error: None,
-                items: Vec::new(),
-                revision: 0,
-                selected: None,
-                history: None,
-            },
+            state: State::default(),
             list: item_list::ItemList::default(),
             calculator: calculator::Calculator::default(),
-            settings: toolbar::Settings::default(),
+            analysis: analysis_view::AnalysisView::default(),
+            sidebar: sidebar::Sidebar::default(),
+            recipes: recipes::Recipes::default(),
+            items: items::Items::default(),
+            settings: header::Settings::default(),
             theme: None,
         }
     }
@@ -101,7 +43,7 @@ impl App {
 
 impl eframe::App for App {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let events: Vec<Event> = self.worker.poll().collect();
+        let events: Vec<_> = self.worker.poll().collect();
         for event in events {
             self.state.apply(event);
         }
@@ -122,17 +64,66 @@ impl eframe::App for App {
             state,
             list,
             calculator,
+            analysis,
+            sidebar,
+            recipes,
+            items,
             settings,
             ..
         } = self;
+        let palette = theme::current(ui);
+        let bar = |fill| {
+            egui::Frame::new()
+                .fill(fill)
+                .inner_margin(egui::Margin::symmetric(12, 6))
+        };
 
-        egui::Panel::top("toolbar").show(ui, |ui| toolbar::show(ui, state, worker, settings));
-        egui::Panel::bottom("status").show(ui, |ui| toolbar::status(ui, state));
-        egui::CentralPanel::default().show(ui, |ui| match state.view {
-            View::List => list.show(ui, state, worker),
-            View::Chart => chart::show(ui, state),
-            View::Calculator => calculator.show(ui, state),
-        });
+        egui::Panel::top("tabs")
+            .frame(bar(palette.header))
+            .show(ui, |ui| header::tabs(ui, state, settings));
+        egui::Panel::bottom("status")
+            .frame(bar(palette.header))
+            .show(ui, |ui| header::status(ui, state));
+        let content = egui::Frame::new()
+            .fill(palette.view)
+            .inner_margin(egui::Margin::same(14));
+        match state.module {
+            Module::Market => {
+                egui::Panel::left("sidebar")
+                    .exact_size(230.0)
+                    .resizable(false)
+                    .frame(
+                        egui::Frame::new()
+                            .fill(palette.sidebar)
+                            .inner_margin(egui::Margin::symmetric(8, 10)),
+                    )
+                    .show(ui, |ui| sidebar.show(ui, state));
+                egui::Panel::top("header")
+                    .frame(bar(palette.view))
+                    .show_separator_line(false)
+                    .show(ui, |ui| header::show(ui, state));
+                egui::CentralPanel::default()
+                    .frame(content)
+                    .show(ui, |ui| match state.view {
+                        View::List => list.show(ui, state, worker),
+                        View::Chart => chart::show(ui, state, worker),
+                        View::Analysis => analysis.show(ui, state, worker),
+                        View::Calculator => calculator.show(ui, state),
+                    });
+            }
+            Module::Items => {
+                // The module lays out its own side bar and content.
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::new())
+                    .show(ui, |ui| items.show(ui, state, worker));
+            }
+            Module::Recipes => {
+                // The module lays out its own side bar, list and detail.
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::new())
+                    .show(ui, |ui| recipes.show(ui, state, worker));
+            }
+        }
         settings.window(&ui.ctx().clone(), state, worker);
     }
 }

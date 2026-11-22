@@ -23,3 +23,6 @@ Prérequis : `lua` (5.4) dans le `PATH`.
 - Base : `~/.local/share/scout-prix/prix.db` — tables `items (item_id, name)` et
   `snapshots (item_id, source, ts, price, quantity)` ; `price` en cuivre, `ts` en secondes Unix.
 - Réglages : `~/.config/scout-prix/config.toml` (dossier `_forever_`, détecté automatiquement ; thème).
+
+Police : [Inter](https://github.com/rsms/inter) (SIL Open Font License 1.1, `assets/fonts/Inter-LICENSE.txt`),
+intégrée au binaire.
