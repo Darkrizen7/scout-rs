@@ -11,7 +11,7 @@ scout-core = { path = "../scout-core" }
 scout-db = { path = "../scout-db" }
 scout-sources = { path = "../scout-sources" }
 serde = { version = "1.0.229", features = ["derive"] }
-tokio = { version = "1.54.1", features = ["rt"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread"] }
 toml = "1.2.2"
 
 [dev-dependencies]

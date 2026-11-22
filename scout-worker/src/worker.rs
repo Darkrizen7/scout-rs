@@ -2,6 +2,11 @@
 //!
 //! Quick commands (loading a sheet, a zone, a favorite…) are answered by the worker loop; long tasks
 //! (imports, game data download) each run on their own thread, so they never hold up the others.
+//!
+//! All threads share one multi-threaded tokio runtime and call `block_on` on it. Its own thread keeps
+//! the background tasks moving: sqlx gives the pool's single connection back in such a task, so with one
+//! runtime per thread (only driven inside `block_on`) a thread could wait for a connection that the
+//! idle thread holding it never returned.
 
 mod tasks;
 
@@ -25,6 +30,7 @@ pub(crate) type Sink = Arc<dyn Fn(Event) + Send + Sync>;
 /// What every thread shares.
 #[derive(Clone)]
 struct Shared {
+    runtime: Arc<tokio::runtime::Runtime>,
     db: Db,
     config: Arc<Mutex<Config>>,
     /// Long tasks running: a second click on the same one is ignored.
@@ -37,7 +43,7 @@ impl Shared {
         self.config.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Runs `job` on its own thread (with its own runtime), unless that task is already running.
+    /// Runs `job` on its own thread, unless that task is already running.
     fn spawn(
         &self,
         task: Task,
@@ -57,7 +63,7 @@ impl Shared {
             .spawn(move || {
                 let send = &shared.send;
                 send(Event::Busy(task, true));
-                let result = runtime().and_then(|runtime| job(&runtime, &shared));
+                let result = job(&shared.runtime, &shared);
                 if let Err(e) = result {
                     send(Event::Error(format!("{e:#}")));
                 }
@@ -78,8 +84,11 @@ impl Shared {
     }
 }
 
+/// One worker thread is enough: the database has a single connection and the network calls block.
 fn runtime() -> Result<tokio::runtime::Runtime> {
-    Ok(tokio::runtime::Builder::new_current_thread()
+    Ok(tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(1)
+        .thread_name("tokio")
         .enable_all()
         .build()?)
 }
@@ -112,7 +121,6 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     if let Err(e) = runtime.block_on(refresh(&db, &*send)) {
         send(Event::Error(format!("{e:#}")));
     }
-    settle(&runtime);
 
     // Is the stored game data the newest Forever build? (network: on its own, the UI is already usable)
     let latest = send.clone();
@@ -128,27 +136,21 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     }
 
     let shared = Shared {
+        runtime: Arc::new(runtime),
         db,
         config: Arc::new(Mutex::new(config)),
         running: Arc::default(),
         send,
     };
     for command in commands {
-        if let Err(e) = handle(command, &runtime, &shared) {
+        if let Err(e) = handle(command, &shared) {
             (shared.send)(Event::Error(format!("{e:#}")));
         }
-        settle(&runtime);
     }
 }
 
-/// Lets this runtime finish what the queries left behind. It only runs inside `block_on`: without this,
-/// the task returning the pool's single connection can stay queued here while another thread waits for it.
-fn settle(runtime: &tokio::runtime::Runtime) {
-    runtime.block_on(tokio::task::yield_now());
-}
-
-fn handle(command: Command, runtime: &tokio::runtime::Runtime, shared: &Shared) -> Result<()> {
-    let (db, send) = (&shared.db, &*shared.send);
+fn handle(command: Command, shared: &Shared) -> Result<()> {
+    let (runtime, db, send) = (&*shared.runtime, &shared.db, &*shared.send);
     match command {
         Command::Import => shared.spawn(Task::Import, |runtime, shared| {
             let config = shared.config().clone();
