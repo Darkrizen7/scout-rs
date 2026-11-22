@@ -88,7 +88,7 @@ impl Recipes {
         }
     }
 
-    /// Recipes whose name or product matches, then items made or used by recipes.
+    /// Recipes whose name or product matches, then the reagents that match.
     fn rebuild(&mut self, game: &GameData) {
         let key = (
             game as *const GameData as usize,
@@ -117,24 +117,18 @@ impl Recipes {
         });
         self.hits = recipes.into_iter().map(Hit::Recipe).collect();
         if !query.is_empty() {
-            // Reagents (and products) matching the search, limited to the selected profession.
+            // Reagents matching the search, limited to the selected profession. Items only made by
+            // recipes are left out: their recipes are already listed (the product name matches).
             let mut items: Vec<i64> = game
                 .used_in
-                .keys()
-                .chain(game.made_by.keys())
-                .copied()
-                .filter(|id| matches(&game.item_name(*id)))
-                .filter(|id| {
-                    self.profession.is_none_or(|p| {
-                        let uses = |list: Option<&Vec<usize>>| {
-                            list.is_some_and(|l| l.iter().any(|&i| game.recipes[i].profession == p))
-                        };
-                        uses(game.used_in.get(id)) || uses(game.made_by.get(id))
-                    })
+                .iter()
+                .filter(|(_, recipes)| {
+                    self.profession
+                        .is_none_or(|p| recipes.iter().any(|&i| game.recipes[i].profession == p))
                 })
+                .map(|(&id, _)| id)
+                .filter(|&id| matches(&game.item_name(id)))
                 .collect();
-            items.sort_unstable();
-            items.dedup();
             items.sort_by_key(|id| game.item_name(*id).to_lowercase());
             self.hits.extend(items.into_iter().map(Hit::Item));
         }
