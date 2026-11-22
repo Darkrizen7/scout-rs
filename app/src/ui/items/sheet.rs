@@ -186,23 +186,18 @@ fn market(ui: &mut egui::Ui, state: &State, id: i64) {
         });
         return;
     };
-    egui::Grid::new("sheet-market")
-        .num_columns(2)
-        .spacing([16.0, 4.0])
-        .show(ui, |ui| {
-            ui.label("Dernier prix");
-            money_or_dash(ui, item.price);
-            ui.end_row();
-            ui.label("En vente");
-            ui.label(item.quantity.map_or_else(|| "—".into(), |q| q.to_string()));
-            ui.end_row();
-            ui.label("Dernier relevé");
-            ui.label(format_datetime(item.ts));
-            ui.end_row();
-            ui.label("Relevés");
-            ui.label(item.scans.to_string());
-            ui.end_row();
-        });
+    ui.horizontal(|ui| {
+        ui.label("Dernier prix");
+        money_or_dash(ui, item.price);
+        ui.add_space(16.0);
+        ui.label("Volume");
+        ui.label(item.quantity.map_or_else(|| "—".into(), |q| q.to_string()));
+    });
+    ui.weak(format!(
+        "Dernier relevé : {} · Relevés : {}",
+        format_datetime(item.ts),
+        item.scans
+    ));
     ui.add_space(8.0);
     match &state.history {
         Some((history_id, history)) if *history_id == id => chart::plots(ui, history),

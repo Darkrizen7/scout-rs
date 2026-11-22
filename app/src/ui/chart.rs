@@ -53,12 +53,6 @@ pub fn show(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
 
 /// Price (top) and quantity (bottom) over time, one series per source, sharing the time axis.
 pub fn plots(ui: &mut egui::Ui, history: &[Snapshot]) {
-    let with_price = history.iter().filter(|s| s.price.is_some()).count();
-    ui.label(format!(
-        "{} relevés · {with_price} avec un prix",
-        history.len()
-    ));
-
     let color = theme::current(ui).series[0];
     let link = egui::Id::unique("scout-prix/time-axis");
     let height = (ui.available_height() - 20.0) / 2.0;
