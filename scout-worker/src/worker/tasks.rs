@@ -75,7 +75,7 @@ pub(super) fn update_game_data(
     ));
     let build = sources::latest_build()?;
     send(Event::LatestBuild(Ok(build.clone())));
-    if runtime.block_on(db.game_version())? == Some((build.clone(), GAME_FORMAT)) {
+    if runtime.block_on(db.game_version())? == Some((build.clone(), GAME_FORMAT, true)) {
         send(Event::Status(format!(
             "Données du jeu déjà à jour (Forever {build})."
         )));
@@ -95,10 +95,8 @@ pub(super) fn update_game_data(
     let blocked = add_wowhead_items(runtime, db, &mut tables, send)?;
     let now = chrono::Utc::now().timestamp();
     let mut game = GameData::new(build.clone(), now, tables);
-    if blocked.is_some() {
-        // Stored as incomplete: the next update runs again instead of finding the data up to date.
-        game.format = GAME_FORMAT - 1;
-    }
+    // Incomplete: the next update runs again instead of finding the data up to date.
+    game.complete = blocked.is_none();
     runtime.block_on(db.save_game(&game))?;
     send(Event::Status(format!(
         "Données du jeu : Forever {build}, {} recettes, {} objets.",

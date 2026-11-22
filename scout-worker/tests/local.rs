@@ -121,7 +121,10 @@ async fn downloads_assembles_and_stores_latest_build() -> Result<()> {
     let loaded = db.load_game().await?;
     std::fs::remove_file(&path)?;
 
-    assert_eq!(db.game_version().await?, Some((build.clone(), GAME_FORMAT)));
+    assert_eq!(
+        db.game_version().await?,
+        Some((build.clone(), GAME_FORMAT, true))
+    );
     assert_eq!(
         (loaded.recipes.len(), loaded.items.len()),
         (game.recipes.len(), game.items.len())

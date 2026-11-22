@@ -46,7 +46,7 @@
   qu'on ne les a pas croisés). À la mise à jour, `Tables::missing_recipe_items` → nom, qualité, niveaux, revente
   depuis Wowhead ; la catégorie reste celle de `Item` (`Tables::unnamed_categories`). 1 s de pause entre deux
   requêtes (sans pause, CloudFront bloque l'adresse en 403 après ~300) ; au premier refus (403…) on
-  arrête de demander, le reste des données est enregistré mais marqué incomplet (format − 1, donc « ⚠ À retélécharger »)
+  arrête de demander, le reste des données est enregistré mais marqué incomplet (`complete = 0` dans `game_meta`, donc « ⚠ Incomplètes » dans Réglages et la mise à jour suivante recommence)
   et un message rouge dit de réessayer plus tard (le cache garde ce qui a été lu).
 - Les sources sont citées dans Réglages → bouton « ℹ Sources des données » (`ui/credits.rs`, `SOURCES` : à compléter
   si on en ajoute une).

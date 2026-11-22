@@ -194,6 +194,13 @@ fn game_data(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
                         "L'outil garde maintenant plus d'informations sur cette version.",
                     );
             }
+            (Some(Ok(latest)), Some(build)) if latest == build && !game.complete => {
+                ui.colored_label(palette.star, "⚠ Incomplètes")
+                    .on_hover_text(
+                        "Wowhead a refusé des requêtes pendant la dernière mise à jour : \
+                         réessaie plus tard pour compléter les noms d'objets manquants.",
+                    );
+            }
             (Some(Ok(latest)), Some(build)) if latest == build => {
                 ui.colored_label(palette.gain, "✔ À jour");
             }

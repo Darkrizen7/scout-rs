@@ -18,7 +18,7 @@
     zone du PNJ : lien avec la carte du jeu (les noms de zone de Forever Guide et du client diffèrent parfois).
   - Butin réel de Scout (remplacé à chaque import : l'addon garde des totaux) : `loot_npcs (npc_id, name, zone,
     kills, skins)`, `loot_observed (npc_id, kind, item_id, drops, quantity)`, `kind` ∈ `loot | skin`.
-  - Données du jeu `game_*` (remplacées en bloc) : `game_meta` (`build`, `updated`, `format`), `game_items`,
+  - Données du jeu `game_*` (remplacées en bloc) : `game_meta` (`build`, `updated`, `format`, `complete` : 0 si Wowhead a refusé des requêtes), `game_items`,
     `game_categories`, `game_professions`, `game_recipes`, `game_reagents`, `game_recipe_items`, `game_maps`, `game_zone_factions` (nom de zone → 2 Alliance / 4 Horde)
     (continents et zones : UiMap, rectangle en coordonnées monde).
   - `wowhead_items` (mêmes colonnes que `game_items`) : objets demandés à Wowhead, **gardés** d'une mise à jour à

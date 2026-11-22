@@ -28,7 +28,8 @@ const ITEM_COLUMNS: [(&str, &str); 3] = [
 
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS game_meta (
-    key   TEXT PRIMARY KEY,  -- build (Forever client build), updated (Unix seconds), format (GAME_FORMAT)
+    key   TEXT PRIMARY KEY,  -- build (Forever client build), updated (Unix seconds), format (GAME_FORMAT),
+                             -- complete (0 when the download stopped short)
     value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS game_items (
@@ -92,12 +93,13 @@ impl Db {
         Ok(())
     }
 
-    /// Forever build and format of the stored game data, if any.
-    pub async fn game_version(&self) -> Result<Option<(String, i64)>> {
-        let rows: Vec<(String, String)> =
-            sqlx::query_as("SELECT key, value FROM game_meta WHERE key IN ('build', 'format')")
-                .fetch_all(&self.pool)
-                .await?;
+    /// Forever build, format and completeness of the stored game data, if any.
+    pub async fn game_version(&self) -> Result<Option<(String, i64, bool)>> {
+        let rows: Vec<(String, String)> = sqlx::query_as(
+            "SELECT key, value FROM game_meta WHERE key IN ('build', 'format', 'complete')",
+        )
+        .fetch_all(&self.pool)
+        .await?;
         let get = |k: &str| {
             rows.iter()
                 .find(|(key, _)| key == k)
@@ -107,6 +109,8 @@ impl Db {
             (
                 build,
                 get("format").and_then(|f| f.parse().ok()).unwrap_or(1),
+                // Stored before the key existed: complete.
+                get("complete").as_deref() != Some("0"),
             )
         }))
     }
@@ -129,6 +133,7 @@ impl Db {
             ("build", data.build.clone()),
             ("updated", data.updated.to_string()),
             ("format", data.format.to_string()),
+            ("complete", u8::from(data.complete).to_string()),
         ] {
             sqlx::query("INSERT INTO game_meta (key, value) VALUES (?, ?)")
                 .bind(key)
@@ -312,6 +317,7 @@ impl Db {
             tables,
         );
         game.format = meta.get("format").and_then(|f| f.parse().ok()).unwrap_or(1);
+        game.complete = meta.get("complete").map(String::as_str) != Some("0");
         Ok(game)
     }
 }

@@ -100,6 +100,8 @@ pub struct GameData {
     pub updated: i64,
     /// What the tool kept from the client tables (`GAME_FORMAT` when downloaded by this version).
     pub format: i64,
+    /// False when the download stopped short (Wowhead refused some items): the next update runs again.
+    pub complete: bool,
     pub items: HashMap<i64, GameItem>,
     pub professions: Vec<Profession>,
     pub recipes: Vec<Recipe>,
@@ -159,6 +161,7 @@ impl GameData {
             build,
             updated,
             format: GAME_FORMAT,
+            complete: true,
             items: tables.items.into_iter().map(|i| (i.id, i)).collect(),
             professions: tables.professions,
             recipes: tables.recipes,
