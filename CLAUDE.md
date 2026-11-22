@@ -43,7 +43,8 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   TomTom ; l'addon Scout fournit `/way` quand TomTom est absent) à coller dans le chat du jeu. L'outil ne fait que
   remplir le presse-papiers : c'est le joueur qui colle. Forever Guide ne donne qu'un point par monstre (pas toutes
   ses apparitions).
-- **Recettes** : recherche d'une recette ou d'un objet, par métier ; fiche recette (composants au moins cher entre
+- **Recettes** : recherche d'une recette ou d'un objet, par métier (même page d'arrivée que Objets, recherche puis
+  résultats avec l'icône du métier ou de la catégorie) ; fiche recette (composants au moins cher entre
   PNJ et HdV, bénéfice, patron). Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
   cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
 
@@ -130,7 +131,7 @@ niveaux habituels = 10ᵉ / 90ᵉ centiles, valeur par kill) : fusion base Forev
 
 `app/src/ui/` : `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
 icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
-`calculator`, `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
+`calculator`, `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/{results,detail}`), `widgets` (étoile de favori,
 couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chance et chance réelle : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.
