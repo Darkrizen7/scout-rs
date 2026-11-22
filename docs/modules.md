@@ -8,9 +8,11 @@
   à onglets : Market (prix et graphique), Recettes (produit par, utilisé dans, enseigne), PNJ (où l'acheter),
   Butin (monstres, dépeçage, vol à la tire, coffres, conteneurs, quêtes : chance de Forever Guide et chance
   réelle enregistrée par Scout, avec intervalle à 95 %).
-- **Butin** : par zone de la carte. **Carte cliquable** des deux continents (zones à leur place, contour d'OpenMap,
+- **Butin** : par zone de la carte. **Carte cliquable** des deux continents côte à côte, Kalimdor à gauche (zones à leur place, contour d'OpenMap,
   couleur selon le niveau habituel des monstres ; affichée tant qu'aucune zone n'est choisie, bouton « 🗺 Carte »).
-  Barre latérale des zones puis des donjons et raids (recherche). **Ctrl+clic** (liste ou carte) ajoute une zone :
+  Barre latérale en dossiers repliables comme les catégories d'objets : **Favoris** (clic droit sur une zone),
+  un dossier par continent (Kalimdor d'abord, zones triées par nom, pastille bleue Alliance / rouge Horde après
+  le nom, rien si contestée), puis donjons et raids (recherche). **Ctrl+clic** (liste ou carte) ajoute une zone :
   les monstres de toutes les zones choisies sont listés ensemble (`ZoneLoot::merge`). Liste des monstres :
   recherche par nom **ou par objet lâché**, masquer élites / rares / boss, tri par niveau, valeur estimée par kill
   ou **valeur ÷ niveau** (clic : un sens, l'autre, puis ordre d'origine). Une ligne = nom, niveau avec icône

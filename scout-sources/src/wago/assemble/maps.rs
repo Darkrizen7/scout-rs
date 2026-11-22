@@ -6,7 +6,7 @@ use anyhow::Result;
 use csv::StringRecord;
 
 use super::{Table, int, text};
-use scout_core::map::GameMap;
+use scout_core::map::{Faction, GameMap, name_key};
 
 fn float(row: &StringRecord, column: usize) -> f64 {
     row.get(column).and_then(|t| t.parse().ok()).unwrap_or(0.0)
@@ -55,4 +55,17 @@ pub(super) fn maps(ui_map: &Table, assignment: &Table) -> Result<Vec<GameMap>> {
         .collect();
     maps.sort_by_key(|m| m.id);
     Ok(maps)
+}
+
+/// Factions of the zones: AreaTable's top-level areas (no parent) that belong to Alliance or Horde, by name.
+pub(super) fn factions(area: &Table) -> Result<HashMap<String, Faction>> {
+    let [name, parent, mask] =
+        ["AreaName_lang", "ParentAreaID", "FactionGroupMask"].map(|c| area.column(c));
+    let [name, parent, mask] = [name?, parent?, mask?];
+    Ok(area
+        .rows
+        .iter()
+        .filter(|r| int(r, parent) == 0)
+        .filter_map(|r| Some((name_key(&text(r, name)), Faction::from_mask(int(r, mask))?)))
+        .collect())
 }

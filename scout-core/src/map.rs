@@ -9,6 +9,37 @@ pub const CONTINENT: i64 = 2;
 /// UiMap type of a zone (and of a city).
 pub const ZONE: i64 = 3;
 
+/// Faction a zone belongs to (client table AreaTable); zones belonging to none are contested.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Faction {
+    Alliance,
+    Horde,
+}
+
+impl Faction {
+    /// From AreaTable's `FactionGroupMask`: 2 Alliance, 4 Horde, anything else neither.
+    pub fn from_mask(mask: i64) -> Option<Self> {
+        match mask {
+            2 => Some(Self::Alliance),
+            4 => Some(Self::Horde),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Alliance => "Alliance",
+            Self::Horde => "Horde",
+        }
+    }
+}
+
+/// Key to match a zone name across sources: lowercase, straight apostrophes, no "(English name)" suffix.
+pub fn name_key(name: &str) -> String {
+    let base = name.split(" (").next().unwrap_or(name);
+    base.trim().to_lowercase().replace('’', "'")
+}
+
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
 pub struct GameMap {

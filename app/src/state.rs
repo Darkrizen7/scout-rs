@@ -80,6 +80,8 @@ pub struct State {
     pub analysis: Option<Analysis>,
     pub analysis_for: Option<u64>,
     pub favorites: HashSet<i64>,
+    /// Favorite zones of the Loot module (by name).
+    pub zone_favorites: HashSet<String>,
     /// Game reference data for the Recipes module (empty until downloaded).
     pub game: Arc<GameData>,
     /// Item sheet to open in the Objects module (asked from another module).
@@ -118,6 +120,7 @@ impl Default for State {
             analysis: None,
             analysis_for: None,
             favorites: HashSet::new(),
+            zone_favorites: HashSet::new(),
             game: Arc::default(),
             vendor: Arc::default(),
             latest_build: None,
@@ -191,6 +194,7 @@ impl State {
             Event::GameData(game) => self.game = game,
             Event::Vendor(vendor) => self.vendor = vendor,
             Event::LatestBuild(build) => self.latest_build = Some(build),
+            Event::ZoneFavorites(zones) => self.zone_favorites = zones.into_iter().collect(),
             Event::Favorites(favorites) => {
                 let favorites: HashSet<i64> = favorites.into_iter().collect();
                 if favorites != self.favorites {
@@ -227,6 +231,15 @@ impl State {
         }
         self.revision += 1;
         worker.send(Command::SetFavorite(item_id, favorite));
+    }
+
+    /// Toggles a favorite zone right away; the worker stores it.
+    pub fn toggle_zone_favorite(&mut self, zone: &str, worker: &WorkerHandle) {
+        let favorite = self.zone_favorites.insert(zone.to_owned());
+        if !favorite {
+            self.zone_favorites.remove(zone);
+        }
+        worker.send(Command::SetZoneFavorite(zone.to_owned(), favorite));
     }
 
     /// Whether an item is left out of the lists: obsolete name and the setting on (default).

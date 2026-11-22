@@ -35,7 +35,8 @@
   `ItemClass` / `ItemSubClass` (nom détaillé `VerboseName_lang` sinon `DisplayName_lang`). ~2 500 recettes
   (Classic ≈ 1 300 + ajouts Forever), cohérent avec Forever Guide ; sont écartés à raison : rangs de métier,
   récolte, spécialisations, invocations, sorts sans nom. Cartes : `UiMap` (nom, parent, type) +
-  `UiMapAssignment` (rectangle monde `Region_0/1` min `x,y`, `Region_3/4` max, gardé seulement s'il couvre toute la
+  `AreaTable` (faction des zones : `FactionGroupMask` 2 Alliance, 4 Horde, 0 contestée ; zones de premier niveau
+  seulement, appariées par nom sans le suffixe « (nom anglais) ») + `UiMapAssignment` (rectangle monde `Region_0/1` min `x,y`, `Region_3/4` max, gardé seulement s'il couvre toute la
   carte : UiMin 0,0 / UiMax 1,1). Monde : `x` vers le nord, `y` vers l'ouest (`scout-core/src/map.rs`).
   **`GAME_FORMAT`** (`scout-core/src/gamedata.rs`) est stocké avec la version : l'augmenter quand on garde de nouvelles colonnes ou
   tables, pour que « Mettre à jour » retélécharge même si la version de Forever n'a pas changé.
@@ -44,7 +45,8 @@
   dans `Item` mais pas dans `ItemSparse`, donc sans nom chez wago.tools (et absents de `DBCache.bin` tant
   qu'on ne les a pas croisés). À la mise à jour, `Tables::missing_recipe_items` → nom, qualité, niveaux, revente
   depuis Wowhead ; la catégorie reste celle de `Item` (`Tables::unnamed_categories`). 1 s de pause entre deux
-  requêtes (sans pause, CloudFront bloque l'adresse en 403 après ~300) ; une erreur réseau arrête la mise à jour
-  sans rien remplacer (le cache garde ce qui a été lu).
+  requêtes (sans pause, CloudFront bloque l'adresse en 403 après ~300) ; au premier refus (403…) on
+  arrête de demander, le reste des données est enregistré mais marqué incomplet (format − 1, donc « ⚠ À retélécharger »)
+  et un message rouge dit de réessayer plus tard (le cache garde ce qui a été lu).
 - Les sources sont citées dans Réglages → bouton « ℹ Sources des données » (`ui/credits.rs`, `SOURCES` : à compléter
   si on en ajoute une).

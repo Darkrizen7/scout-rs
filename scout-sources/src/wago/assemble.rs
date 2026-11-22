@@ -325,6 +325,7 @@ pub fn assemble(tables: &HashMap<&str, Vec<u8>>) -> Result<Tables> {
     );
 
     let maps = maps::maps(&table("UiMap")?, &table("UiMapAssignment")?)?;
+    let factions = maps::factions(&table("AreaTable")?)?;
 
     Ok(Tables {
         items,
@@ -332,6 +333,7 @@ pub fn assemble(tables: &HashMap<&str, Vec<u8>>) -> Result<Tables> {
         recipes: recipes.into_values().collect(),
         categories,
         maps,
+        factions,
         unnamed_categories,
     })
 }
@@ -414,6 +416,11 @@ mod tests {
              0,0,1,1,-16000,-1000,-1000000,8000,1000,1000000,1415\n\
              0,0,1,1,-11516.5,-1866.75,-1000000,-9716.5,833.25,1000000,1431\n",
         );
+        put(
+            "AreaTable",
+            "ID,AreaName_lang,ParentAreaID,FactionGroupMask\n40,Marche de l'Ouest (Westfall),0,2\n\
+             17,Les Tarides,0,4\n10,Bois de la Pénombre,0,0\n1639,Cime des Anciens,1638,4\n",
+        );
         t
     }
 
@@ -425,8 +432,15 @@ mod tests {
             recipes,
             categories,
             maps,
+            factions,
             ..
         } = assemble(&tables()).unwrap();
+        // Top-level areas of a faction only, by simplified name.
+        assert_eq!(factions.len(), 2);
+        assert_eq!(
+            factions["marche de l'ouest"],
+            scout_core::map::Faction::Alliance
+        );
         // Continent and zone kept, world map left out (it has two partial assignments).
         assert_eq!(maps.len(), 2);
         assert_eq!(maps[1].name, "Bois de la Pénombre");

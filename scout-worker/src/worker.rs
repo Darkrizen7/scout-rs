@@ -112,6 +112,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     if let Err(e) = runtime.block_on(refresh(&db, &*send)) {
         send(Event::Error(format!("{e:#}")));
     }
+    settle(&runtime);
 
     // Is the stored game data the newest Forever build? (network: on its own, the UI is already usable)
     let latest = send.clone();
@@ -136,7 +137,14 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         if let Err(e) = handle(command, &runtime, &shared) {
             (shared.send)(Event::Error(format!("{e:#}")));
         }
+        settle(&runtime);
     }
+}
+
+/// Lets this runtime finish what the queries left behind. It only runs inside `block_on`: without this,
+/// the task returning the pool's single connection can stay queued here while another thread waits for it.
+fn settle(runtime: &tokio::runtime::Runtime) {
+    runtime.block_on(tokio::task::yield_now());
 }
 
 fn handle(command: Command, runtime: &tokio::runtime::Runtime, shared: &Shared) -> Result<()> {
@@ -160,6 +168,11 @@ fn handle(command: Command, runtime: &tokio::runtime::Runtime, shared: &Shared) 
         Command::SetFavorite(id, favorite) => runtime.block_on(async {
             db.set_favorite(id, favorite).await?;
             send(Event::Favorites(db.favorites().await?));
+            anyhow::Ok(())
+        })?,
+        Command::SetZoneFavorite(zone, favorite) => runtime.block_on(async {
+            db.set_zone_favorite(&zone, favorite).await?;
+            send(Event::ZoneFavorites(db.zone_favorites().await?));
             anyhow::Ok(())
         })?,
         Command::Analyze => {
@@ -214,5 +227,6 @@ async fn open_db() -> Result<Db> {
 async fn refresh(db: &Db, send: &dyn Fn(Event)) -> Result<()> {
     send(Event::Items(db.items().await?));
     send(Event::Favorites(db.favorites().await?));
+    send(Event::ZoneFavorites(db.zone_favorites().await?));
     Ok(())
 }

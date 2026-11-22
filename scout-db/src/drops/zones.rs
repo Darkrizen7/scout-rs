@@ -39,6 +39,23 @@ LEFT JOIN drop_npcs n ON n.npc_id = o.npc_id
 WHERE COALESCE(n.dungeon, n.zone, l.zone) = ?";
 
 impl Db {
+    pub async fn zone_favorites(&self) -> Result<Vec<String>> {
+        let rows: Vec<(String,)> = sqlx::query_as("SELECT zone FROM zone_favorites")
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows.into_iter().map(|(zone,)| zone).collect())
+    }
+
+    pub async fn set_zone_favorite(&self, zone: &str, favorite: bool) -> Result<()> {
+        let sql = if favorite {
+            "INSERT OR IGNORE INTO zone_favorites (zone) VALUES (?)"
+        } else {
+            "DELETE FROM zone_favorites WHERE zone = ?"
+        };
+        sqlx::query(sql).bind(zone).execute(&self.pool).await?;
+        Ok(())
+    }
+
     /// Zones and dungeons that have monsters with known loot, by name.
     pub async fn zones(&self) -> Result<Vec<Zone>> {
         let rows: Vec<ZoneNpcLevel> = sqlx::query_as(ZONES_QUERY).fetch_all(&self.pool).await?;

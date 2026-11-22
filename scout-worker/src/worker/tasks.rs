@@ -92,9 +92,13 @@ pub(super) fn update_game_data(
     }
     send(Event::Status("Assemblage des recettes…".into()));
     let mut tables = sources::assemble(&tables)?;
-    add_wowhead_items(runtime, db, &mut tables, send)?;
+    let blocked = add_wowhead_items(runtime, db, &mut tables, send)?;
     let now = chrono::Utc::now().timestamp();
-    let game = GameData::new(build.clone(), now, tables);
+    let mut game = GameData::new(build.clone(), now, tables);
+    if blocked.is_some() {
+        // Stored as incomplete: the next update runs again instead of finding the data up to date.
+        game.format = GAME_FORMAT - 1;
+    }
     runtime.block_on(db.save_game(&game))?;
     send(Event::Status(format!(
         "Données du jeu : Forever {build}, {} recettes, {} objets.",
@@ -102,17 +106,24 @@ pub(super) fn update_game_data(
         game.items.len()
     )));
     send(Event::GameData(Arc::new(game)));
+    if let Some(reason) = blocked {
+        send(Event::Error(format!(
+            "{reason}. Mise à jour incomplète (le reste est enregistré) : réessaie plus tard."
+        )));
+    }
     Ok(())
 }
 
 /// Recipe items missing from the client tables (sent by Forever's server as hotfixes), named by
-/// Wowhead. Each item is asked for once: the answers are kept across updates.
+/// Wowhead. Each item is asked for once: the answers are kept across updates. Stops at the first refusal
+/// (403…) and returns why, so the update can say to try again later.
 fn add_wowhead_items(
     runtime: &tokio::runtime::Runtime,
     db: &Db,
     tables: &mut Tables,
     send: &dyn Fn(Event),
-) -> Result<()> {
+) -> Result<Option<String>> {
+    let mut blocked = None;
     let missing = tables.missing_recipe_items();
     let mut known = runtime.block_on(db.wowhead_items())?;
     let unknown: Vec<i64> = missing
@@ -129,13 +140,22 @@ fn add_wowhead_items(
             i + 1,
             unknown.len()
         )));
-        if let Some(item) = sources::wowhead::item(id)? {
-            runtime.block_on(db.save_wowhead_item(&item))?;
-            known.insert(id, item);
+        // Wowhead only names a few extra items: when it refuses (403…), stop asking and keep going
+        // with the client tables rather than losing the whole update.
+        match sources::wowhead::item(id) {
+            Ok(Some(item)) => {
+                runtime.block_on(db.save_wowhead_item(&item))?;
+                known.insert(id, item);
+            }
+            Ok(None) => {}
+            Err(error) => {
+                blocked = Some(format!("{error:#}"));
+                break;
+            }
         }
     }
     tables.add_items(missing.iter().filter_map(|id| known.remove(id)));
-    Ok(())
+    Ok(blocked)
 }
 
 pub(super) async fn import_legacy(db: &Db, config: &Config, send: &dyn Fn(Event)) -> Result<()> {

@@ -17,7 +17,7 @@ pub fn item(item_id: i64) -> Result<Option<GameItem>> {
     let url = format!("https://www.wowhead.com/classic/fr/item={item_id}&xml");
     let mut response = match super::wago::agent().get(&url).call() {
         Err(ureq::Error::StatusCode(403 | 429)) => bail!(
-            "Wowhead limite les requêtes (trop rapprochées) : réessaie « Mettre à jour » plus tard, \
+            "Wowhead refuse les requêtes (erreur 403 ou 429, trop rapprochées) ; \
              les objets déjà lus sont gardés"
         ),
         result => result.with_context(|| format!("Wowhead, objet {item_id}"))?,

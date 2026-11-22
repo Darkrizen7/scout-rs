@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use super::Db;
-use scout_core::GAME_FORMAT;
 use scout_core::gamedata::{Category, GameData, GameItem, Profession, Reagent, Recipe, Tables};
 
 /// Columns added to `game_items` after its creation: (name, statement adding it when missing).
@@ -129,7 +128,7 @@ impl Db {
         for (key, value) in [
             ("build", data.build.clone()),
             ("updated", data.updated.to_string()),
-            ("format", GAME_FORMAT.to_string()),
+            ("format", data.format.to_string()),
         ] {
             sqlx::query("INSERT INTO game_meta (key, value) VALUES (?, ?)")
                 .bind(key)
@@ -204,6 +203,7 @@ impl Db {
             }
         }
         maps::save(&mut tx, &data.maps).await?;
+        maps::save_factions(&mut tx, &data.factions).await?;
         tx.commit().await?;
         Ok(())
     }
@@ -300,6 +300,7 @@ impl Db {
                 })
                 .collect(),
             maps: self.load_maps().await?,
+            factions: self.load_factions().await?,
             // Only needed while assembling: stored items already carry their category.
             unnamed_categories: HashMap::new(),
         };

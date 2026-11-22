@@ -10,7 +10,7 @@
     Scout), `snapshots (item_id, source, ts, price, quantity)` clé `(item_id, source, ts)`, `source` ∈
     `scout | auctionator | foreverguide`, prix en cuivre (NULL = pas en vente), `ts` en secondes Unix.
     Imports **idempotents** (`INSERT OR IGNORE`) : la base garde tout, même ce que Scout oublie après 21 jours.
-  - `favorites (item_id)` : partagés par Market et Objets.
+  - `favorites (item_id)` : partagés par Market et Objets. `zone_favorites (zone)` : zones favorites du Butin.
   - `vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)` : remplacée à chaque import Scout.
   - Butin de Forever Guide (remplacé en bloc quand ses fichiers changent) : `drop_sources (item_id, kind,
     source_id, chance, quest_only, more)` (`source_id` 0 = « et `more` autres non listées »), `drop_npcs`,
@@ -19,7 +19,7 @@
   - Butin réel de Scout (remplacé à chaque import : l'addon garde des totaux) : `loot_npcs (npc_id, name, zone,
     kills, skins)`, `loot_observed (npc_id, kind, item_id, drops, quantity)`, `kind` ∈ `loot | skin`.
   - Données du jeu `game_*` (remplacées en bloc) : `game_meta` (`build`, `updated`, `format`), `game_items`,
-    `game_categories`, `game_professions`, `game_recipes`, `game_reagents`, `game_recipe_items`, `game_maps`
+    `game_categories`, `game_professions`, `game_recipes`, `game_reagents`, `game_recipe_items`, `game_maps`, `game_zone_factions` (nom de zone → 2 Alliance / 4 Horde)
     (continents et zones : UiMap, rectangle en coordonnées monde).
   - `wowhead_items` (mêmes colonnes que `game_items`) : objets demandés à Wowhead, **gardés** d'une mise à jour à
     l'autre (chaque objet n'est demandé qu'une fois).

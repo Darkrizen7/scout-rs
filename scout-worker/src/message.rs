@@ -27,6 +27,7 @@ pub enum Command {
     LoadMapMasks,
     Analyze,
     SetFavorite(i64, bool),
+    SetZoneFavorite(String, bool),
     /// Downloads the newest Forever client tables (unless already stored).
     UpdateGameData,
     SetWowDir(PathBuf),
@@ -60,6 +61,8 @@ pub enum Event {
     MapMasks(Arc<HashMap<i64, Mask>>),
     Analysis(Box<Analysis>),
     Favorites(Vec<i64>),
+    /// Names of the favorite zones (Loot module).
+    ZoneFavorites(Vec<String>),
     GameData(Arc<GameData>),
     /// Newest Forever build on wago.tools, or why it could not be checked.
     LatestBuild(Result<String, String>),

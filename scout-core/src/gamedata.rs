@@ -5,12 +5,12 @@
 
 use std::collections::HashMap;
 
-use crate::map::GameMap;
+use crate::map::{Faction, GameMap};
 
 /// Version of what is stored from the client tables: bumped when new columns are kept,
 /// so the next update downloads again even if the Forever build did not change.
-/// 2: merchant buy / sell prices. 3: item category names. 4: maps. 5: recipe items from Wowhead.
-pub const GAME_FORMAT: i64 = 5;
+/// 2: merchant buy / sell prices. 3: item category names. 4: maps. 5: recipe items from Wowhead. 6: zone factions.
+pub const GAME_FORMAT: i64 = 6;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
@@ -84,6 +84,8 @@ pub struct Tables {
     pub recipes: Vec<Recipe>,
     pub categories: Vec<Category>,
     pub maps: Vec<GameMap>,
+    /// Zone name (`map::name_key`) → faction, for the zones that have one.
+    pub factions: HashMap<String, Faction>,
     /// Category (class, subclass) of the items `Item` lists but `ItemSparse` lacks: the
     /// hotfixed ones, named elsewhere (Wowhead).
     pub unnamed_categories: HashMap<i64, (i64, i64)>,
@@ -110,6 +112,8 @@ pub struct GameData {
     pub categories: Vec<Category>,
     /// Continents and zones (Loot module's map).
     pub maps: Vec<GameMap>,
+    /// Zone name (`map::name_key`) → faction, for the zones that have one.
+    pub factions: HashMap<String, Faction>,
 }
 
 impl Tables {
@@ -145,6 +149,11 @@ impl Tables {
 }
 
 impl GameData {
+    /// Faction of a zone by its name (None: contested, a dungeon, or unknown).
+    pub fn faction_of(&self, zone: &str) -> Option<Faction> {
+        self.factions.get(&crate::map::name_key(zone)).copied()
+    }
+
     pub fn new(build: String, updated: i64, tables: Tables) -> Self {
         let mut data = Self {
             build,
@@ -155,6 +164,7 @@ impl GameData {
             recipes: tables.recipes,
             categories: tables.categories,
             maps: tables.maps,
+            factions: tables.factions,
             ..Self::default()
         };
         for (index, recipe) in data.recipes.iter().enumerate() {

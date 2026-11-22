@@ -13,14 +13,13 @@ use scout_core::drops::Zone;
 use scout_core::gamedata::GameData;
 use scout_core::map::{self, Frac, GameMap, Mask};
 
-/// Continents (UiMap ids), Eastern Kingdoms first.
-/// Continents (UiMap ids), Eastern Kingdoms first.
-const CONTINENTS: [i64; 2] = [1415, 1414];
+/// Continents (UiMap ids), drawn side by side: Kalimdor on the left, Eastern Kingdoms on the right.
+const CONTINENTS: [i64; 2] = [1414, 1415];
 /// Opacity above which a mask pixel belongs to the zone.
 const INSIDE: u8 = 128;
 
+#[derive(Default)]
 pub struct WorldMap {
-    continent: i64,
     /// Zone shapes as textures (white, tinted when drawn) and where their name goes.
     textures: HashMap<i64, egui::TextureHandle>,
     centers: HashMap<i64, (f64, f64)>,
@@ -28,26 +27,26 @@ pub struct WorldMap {
     made_from: usize,
 }
 
-impl Default for WorldMap {
-    fn default() -> Self {
-        Self {
-            continent: CONTINENTS[0],
-            textures: HashMap::new(),
-            centers: HashMap::new(),
-            made_from: 0,
-        }
-    }
+/// Sort rank of a zone's continent (order of `CONTINENTS`); zones without a known continent come last.
+pub fn continent_rank(game: &GameData, ui_map: Option<i64>) -> usize {
+    ui_map
+        .and_then(|id| game.maps.iter().find(|m| m.id == id))
+        .and_then(|m| CONTINENTS.iter().position(|c| *c == m.parent))
+        .unwrap_or(CONTINENTS.len())
 }
 
-impl WorldMap {
-    /// Shows the continent to the zone's map (when it has one) — used when a zone is picked in the list.
-    pub fn focus(&mut self, game: &GameData, ui_map: Option<i64>) {
-        let parent = ui_map.and_then(|id| game.maps.iter().find(|m| m.id == id));
-        if let Some(p) = parent.filter(|p| CONTINENTS.contains(&p.parent)) {
-            self.continent = p.parent;
-        }
-    }
+/// Name of the continent of a given rank (see `continent_rank`); "Autres" for the last rank.
+pub fn continent_name(game: &GameData, rank: usize) -> String {
+    CONTINENTS
+        .get(rank)
+        .and_then(|id| game.maps.iter().find(|m| m.id == *id))
+        .map_or_else(|| "Autres".to_owned(), |m| m.name.clone())
+}
 
+/// Number of continent ranks, the one for zones without a known continent included.
+pub const RANKS: usize = CONTINENTS.len() + 1;
+
+impl WorldMap {
     /// Draws the map; returns the zone clicked (its name in the zone list).
     pub fn show(
         &mut self,
@@ -67,17 +66,33 @@ impl WorldMap {
             return None;
         }
         self.make_textures(ui.ctx(), masks);
-        ui.horizontal(|ui| {
-            for id in CONTINENTS {
-                if let Some(m) = game.maps.iter().find(|m| m.id == id) {
-                    ui.selectable_value(&mut self.continent, id, &m.name);
-                }
+        if masks.is_empty() {
+            ui.weak("Zones en rectangles : installe l'addon OpenMap pour leurs contours.");
+        }
+        ui.columns(CONTINENTS.len(), |columns| {
+            let mut clicked = None;
+            for (ui, id) in columns.iter_mut().zip(CONTINENTS) {
+                let found = self.continent(ui, game, id, zones, masks, selected, palette);
+                clicked = clicked.or(found);
             }
-            if masks.is_empty() {
-                ui.weak("· zones en rectangles : installe l'addon OpenMap pour leurs contours");
-            }
-        });
-        let continent = game.maps.iter().find(|m| m.id == self.continent)?;
+            clicked
+        })
+    }
+
+    /// Draws one continent in the space left; returns the zone clicked.
+    #[expect(clippy::too_many_arguments, reason = "drawing context of one map")]
+    fn continent(
+        &self,
+        ui: &mut egui::Ui,
+        game: &GameData,
+        id: i64,
+        zones: &[Zone],
+        masks: &Arc<HashMap<i64, Mask>>,
+        selected: &[String],
+        palette: &Palette,
+    ) -> Option<String> {
+        let continent = game.maps.iter().find(|m| m.id == id)?;
+        ui.vertical_centered(|ui| ui.strong(&continent.name));
         let shapes = map::zones_of(&game.maps, continent.id);
         let by_map = link(&shapes, zones);
         // Framed on the zones: the continent's rectangle holds a lot of sea.
@@ -204,7 +219,7 @@ impl WorldMap {
 
 /// The zone each map shape stands for: by map id (from the drops import), else by name.
 fn link<'a>(shapes: &[&GameMap], zones: &'a [Zone]) -> HashMap<i64, &'a Zone> {
-    let key = |s: &str| s.to_lowercase().replace('’', "'");
+    let key = map::name_key;
     let by_name: HashMap<String, &Zone> = zones
         .iter()
         .filter(|z| !z.dungeon)

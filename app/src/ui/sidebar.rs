@@ -239,6 +239,20 @@ pub fn entry(
     selected: bool,
     indent: u8,
 ) -> egui::Response {
+    entry_marked(ui, icon, label, count, selected, indent, None)
+}
+
+/// Like `entry`, with a column for a colored dot at the far right: `Some(None)` keeps the column empty so
+/// the counts of the rows stay aligned.
+pub fn entry_marked(
+    ui: &mut egui::Ui,
+    icon: Option<Icon>,
+    label: &str,
+    count: Option<usize>,
+    selected: bool,
+    indent: u8,
+    marker: Option<Option<Color32>>,
+) -> egui::Response {
     let palette = theme::current(ui);
     let height = if indent == 0 { 34.0 } else { 28.0 };
     let (rect, response) =
@@ -271,6 +285,12 @@ pub fn entry(
         }
         // Count first: the label gets the room left and is shortened with "…" when too long.
         let mut right = rect.right() - 10.0;
+        if let Some(dot) = marker {
+            if let Some(color) = dot {
+                painter.circle_filled(egui::pos2(right - 4.0, rect.center().y), 4.0, color);
+            }
+            right -= 16.0;
+        }
         if let Some(count) = count {
             let count = painter.text(
                 egui::pos2(right, rect.center().y),

@@ -4,24 +4,25 @@
 mod map;
 mod npc;
 mod npcs;
+mod sidebar;
 
 use std::sync::Arc;
 
 use eframe::egui;
 
 use crate::state::State;
-use crate::ui::sidebar::{entry, rgb, tint};
 use crate::ui::theme;
 use scout_core::drops::{Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::pricing;
-use scout_core::search::Query;
 use scout_worker::WorkerHandle;
 
 #[derive(Default)]
 pub struct Loot {
     /// Zone search (side bar).
     search: String,
+    /// Side bar folders folded (all open by default).
+    folded: std::collections::HashSet<sidebar::Folder>,
     /// Chosen zones, in the order they were added.
     zones: Vec<String>,
     /// Their monsters together, and the zone data it was made from.
@@ -60,7 +61,7 @@ impl Loot {
                     .fill(palette.sidebar)
                     .inner_margin(egui::Margin::symmetric(8, 10)),
             )
-            .show(ui, |ui| self.sidebar(ui, zones.as_deref(), &state.game));
+            .show(ui, |ui| self.sidebar(ui, zones.as_deref(), state, worker));
         let game = Arc::clone(&state.game);
         if self.show_map || self.zones.is_empty() {
             let masks = state.map_masks(worker);
@@ -156,69 +157,6 @@ impl Loot {
         }
         self.merged.as_ref().map(|(_, m)| Arc::clone(m))
     }
-
-    fn sidebar(&mut self, ui: &mut egui::Ui, zones: Option<&Vec<Zone>>, game: &GameData) {
-        let on_map = self.show_map || self.zones.is_empty();
-        let map = ui.add_sized(
-            [ui.available_width(), 28.0],
-            egui::Button::selectable(on_map, "🗺 Carte"),
-        );
-        if map.clicked() && !self.zones.is_empty() {
-            self.show_map = !self.show_map;
-            let last = zones.and_then(|z| z.iter().find(|z| self.zones.last() == Some(&z.name)));
-            self.map.focus(game, last.and_then(|z| z.ui_map));
-        }
-        ui.add_space(6.0);
-        ui.add(
-            egui::TextEdit::singleline(&mut self.search)
-                .hint_text("🔍 Zone ou donjon…")
-                .desired_width(f32::INFINITY),
-        );
-        ui.add_space(6.0);
-        let Some(zones) = zones else {
-            ui.spinner();
-            return;
-        };
-        if zones.is_empty() {
-            ui.weak("Aucun butin en base : installe Forever Guide, puis ⚙ Réglages → Importer depuis Scout.");
-            return;
-        }
-        let query = Query::new(&self.search);
-        let dark = theme::current(ui).dark;
-        egui::ScrollArea::vertical()
-            .auto_shrink(false)
-            .show(ui, |ui| {
-                for (dungeon, title, icon, color) in [
-                    (false, "Zones", "🗺", rgb(0x26a269)),
-                    (true, "Donjons et raids", "🏰", rgb(0x9141ac)),
-                ] {
-                    ui.add_space(4.0);
-                    ui.weak(title);
-                    for z in zones
-                        .iter()
-                        .filter(|z| z.dungeon == dungeon && query.matches(&z.name))
-                    {
-                        let selected = self.zones.contains(&z.name);
-                        let response = entry(
-                            ui,
-                            Some((icon, tint(color, dark))),
-                            &z.name,
-                            Some(z.npcs as usize),
-                            selected,
-                            0,
-                        )
-                        .on_hover_text(zone_hint(z));
-                        if response.clicked() {
-                            let add = ui.input(|i| i.modifiers.command);
-                            let map_open = self.show_map;
-                            self.map.focus(game, z.ui_map);
-                            self.pick(z.name.clone(), add);
-                            self.show_map = map_open && add;
-                        }
-                    }
-                }
-            });
-    }
 }
 
 /// Explains the value per kill (sort button and monster sheet).
@@ -226,13 +164,16 @@ pub const VALUE_HINT: &str = "Estimation par corps fouillé : chance (réelle à
 Forever Guide) × quantité moyenne × prix (HdV après commission, ou marchand si plus cher). \
 Sans l'argent ramassé, le dépeçage ni le butin de quête.";
 
-fn zone_hint(z: &Zone) -> String {
+fn zone_hint(z: &Zone, faction: Option<scout_core::map::Faction>) -> String {
     let mut text = format!("{} monstres", z.npcs);
+    if !z.dungeon {
+        text = format!("{} · {text}", faction.map_or("Contestée", |f| f.name()));
+    }
     if let (Some(a), Some(b)) = (z.min_level, z.max_level) {
         text = format!("Niveaux {a}-{b} · {text}");
     }
     if z.kills > 0 {
         text += &format!(" · {} corps fouillés", z.kills);
     }
-    text + "\nCtrl+clic : ajouter à la sélection (monstres de plusieurs zones)"
+    text + "\nCtrl+clic : ajouter à la sélection · Clic droit : favori"
 }

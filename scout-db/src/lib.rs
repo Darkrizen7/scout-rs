@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE TABLE IF NOT EXISTS favorites (
     item_id INTEGER PRIMARY KEY
 );
+CREATE TABLE IF NOT EXISTS zone_favorites (
+    zone TEXT PRIMARY KEY  -- zone name (Loot module)
+);
 CREATE TABLE IF NOT EXISTS snapshots (
     item_id  INTEGER NOT NULL REFERENCES items(item_id),
     source   TEXT    NOT NULL,  -- scout, auctionator, foreverguide
