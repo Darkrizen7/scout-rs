@@ -71,10 +71,23 @@ pub fn money_width(ui: &egui::Ui, copper: i64) -> f32 {
 
 /// Draws an amount in copper with coins; `color` overrides the number color (gain / loss).
 pub fn money(ui: &mut egui::Ui, copper: i64, color: Option<Color32>) -> egui::Response {
+    draw(ui, copper, color, false)
+}
+
+/// Same as `money` with bold numbers (totals).
+pub fn money_bold(ui: &mut egui::Ui, copper: i64) -> egui::Response {
+    draw(ui, copper, None, true)
+}
+
+fn draw(ui: &mut egui::Ui, copper: i64, color: Option<Color32>, bold: bool) -> egui::Response {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 3.0;
         let text = |ui: &mut egui::Ui, s: String| {
-            let rich = egui::RichText::new(s);
+            let rich = if bold {
+                crate::ui::fonts::bold(s)
+            } else {
+                egui::RichText::new(s)
+            };
             ui.label(if let Some(c) = color {
                 rich.color(c)
             } else {

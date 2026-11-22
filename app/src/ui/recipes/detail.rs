@@ -1,7 +1,6 @@
 //! Recipe detail: product, skill, reagents priced at the cheaper of merchant and auction house, pattern.
 
 use eframe::egui::{self, Color32, RichText};
-use egui_extras::{Column, TableBuilder};
 
 use scout_core::gamedata::{GameData, Recipe};
 use scout_core::pricing::Source;
@@ -21,7 +20,7 @@ pub fn show(ui: &mut egui::Ui, game: &GameData, state: &State, recipe_index: usi
 }
 
 /// "PNJ" / "HdV" tag; for a merchant, the tooltip lists who sells it.
-fn source_tag(ui: &mut egui::Ui, state: &State, item_id: i64, source: Source) {
+pub(super) fn source_tag(ui: &mut egui::Ui, state: &State, item_id: i64, source: Source) {
     let palette = theme::current(ui);
     let (text, color, hint) = match source {
         Source::Merchant => (
@@ -53,7 +52,7 @@ fn source_tag(ui: &mut egui::Ui, state: &State, item_id: i64, source: Source) {
 }
 
 /// An item name as a link, in its quality color.
-fn item_link(ui: &mut egui::Ui, game: &GameData, item_id: i64, next: &mut Option<i64>) {
+pub(super) fn item_link(ui: &mut egui::Ui, game: &GameData, item_id: i64, next: &mut Option<i64>) {
     let dark = ui.visuals().dark_mode;
     let mut text = RichText::new(game.item_name(item_id));
     if let Some(color) = game
@@ -82,7 +81,7 @@ fn recipe(ui: &mut egui::Ui, game: &GameData, state: &State, r: &Recipe, next: &
         }
         super::skill_bar::show(ui, r);
     });
-    ui.add_space(10.0);
+    ui.separator();
 
     if let Some(made) = r.creates {
         ui.horizontal(|ui| {
@@ -95,74 +94,16 @@ fn recipe(ui: &mut egui::Ui, game: &GameData, state: &State, r: &Recipe, next: &
     } else {
         ui.weak("Ne produit pas d'objet (enchantement ou effet).");
     }
-    ui.add_space(8.0);
+    ui.separator();
 
     ui.strong("Composants");
-    let mut total = 0.0;
-    let mut missing = false;
-    TableBuilder::new(ui)
-        .id_salt("reagents")
-        .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-        .column(Column::remainder().at_least(180.0).clip(true))
-        .column(Column::exact(50.0))
-        .column(Column::exact(150.0))
-        .column(Column::exact(130.0))
-        .header(22.0, |mut h| {
-            for title in [
-                "Objet",
-                "Qté",
-                "Prix unitaire (le moins cher)",
-                "Sous-total",
-            ] {
-                h.col(|ui| {
-                    ui.weak(title);
-                });
-            }
-        })
-        .body(|mut body| {
-            for reagent in &r.reagents {
-                let best = state.buy_price(reagent.item_id);
-                match best {
-                    Some((unit, _)) => total += unit * reagent.count as f64,
-                    None => missing = true,
-                }
-                body.row(26.0, |mut row| {
-                    row.col(|ui| item_link(ui, game, reagent.item_id, next));
-                    row.col(|ui| {
-                        ui.label(format!("× {}", reagent.count));
-                    });
-                    row.col(|ui| match best {
-                        Some((unit, source)) => {
-                            coins::money(ui, unit.round() as i64, None);
-                            source_tag(ui, state, reagent.item_id, source);
-                        }
-                        None => {
-                            ui.weak("—");
-                        }
-                    });
-                    row.col(|ui| {
-                        widgets::money_or_dash(
-                            ui,
-                            best.map(|(unit, _)| (unit * reagent.count as f64).round() as i64),
-                        );
-                    });
-                });
-            }
-        });
-    let total = total.round() as i64;
-    ui.add_space(6.0);
+    ui.add_space(4.0);
+    let (total, _) = super::reagents::table(ui, game, state, r, next);
+    ui.separator();
     egui::Grid::new("recipe-cost")
         .num_columns(2)
         .spacing([16.0, 6.0])
         .show(ui, |ui| {
-            ui.label("Coût des composants");
-            ui.horizontal(|ui| {
-                coins::money(ui, total, None);
-                if missing {
-                    ui.weak("(sans les composants sans prix connu)");
-                }
-            });
-            ui.end_row();
             let Some(made) = r.creates else { return };
             let auction = state.auction_price(made.item_id).map(|unit| {
                 (unit as f64 * made.count as f64 * (1.0 - scout_core::pricing::AUCTION_CUT)).round()
@@ -207,7 +148,7 @@ fn recipe(ui: &mut egui::Ui, game: &GameData, state: &State, r: &Recipe, next: &
             }
         });
 
-    ui.add_space(12.0);
+    ui.separator();
     ui.strong("Apprentissage");
     if r.taught_by.is_empty() {
         ui.weak("Pas d'objet de recette : maître de métier (ou autre source).");

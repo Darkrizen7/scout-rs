@@ -23,7 +23,7 @@
   remplir le presse-papiers : c'est le joueur qui colle. Forever Guide ne donne qu'un point par monstre (pas toutes
   ses apparitions).
 - **Recettes** : recherche d'une recette ou d'un objet, par métier (même page d'arrivée que Objets, recherche puis
-  résultats avec l'icône du métier ou de la catégorie) ; fiche recette (barre de compétence orange / jaune / vert / gris de 0 à 300 sur la ligne du métier, composants
+  résultats avec l'icône du métier ou de la catégorie) ; fiche recette (barre de compétence orange / jaune / vert / gris de 0 à 300 sur la ligne du métier, sections séparées, composants en tableau bordé avec ligne Total
   au moins cher entre PNJ et HdV, bénéfice, patron). Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
   cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
 
@@ -31,7 +31,7 @@
 `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
 icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet ; `chart/money_axis` : axe des prix avec pièces), `analysis_view` (+ `charts`),
 `calculator`, `credits` (fenêtre « Sources des données »), `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`),
-`loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/{results,detail,skill_bar}`), `widgets` (étoile de favori,
+`loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/{results,detail,reagents,skill_bar}`), `widgets` (étoile de favori,
 couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chance et chance réelle : partagés),
 `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 

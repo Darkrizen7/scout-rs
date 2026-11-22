@@ -2,6 +2,7 @@
 //! Side bar (professions), then the search: in the middle of the page on arrival, above the results after.
 
 pub(crate) mod detail;
+mod reagents;
 mod results;
 mod skill_bar;
 

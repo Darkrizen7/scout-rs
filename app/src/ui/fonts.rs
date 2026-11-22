@@ -13,6 +13,11 @@ fn heading_family() -> FontFamily {
     FontFamily::Name("heading".into())
 }
 
+/// Text in the semibold face (egui's `strong()` only changes the color).
+pub fn bold(text: impl Into<String>) -> egui::RichText {
+    egui::RichText::new(text).family(heading_family())
+}
+
 pub fn install(ctx: &egui::Context) {
     let mut fonts = FontDefinitions::default();
     fonts
