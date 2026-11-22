@@ -1,6 +1,6 @@
 //! Results of the Recipes module: search field, recipes matching, then items made or used by recipes.
 
-use eframe::egui::{self, RichText};
+use eframe::egui::{self, RichText, text::LayoutJob};
 use egui_extras::{Column, TableBuilder};
 
 use super::{Hit, Recipes, SEARCH_HINT, SEARCH_ID, profession_icon};
@@ -45,22 +45,22 @@ impl Recipes {
                         ui.vertical(|ui| match hit {
                             Hit::Recipe(i) => {
                                 let r = &game.recipes[i];
-                                ui.horizontal(|ui| {
-                                    let (glyph, color) = profession_icon(r.profession, dark);
-                                    ui.label(RichText::new(glyph).color(color));
-                                    ui.label(&r.name);
-                                });
+                                ui.label(icon_and_name(
+                                    ui,
+                                    profession_icon(r.profession, dark),
+                                    &r.name,
+                                ));
                                 let skill =
                                     r.required.map_or_else(String::new, |s| format!(" · {s}"));
                                 ui.weak(format!("{}{skill}", game.profession_name(r.profession)));
                             }
                             Hit::Item(id) => {
-                                ui.horizontal(|ui| {
-                                    let class = game.items.get(&id).and_then(|i| i.class_id);
-                                    let (glyph, color) = class_icon(class.unwrap_or(-1), dark);
-                                    ui.label(RichText::new(glyph).color(color));
-                                    ui.label(game.item_name(id));
-                                });
+                                let class = game.items.get(&id).and_then(|i| i.class_id);
+                                ui.label(icon_and_name(
+                                    ui,
+                                    class_icon(class.unwrap_or(-1), dark),
+                                    &game.item_name(id),
+                                ));
                                 let made = game.made_by.get(&id).map_or(0, Vec::len);
                                 let used = game.used_in.get(&id).map_or(0, Vec::len);
                                 ui.weak(format!(
@@ -139,4 +139,24 @@ impl Recipes {
         }
         self.built_for = Some(key);
     }
+}
+
+/// Tinted icon followed by a name, as one label: a nested `horizontal` would be taller than a
+/// plain label and push the second line out of the fixed-height row.
+fn icon_and_name(ui: &egui::Ui, (glyph, color): (&str, egui::Color32), name: &str) -> LayoutJob {
+    let mut job = LayoutJob::default();
+    let style = ui.style();
+    RichText::new(format!("{glyph} ")).color(color).append_to(
+        &mut job,
+        style,
+        egui::FontSelection::Default,
+        egui::Align::Center,
+    );
+    RichText::new(name).append_to(
+        &mut job,
+        style,
+        egui::FontSelection::Default,
+        egui::Align::Center,
+    );
+    job
 }
