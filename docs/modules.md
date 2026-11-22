@@ -1,0 +1,43 @@
+# Modules (onglets en haut)
+
+- **Market** : historique HdV. Barre latérale façon Fichiers (tous les objets, favoris, Analyse, Rentabilité,
+  catégories dépliables), liste, graphique prix / quantité, analyse, calculateur de rentabilité.
+- **Objets** : les ~19 400 objets du jeu par catégorie (icône de catégorie aussi dans le tableau), avec prix HdV /
+  achat PNJ / revente. À l'arrivée, seule la recherche, au milieu de la page (`widgets::landing_search`) ; le
+  tableau s'affiche dès qu'on tape ou qu'on choisit une catégorie. Une **fiche objet**
+  à onglets : Market (prix et graphique), Recettes (produit par, utilisé dans, enseigne), PNJ (où l'acheter),
+  Butin (monstres, dépeçage, vol à la tire, coffres, conteneurs, quêtes : chance de Forever Guide et chance
+  réelle enregistrée par Scout, avec intervalle à 95 %).
+- **Butin** : par zone de la carte. **Carte cliquable** des deux continents (zones à leur place, contour d'OpenMap,
+  couleur selon le niveau habituel des monstres ; affichée tant qu'aucune zone n'est choisie, bouton « 🗺 Carte »).
+  Barre latérale des zones puis des donjons et raids (recherche). **Ctrl+clic** (liste ou carte) ajoute une zone :
+  les monstres de toutes les zones choisies sont listés ensemble (`ZoneLoot::merge`). Liste des monstres :
+  recherche par nom **ou par objet lâché**, masquer élites / rares / boss, tri par niveau, valeur estimée par kill
+  ou **valeur ÷ niveau**. Butin du monstre choisi (butin, dépeçage, vol à la tire : chance Forever Guide, chance
+  réelle, prix). Zone d'un monstre = son donjon, sinon sa zone Forever Guide ; un monstre que seul Scout connaît va
+  dans la zone où il a été fouillé. L'île de Zéphras (Forever) n'est ni dans Forever Guide ni sur un continent :
+  rien sur la carte, son butin ne viendra que de Scout.
+- **Positions cliquables** (fiche objet : Butin et PNJ ; module Butin) : copient `/way #<UiMap> x y Nom` (syntaxe
+  TomTom ; l'addon Scout fournit `/way` quand TomTom est absent) à coller dans le chat du jeu. L'outil ne fait que
+  remplir le presse-papiers : c'est le joueur qui colle. Forever Guide ne donne qu'un point par monstre (pas toutes
+  ses apparitions).
+- **Recettes** : recherche d'une recette ou d'un objet, par métier (même page d'arrivée que Objets, recherche puis
+  résultats avec l'icône du métier ou de la catégorie) ; fiche recette (composants au moins cher entre
+  PNJ et HdV, bénéfice, patron). Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
+  cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
+
+## Fichiers de l'UI (`app/src/ui/`)
+`header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
+icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
+`calculator`, `credits` (fenêtre « Sources des données »), `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`),
+`loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/{results,detail}`), `widgets` (étoile de favori,
+couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chance et chance réelle : partagés),
+`theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
+
+## Pistes
+- Butin : `ForeverGuide/ForeverBossLoot.lua` (butin confirmé de boss Forever, chances inconnues, appliqué par
+  l'addon à l'exécution) n'est pas lu.
+- Carte : points des monstres de la zone (coordonnées Forever Guide `x`, `y` sur `ui_map`), entrées des donjons
+  (`OpenMap/Data/Forever/Places.lua`, coordonnées monde), fond peint (`MapZones` d'OpenMap, BLP).
+- Toutes les apparitions d'un monstre : QuestieDB (`QuestieDB_Forever`) les a, mais dans un format codé
+  (`src/meta/codec.lua`) pas encore lu.
