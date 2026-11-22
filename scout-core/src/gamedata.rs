@@ -9,8 +9,8 @@ use crate::map::GameMap;
 
 /// Version of what is stored from the client tables: bumped when new columns are kept,
 /// so the next update downloads again even if the Forever build did not change.
-/// 2: merchant buy / sell prices. 3: item category names. 4: maps.
-pub const GAME_FORMAT: i64 = 4;
+/// 2: merchant buy / sell prices. 3: item category names. 4: maps. 5: recipe items from Wowhead.
+pub const GAME_FORMAT: i64 = 5;
 
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
@@ -77,6 +77,9 @@ pub struct Tables {
     pub recipes: Vec<Recipe>,
     pub categories: Vec<Category>,
     pub maps: Vec<GameMap>,
+    /// Category (class, subclass) of the items `Item` lists but `ItemSparse` lacks: the
+    /// hotfixed ones, named elsewhere (Wowhead).
+    pub unnamed_categories: HashMap<i64, (i64, i64)>,
 }
 
 /// Everything the Objects and Recipes modules show, with lookups.
@@ -100,6 +103,38 @@ pub struct GameData {
     pub categories: Vec<Category>,
     /// Continents and zones (Loot module's map).
     pub maps: Vec<GameMap>,
+}
+
+impl Tables {
+    /// Items recipes make, use or are taught by, missing from the client tables (sorted).
+    pub fn missing_recipe_items(&self) -> Vec<i64> {
+        let known: std::collections::HashSet<i64> = self.items.iter().map(|i| i.id).collect();
+        let mut missing: Vec<i64> = self
+            .recipes
+            .iter()
+            .flat_map(|r| {
+                r.creates
+                    .iter()
+                    .chain(&r.reagents)
+                    .map(|x| x.item_id)
+                    .chain(r.taught_by.iter().copied())
+            })
+            .filter(|id| !known.contains(id))
+            .collect();
+        missing.sort_unstable();
+        missing.dedup();
+        missing
+    }
+
+    /// Adds items named elsewhere, keeping Forever's category when the client tables have one.
+    pub fn add_items(&mut self, items: impl IntoIterator<Item = GameItem>) {
+        for mut item in items {
+            if let Some(&(class, subclass)) = self.unnamed_categories.get(&item.id) {
+                (item.class_id, item.subclass_id) = (Some(class), Some(subclass));
+            }
+            self.items.push(item);
+        }
+    }
 }
 
 impl GameData {
@@ -183,6 +218,56 @@ pub fn is_obsolete(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn recipe_items_missing_from_the_tables() {
+        let item = |id| GameItem {
+            id,
+            name: String::new(),
+            quality: 1,
+            item_level: 0,
+            required_level: 0,
+            class_id: None,
+            subclass_id: None,
+            buy_price: 0,
+            vendor_stack: 1,
+            sell_price: 0,
+        };
+        let reagent = |item_id| Reagent { item_id, count: 1 };
+        let tables = Tables {
+            items: vec![item(1), item(2)],
+            recipes: vec![Recipe {
+                spell_id: 10,
+                name: String::new(),
+                profession: 165,
+                required: None,
+                yellow: 0,
+                grey: 0,
+                creates: Some(reagent(5)),
+                reagents: vec![reagent(1), reagent(4), reagent(4)],
+                taught_by: vec![2, 3],
+            }],
+            ..Tables::default()
+        };
+        assert_eq!(tables.missing_recipe_items(), vec![3, 4, 5]);
+
+        let mut tables = Tables {
+            unnamed_categories: HashMap::from([(4, (7, 6))]),
+            ..tables
+        };
+        let wowhead = |id| GameItem {
+            class_id: Some(7),
+            subclass_id: Some(0),
+            ..item(id)
+        };
+        tables.add_items([wowhead(4), wowhead(5)]);
+        let category = |id| {
+            let i = tables.items.iter().find(|i| i.id == id).unwrap();
+            (i.class_id, i.subclass_id)
+        };
+        assert_eq!(category(4), (Some(7), Some(6)));
+        assert_eq!(category(5), (Some(7), Some(0)));
+    }
 
     #[test]
     fn obsolete_names() {

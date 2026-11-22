@@ -59,6 +59,7 @@ impl Db {
         sqlx::raw_sql(game::SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(drops::SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(game::maps::SCHEMA).execute(&pool).await?;
+        sqlx::raw_sql(game::wowhead::SCHEMA).execute(&pool).await?;
         Self::migrate_game(&pool).await?;
         Self::migrate_vendor(&pool).await?;
         Self::migrate_drops(&pool).await?;

@@ -1,11 +1,11 @@
-//! Settings dialog: appearance, imports, game data, WoW folder. Explanations live in hover texts.
+//! Settings dialog: appearance, imports, game data, WoW folder; button to the data credits. Explanations live in hover texts.
 
 use std::path::PathBuf;
 
 use eframe::egui;
 
 use crate::state::State;
-use crate::ui::theme;
+use crate::ui::{credits, theme};
 use scout_core::time::format_datetime;
 use scout_core::{GAME_FORMAT, Theme};
 use scout_worker::{Command, WorkerHandle};
@@ -14,6 +14,8 @@ use scout_worker::{Command, WorkerHandle};
 pub struct Settings {
     open: bool,
     wow_dir: String,
+    /// "Sources des données" window.
+    credits: bool,
 }
 
 impl Settings {
@@ -43,6 +45,15 @@ impl Settings {
                 game_data(ui, state, worker);
                 section(ui, "WoW", false);
                 self.wow(ui, state, worker);
+                ui.add_space(6.0);
+                ui.separator();
+                if ui
+                    .button("ℹ Sources des données")
+                    .on_hover_text("D'où viennent les données de l'outil, avec les liens.")
+                    .clicked()
+                {
+                    self.credits = true;
+                }
                 if state.busy {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
@@ -52,6 +63,7 @@ impl Settings {
                 }
             });
         self.open = open;
+        credits::window(ctx, &mut self.credits);
     }
 
     fn wow(&mut self, ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {

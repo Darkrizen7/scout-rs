@@ -1,9 +1,11 @@
-//! Everything that comes from outside: the WoW folder, Scout's Lua exports (and the other addons') and wago.tools.
+//! Everything that comes from outside: the WoW folder, Scout's Lua exports (and the other addons'),
+//! wago.tools and Wowhead.
 
 mod import;
 mod tga;
 mod wago;
 pub mod wow;
+pub mod wowhead;
 
 pub use import::{
     DROPS_FORMAT, run_drops_export, run_legacy_export, run_scout_export, run_scout_loot,

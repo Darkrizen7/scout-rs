@@ -124,6 +124,11 @@ pub fn assemble(tables: &HashMap<&str, Vec<u8>>) -> Result<Tables> {
         });
         item_skill.insert(item_id, (int(r, req_skill), int(r, req_rank)));
     }
+    let unnamed_categories: HashMap<i64, (i64, i64)> = categories
+        .iter()
+        .filter(|(id, _)| !item_skill.contains_key(id))
+        .map(|(&id, &category)| (id, category))
+        .collect();
 
     // Professions, and the child skill lines Forever moved recipes to (2937 → 171…).
     let lines = table("SkillLine")?;
@@ -327,6 +332,7 @@ pub fn assemble(tables: &HashMap<&str, Vec<u8>>) -> Result<Tables> {
         recipes: recipes.into_values().collect(),
         categories,
         maps,
+        unnamed_categories,
     })
 }
 
@@ -419,6 +425,7 @@ mod tests {
             recipes,
             categories,
             maps,
+            ..
         } = assemble(&tables()).unwrap();
         // Continent and zone kept, world map left out (it has two partial assignments).
         assert_eq!(maps.len(), 2);

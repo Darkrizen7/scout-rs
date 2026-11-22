@@ -103,7 +103,17 @@ async fn downloads_assembles_and_stores_latest_build() -> Result<()> {
     for table in sources::TABLES {
         tables.insert(table, sources::table_csv(table, &build)?);
     }
-    let game = GameData::new(build.clone(), 1, sources::assemble(&tables)?);
+    let tables = sources::assemble(&tables)?;
+    let missing = tables.missing_recipe_items();
+    let categorized = missing
+        .iter()
+        .filter(|id| tables.unnamed_categories.contains_key(id))
+        .count();
+    println!(
+        "{} objets de recettes absents des tables (à demander à Wowhead), {categorized} avec catégorie",
+        missing.len()
+    );
+    let game = GameData::new(build.clone(), 1, tables);
 
     let path = throwaway_db("game");
     let db = Db::open(&path).await?;
@@ -259,5 +269,23 @@ fn reads_open_map_masks() -> Result<()> {
         duskwood.center()
     );
     assert!(masks.len() > 40);
+    Ok(())
+}
+
+/// Items of the Razorbramble leather recipe, missing from the client tables, named by Wowhead.
+#[test]
+#[ignore = "asks Wowhead for three items"]
+fn wowhead_names_items_missing_from_the_tables() -> Result<()> {
+    for (id, name) in [
+        (233813, "Armure en cuir de Roncerasoir"),
+        (234007, "Chitine épineuse de silithide"),
+        (234009, "Rouleau de soie qiraji"),
+    ] {
+        let start = std::time::Instant::now();
+        let item = sources::wowhead::item(id)?.expect("known by Wowhead");
+        println!("{id} {item:?} en {:?}", start.elapsed());
+        assert_eq!(item.name, name);
+    }
+    assert!(sources::wowhead::item(999_999)?.is_none());
     Ok(())
 }

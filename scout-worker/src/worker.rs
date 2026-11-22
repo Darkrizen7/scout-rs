@@ -6,7 +6,7 @@ use std::sync::mpsc::Receiver;
 
 use anyhow::Result;
 use scout_core::analysis;
-use scout_core::gamedata::GameData;
+use scout_core::gamedata::{GameData, Tables};
 use scout_core::{GAME_FORMAT, Row};
 use scout_db::Db;
 use scout_sources as sources;
@@ -173,7 +173,8 @@ async fn import_drops(db: &Db, config: &Config, send: &impl Fn(Event)) -> Result
     Ok(())
 }
 
-/// Newest Forever build → 9 client tables → recipes, stored with the build they come from.
+/// Newest Forever build → client tables (+ Wowhead for the items they lack) → recipes, stored
+/// with the build they come from.
 fn update_game_data(
     runtime: &tokio::runtime::Runtime,
     db: &Db,
@@ -200,7 +201,8 @@ fn update_game_data(
         tables.insert(*table, sources::table_csv(table, &build)?);
     }
     send(Event::Status("Assemblage des recettes…".into()));
-    let tables = sources::assemble(&tables)?;
+    let mut tables = sources::assemble(&tables)?;
+    add_wowhead_items(runtime, db, &mut tables, send)?;
     let now = chrono::Utc::now().timestamp();
     let game = GameData::new(build.clone(), now, tables);
     runtime.block_on(db.save_game(&game))?;
@@ -210,6 +212,39 @@ fn update_game_data(
         game.items.len()
     )));
     send(Event::GameData(Arc::new(game)));
+    Ok(())
+}
+
+/// Recipe items missing from the client tables (sent by Forever's server as hotfixes), named by
+/// Wowhead. Each item is asked for once: the answers are kept across updates.
+fn add_wowhead_items(
+    runtime: &tokio::runtime::Runtime,
+    db: &Db,
+    tables: &mut Tables,
+    send: &impl Fn(Event),
+) -> Result<()> {
+    let missing = tables.missing_recipe_items();
+    let mut known = runtime.block_on(db.wowhead_items())?;
+    let unknown: Vec<i64> = missing
+        .iter()
+        .copied()
+        .filter(|id| !known.contains_key(id))
+        .collect();
+    for (i, &id) in unknown.iter().enumerate() {
+        if i > 0 {
+            std::thread::sleep(sources::wowhead::PAUSE);
+        }
+        send(Event::Status(format!(
+            "Objets absents des tables du jeu, depuis Wowhead : {}/{}…",
+            i + 1,
+            unknown.len()
+        )));
+        if let Some(item) = sources::wowhead::item(id)? {
+            runtime.block_on(db.save_wowhead_item(&item))?;
+            known.insert(id, item);
+        }
+    }
+    tables.add_items(missing.iter().filter_map(|id| known.remove(id)));
     Ok(())
 }
 

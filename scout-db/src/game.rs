@@ -1,6 +1,7 @@
 //! Game reference data in SQLite, replaced as a whole at each update, with the Forever build it comes from.
 
 pub(crate) mod maps;
+pub(crate) mod wowhead;
 
 use std::collections::HashMap;
 
@@ -299,6 +300,8 @@ impl Db {
                 })
                 .collect(),
             maps: self.load_maps().await?,
+            // Only needed while assembling: stored items already carry their category.
+            unnamed_categories: HashMap::new(),
         };
         let mut game = GameData::new(
             meta.get("build").cloned().unwrap_or_default(),

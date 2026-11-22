@@ -33,7 +33,7 @@ const USER_AGENT: &str = "scout-rs (outil personnel, données de recettes)";
 /// The largest table (ItemSparse) is about 6 MB.
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
 
-fn agent() -> ureq::Agent {
+pub(crate) fn agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .user_agent(USER_AGENT)
         .timeout_connect(Some(Duration::from_secs(15)))

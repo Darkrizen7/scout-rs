@@ -70,6 +70,8 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   - Données du jeu `game_*` (remplacées en bloc) : `game_meta` (`build`, `updated`, `format`), `game_items`,
     `game_categories`, `game_professions`, `game_recipes`, `game_reagents`, `game_recipe_items`, `game_maps`
     (continents et zones : UiMap, rectangle en coordonnées monde).
+  - `wowhead_items` (mêmes colonnes que `game_items`) : objets demandés à Wowhead, **gardés** d'une mise à jour à
+    l'autre (chaque objet n'est demandé qu'une fois).
 - Évolution du schéma : `CREATE TABLE IF NOT EXISTS` + colonnes ajoutées si absentes (`ITEM_COLUMNS` dans `scout-db/src/lib.rs`
   et `game.rs`). Ne jamais supprimer de données sans demander ; copier `prix.db` avant toute manipulation.
 - Les numéros d'objet sont ceux du jeu, identiques dans Scout, Auctionator, Forever Guide et les tables du client.
@@ -114,6 +116,14 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   carte : UiMin 0,0 / UiMax 1,1). Monde : `x` vers le nord, `y` vers l'ouest (`scout-core/src/map.rs`).
   **`GAME_FORMAT`** (`scout-core/src/gamedata.rs`) est stocké avec la version : l'augmenter quand on garde de nouvelles colonnes ou
   tables, pour que « Mettre à jour » retélécharge même si la version de Forever n'a pas changé.
+- **Wowhead** (`scout-sources/src/wowhead.rs`, `https://www.wowhead.com/classic/fr/item=<id>&xml`) : ~550 objets de
+  recettes (surtout repris de Season of Discovery) sont envoyés par le serveur de Forever en hotfix : ils sont
+  dans `Item` mais pas dans `ItemSparse`, donc sans nom chez wago.tools (et absents de `DBCache.bin` tant
+  qu'on ne les a pas croisés). À la mise à jour, `Tables::missing_recipe_items` → nom, qualité, niveaux, revente
+  depuis Wowhead ; la catégorie reste celle de `Item` (`Tables::unnamed_categories`). 1 s de pause entre deux requêtes (sans pause, CloudFront bloque l'adresse en 403 après ~300) ; une
+  erreur réseau arrête la mise à jour sans rien remplacer (le cache garde ce qui a été lu).
+- Les sources sont citées dans Réglages → bouton « ℹ Sources des données » (`ui/credits.rs`, `SOURCES` : à compléter
+  si on en ajoute une).
 
 ## Architecture
 Workspace Cargo (`resolver = "3"`). Les dépendances ne vont que dans un sens :
@@ -124,14 +134,14 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 |---|---|
 | `scout-core` | Données et logique **pures**, testées (ni disque, ni réseau, ni egui ; `sqlx` seulement avec la feature `sqlx`, pour `#[derive(FromRow)]`). `analysis` + `analysis/stats` : prix du jour = médiane des prix min du jour (date locale) ; week-end vs semaine par **test de permutation** (exact ou Monte-Carlo à graine fixe), effet de marché avec **les jours comme unité** ; prix du jour anormal par **z-score robuste** (MAD, plancher 3 %), seuils en constantes publiques. `gamedata` (types, index `made_by` / `used_in` / `teaches`, `GAME_FORMAT`), `money` (cuivre ↔ texte, rentabilité, commission HdV 5 %), `pricing` (`cheapest` : marchand ou HdV ; `sale_value` : ce que rapporte un objet ramassé, `AUCTION_CUT`), `time` (dates locales), `search` (recherche de tous les champs : chaque mot tapé dans le nom, dans n'importe quel ordre, sans casse ni accents ; ou le numéro exact), `map` (cartes, placement d'une zone sur son continent, masques), `drops` (+ `drops/records`, `drops/zone` : butin par zone,
 niveaux habituels = 10ᵉ / 90ᵉ centiles, valeur par kill) : fusion base Forever Guide / réel Scout, intervalle de Wilson, tri par colonne (`drops/sort` : valeurs inconnues toujours en dernier), `TRUSTED_KILLS` = 20 corps (chance réelle en vert), `format_percent` ; types partagés (`Row`, `ItemName`, `VendorPrice`, `ItemSummary`, `Snapshot`, `VendorData` / `VendorOffer`, `Theme`). |
-| `scout-sources` | Tout ce qui vient de l'extérieur : `import` (scripts Lua de `lua/`, intégrés par `include_str!`, et lecture de leur CSV), `wago` (téléchargement wago.tools) + `wago/assemble` (+ `assemble/maps`) (CSV → recettes et cartes, testé), `tga` (masques d'OpenMap), `wow` (dossier `_forever_` : détection Wine, `export_script`, `saved_variables`, liste de Forever Guide). |
-| `scout-db` | SQLite (sqlx) : `lib.rs` (`Db`, schéma, migrations), `market` (objets, favoris, relevés), `game` (données du jeu), `vendor` (prix et offres des marchands), `drops` (butin : base et réel ; `drops/zones` : par zone), `game/maps`. |
+| `scout-sources` | Tout ce qui vient de l'extérieur : `import` (scripts Lua de `lua/`, intégrés par `include_str!`, et lecture de leur CSV), `wago` (téléchargement wago.tools) + `wago/assemble` (+ `assemble/maps`) (CSV → recettes et cartes, testé), `wowhead` (objets absents des tables du client), `tga` (masques d'OpenMap), `wow` (dossier `_forever_` : détection Wine, `export_script`, `saved_variables`, liste de Forever Guide). |
+| `scout-db` | SQLite (sqlx) : `lib.rs` (`Db`, schéma, migrations), `market` (objets, favoris, relevés), `game` (données du jeu), `vendor` (prix et offres des marchands), `drops` (butin : base et réel ; `drops/zones` : par zone), `game/maps`, `game/wowhead`. |
 | `scout-worker` | Thread de fond, runtime tokio `current_thread` : `Command` → `Event` via `mpsc` + callback `notify` (l'app y met `request_repaint`). **Seul** endroit qui touche disque, base, réseau et processus. `config` : réglages, chemins, migration des dossiers `scout-prix` → `scout-rs`. Tests sur la vraie machine dans `tests/local.rs` (`#[ignore]`). |
 | `app` (paquet et binaire `scout-rs`) | UI egui uniquement. `main.rs`, `app.rs` (onglets de modules, barre d'état, module courant), `state.rs` (`State` lu par l'UI : données du worker, module / vue / filtre / sélection ; `revision` change à chaque modification des objets ou favoris, pour les caches ; `auction_price`, `buy_price`). |
 
 `app/src/ui/` : `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
 icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
-`calculator`, `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/{results,detail}`), `widgets` (étoile de favori,
+`calculator`, `credits` (fenêtre « Sources des données »), `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/{map,map/paint,npcs,npc}`), `recipes` (+ `recipes/{results,detail}`), `widgets` (étoile de favori,
 couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chance et chance réelle : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.
