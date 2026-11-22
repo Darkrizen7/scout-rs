@@ -194,3 +194,40 @@ async fn summarizes_local_database() -> Result<()> {
     }
     Ok(())
 }
+
+/// Loot by zone on a copy of the local database: zone list, then the best monsters of one zone.
+#[tokio::test]
+#[ignore = "reads the local database"]
+async fn lists_zone_loot() -> Result<()> {
+    let path = throwaway_db("zones");
+    std::fs::copy(database_path()?, &path)?;
+    let db = Db::open(&path).await?;
+    let started = std::time::Instant::now();
+    let zones = db.zones().await?;
+    println!("{} zones in {:?}", zones.len(), started.elapsed());
+    for z in zones.iter().take(5) {
+        println!("  {z:?}");
+    }
+    let started = std::time::Instant::now();
+    let loot = db.zone_loot("Les Tarides").await?;
+    println!(
+        "{}: {} monsters in {:?}",
+        loot.zone,
+        loot.npcs.len(),
+        started.elapsed()
+    );
+    for npc in loot.npcs.iter().take(3) {
+        println!(
+            "  {} {} : {} drops",
+            npc.name(),
+            npc.npc.levels(),
+            npc.drops.len()
+        );
+        for d in npc.drops.iter().take(4) {
+            println!("    {:?} {} {:?}", d.kind, d.item_id, d.chance);
+        }
+    }
+    assert!(loot.npcs.len() > 100);
+    std::fs::remove_file(&path)?;
+    Ok(())
+}

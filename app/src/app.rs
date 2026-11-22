@@ -4,7 +4,8 @@ use eframe::egui;
 
 use crate::state::{Module, State, View};
 use crate::ui::{
-    analysis_view, calculator, chart, fonts, header, item_list, items, recipes, sidebar, theme,
+    analysis_view, calculator, chart, fonts, header, item_list, items, loot, recipes, sidebar,
+    theme,
 };
 use scout_core::Theme;
 use scout_worker::WorkerHandle;
@@ -18,6 +19,7 @@ pub struct App {
     sidebar: sidebar::Sidebar,
     recipes: recipes::Recipes,
     items: items::Items,
+    loot: loot::Loot,
     settings: header::Settings,
     /// Theme currently applied to the egui context.
     theme: Option<Theme>,
@@ -36,6 +38,7 @@ impl App {
             sidebar: sidebar::Sidebar::default(),
             recipes: recipes::Recipes::default(),
             items: items::Items::default(),
+            loot: loot::Loot::default(),
             settings: header::Settings::default(),
             theme: None,
         }
@@ -69,6 +72,7 @@ impl eframe::App for App {
             sidebar,
             recipes,
             items,
+            loot,
             settings,
             ..
         } = self;
@@ -123,6 +127,12 @@ impl eframe::App for App {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::new())
                     .show(ui, |ui| recipes.show(ui, state, worker));
+            }
+            Module::Loot => {
+                // The module lays out its zones, monsters and loot.
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::new())
+                    .show(ui, |ui| loot.show(ui, state, worker));
             }
         }
         settings.window(&ui.ctx().clone(), state, worker);

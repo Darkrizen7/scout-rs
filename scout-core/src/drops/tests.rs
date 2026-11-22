@@ -157,3 +157,70 @@ fn sorts_by_column_with_unknown_values_last() {
     assert_eq!(order(DropColumn::Level, false), vec![1, 2, 3, 9]);
     assert_eq!(order(DropColumn::Source, true), vec![3, 2, 1, 9]);
 }
+
+#[test]
+fn zone_merges_monsters_and_estimates_value() {
+    let npc = |npc_id, name: &str, level, kills| ZoneNpcRow {
+        npc_id,
+        name: Some(name.into()),
+        min_level: Some(level),
+        max_level: Some(level),
+        rank: Some(0),
+        zone: Some("Les Tarides".into()),
+        x: None,
+        y: None,
+        dungeon: None,
+        kills: Some(kills),
+        skins: Some(0),
+    };
+    let drop = |npc_id, item_id, chance| ZoneDropRow {
+        npc_id,
+        kind: "npc".into(),
+        item_id,
+        chance,
+        quest_only: false,
+    };
+    let zone = ZoneLoot::new(
+        "Les Tarides".into(),
+        vec![npc(2, "Zhévra", 15, 40), npc(1, "Hyène", 12, 0)],
+        vec![
+            drop(2, 10, Some(5.0)),
+            drop(2, 11, Some(50.0)),
+            drop(1, 10, None),
+            drop(9, 10, Some(1.0)), // monster of another zone: ignored
+        ],
+        vec![
+            // 40 corpses: the observed 25 % (2 per drop) replaces the reference 5 %.
+            ZoneObservedRow {
+                npc_id: 2,
+                kind: "loot".into(),
+                item_id: 10,
+                drops: 10,
+                quantity: 20,
+            },
+            ZoneObservedRow {
+                npc_id: 2,
+                kind: "loot".into(),
+                item_id: 12,
+                drops: 4,
+                quantity: 4,
+            },
+        ],
+    );
+    let names: Vec<String> = zone.npcs.iter().map(ZoneNpc::name).collect();
+    assert_eq!(names, ["Hyène", "Zhévra"]);
+    let zhevra = &zone.npcs[1];
+    let items: Vec<i64> = zhevra.drops.iter().map(|d| d.item_id).collect();
+    // 11: never seen in 40 corpses, the trusted 0 % beats the reference 50 %.
+    assert_eq!(items, [10, 12, 11]);
+    assert_eq!(zhevra.drops[2].observed.unwrap().total, 40);
+    assert_eq!(zhevra.drops[1].chance, None);
+    // 0.25 × 2 × 10 + 0 × 100 + 0.1 × (no price) = 5.
+    let price = |id| match id {
+        10 => Some(10.0),
+        11 => Some(100.0),
+        _ => None,
+    };
+    assert_eq!(zhevra.value_per_kill(price), Some(5.0));
+    assert_eq!(zone.npcs[0].value_per_kill(price), None);
+}

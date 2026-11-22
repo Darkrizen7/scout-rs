@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use scout_core::analysis::Analysis;
-use scout_core::drops::ItemDrops;
+use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
 
@@ -17,6 +17,10 @@ pub enum Command {
     LoadHistory(i64),
     /// Where an item comes from (item sheet, Drops tab).
     LoadDrops(i64),
+    /// Zones and dungeons with known loot (Loot module).
+    LoadZones,
+    /// The monsters of a zone and their loot.
+    LoadZone(String),
     Analyze,
     SetFavorite(i64, bool),
     /// Downloads the newest Forever client tables (unless already stored).
@@ -33,6 +37,8 @@ pub enum Event {
     Items(Vec<ItemSummary>),
     History(i64, Vec<Snapshot>),
     Drops(i64, Box<ItemDrops>),
+    Zones(Vec<Zone>),
+    ZoneLoot(Box<ZoneLoot>),
     Analysis(Box<Analysis>),
     Favorites(Vec<i64>),
     GameData(Arc<GameData>),

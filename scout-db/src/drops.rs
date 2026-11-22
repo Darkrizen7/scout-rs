@@ -1,6 +1,8 @@
 //! Where items come from: Forever Guide's reference (replaced when its files change) and the loot Scout
 //! recorded in game (replaced at each Scout import: the addon keeps running totals).
 
+mod zones;
+
 use anyhow::Result;
 
 use super::Db;
@@ -53,6 +55,7 @@ CREATE TABLE IF NOT EXISTS loot_observed (
     PRIMARY KEY (npc_id, kind, item_id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS loot_observed_item ON loot_observed (item_id);
+CREATE INDEX IF NOT EXISTS drop_sources_source ON drop_sources (source_id);
 ";
 
 const BASE_QUERY: &str = "

@@ -6,9 +6,8 @@ use std::collections::HashSet;
 use eframe::egui::{self, RichText};
 
 use crate::ui::theme::Palette;
-use scout_core::drops::{
-    Drop, DropColumn, DropKind, ItemDrops, TRUSTED_KILLS, compare, format_percent,
-};
+use crate::ui::widgets;
+use scout_core::drops::{Drop, DropColumn, DropKind, ItemDrops, compare};
 
 /// Rows shown per section before "Tout afficher".
 const SHORT_LIST: usize = 30;
@@ -173,44 +172,9 @@ fn row(
             ui.label("");
         }
     }
-    match drop.chance {
-        Some(p) => {
-            ui.label(format_percent(p));
-        }
-        None => {
-            ui.weak("?")
-                .on_hover_text("Chance inconnue (liste de Questie, de Forever ou objet garanti)");
-        }
-    }
+    widgets::chance_label(ui, drop.chance);
     if observed {
-        match drop.observed {
-            Some(o) => {
-                let text = format!("{} ({}/{})", format_percent(o.rate()), o.drops, o.total);
-                let label = if o.total >= TRUSTED_KILLS {
-                    RichText::new(text).color(palette.gain)
-                } else {
-                    RichText::new(text)
-                };
-                let (low, high) = o.interval();
-                let mut hint = format!(
-                    "Intervalle à 95 % : {} – {}",
-                    format_percent(low),
-                    format_percent(high)
-                );
-                if o.drops > 0 {
-                    hint += &format!("\nQuantité moyenne : {:.1}", o.average_quantity())
-                        .replace('.', ",");
-                }
-                if o.total < TRUSTED_KILLS {
-                    hint +=
-                        &format!("\nPeu de corps : moins de {TRUSTED_KILLS}, la base sert au tri.");
-                }
-                ui.label(label).on_hover_text(hint);
-            }
-            None => {
-                ui.weak("—").on_hover_text("Jamais enregistré par Scout");
-            }
-        }
+        widgets::observed_label(ui, drop.observed, palette);
     }
 }
 

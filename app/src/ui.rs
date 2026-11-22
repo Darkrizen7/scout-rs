@@ -8,6 +8,7 @@ pub mod fonts;
 pub mod header;
 pub mod item_list;
 pub mod items;
+pub mod loot;
 pub mod recipes;
 pub mod sidebar;
 pub mod theme;

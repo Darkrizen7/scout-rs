@@ -28,6 +28,10 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes. Rust édition 
   à onglets : Market (prix et graphique), Recettes (produit par, utilisé dans, enseigne), PNJ (où l'acheter),
   Butin (monstres, dépeçage, vol à la tire, coffres, conteneurs, quêtes : chance de Forever Guide et chance
   réelle enregistrée par Scout, avec intervalle à 95 %).
+- **Butin** : par zone de la carte. Barre latérale des zones puis des donjons et raids (recherche), monstres de
+  la zone (recherche par nom **ou par objet lâché**, tri par niveau ou par valeur estimée par kill), butin du
+  monstre choisi (butin, dépeçage, vol à la tire : chance Forever Guide, chance réelle, prix). Zone d'un monstre =
+  son donjon, sinon sa zone Forever Guide ; un monstre que seul Scout connaît va dans la zone où il a été fouillé.
 - **Recettes** : recherche d'une recette ou d'un objet, par métier ; fiche recette (composants au moins cher entre
   PNJ et HdV, bénéfice, patron). Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
   cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
@@ -95,16 +99,16 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 
 | Crate | Rôle |
 |---|---|
-| `scout-core` | Données et logique **pures**, testées (ni disque, ni réseau, ni egui ; `sqlx` seulement avec la feature `sqlx`, pour `#[derive(FromRow)]`). `analysis` + `analysis/stats` : prix du jour = médiane des prix min du jour (date locale) ; week-end vs semaine par **test de permutation** (exact ou Monte-Carlo à graine fixe), effet de marché avec **les jours comme unité** ; prix du jour anormal par **z-score robuste** (MAD, plancher 3 %), seuils en constantes publiques. `gamedata` (types, index `made_by` / `used_in` / `teaches`, `GAME_FORMAT`), `money` (cuivre ↔ texte, rentabilité, commission HdV 5 %), `pricing` (`cheapest` : marchand ou HdV), `time` (dates locales), `drops` (+ `drops/records`) : fusion base Forever Guide / réel Scout, intervalle de Wilson, tri par colonne (`drops/sort` : valeurs inconnues toujours en dernier), `TRUSTED_KILLS` = 20 corps (chance réelle en vert), `format_percent` ; types partagés (`Row`, `ItemName`, `VendorPrice`, `ItemSummary`, `Snapshot`, `VendorData` / `VendorOffer`, `Theme`). |
+| `scout-core` | Données et logique **pures**, testées (ni disque, ni réseau, ni egui ; `sqlx` seulement avec la feature `sqlx`, pour `#[derive(FromRow)]`). `analysis` + `analysis/stats` : prix du jour = médiane des prix min du jour (date locale) ; week-end vs semaine par **test de permutation** (exact ou Monte-Carlo à graine fixe), effet de marché avec **les jours comme unité** ; prix du jour anormal par **z-score robuste** (MAD, plancher 3 %), seuils en constantes publiques. `gamedata` (types, index `made_by` / `used_in` / `teaches`, `GAME_FORMAT`), `money` (cuivre ↔ texte, rentabilité, commission HdV 5 %), `pricing` (`cheapest` : marchand ou HdV ; `sale_value` : ce que rapporte un objet ramassé, `AUCTION_CUT`), `time` (dates locales), `drops` (+ `drops/records`, `drops/zone` : butin par zone et valeur par kill) : fusion base Forever Guide / réel Scout, intervalle de Wilson, tri par colonne (`drops/sort` : valeurs inconnues toujours en dernier), `TRUSTED_KILLS` = 20 corps (chance réelle en vert), `format_percent` ; types partagés (`Row`, `ItemName`, `VendorPrice`, `ItemSummary`, `Snapshot`, `VendorData` / `VendorOffer`, `Theme`). |
 | `scout-sources` | Tout ce qui vient de l'extérieur : `import` (scripts Lua de `lua/`, intégrés par `include_str!`, et lecture de leur CSV), `wago` (téléchargement wago.tools) + `wago/assemble` (CSV → recettes, testé), `wow` (dossier `_forever_` : détection Wine, `export_script`, `saved_variables`, liste de Forever Guide). |
-| `scout-db` | SQLite (sqlx) : `lib.rs` (`Db`, schéma, migrations), `market` (objets, favoris, relevés), `game` (données du jeu), `vendor` (prix et offres des marchands), `drops` (butin : base et réel). |
+| `scout-db` | SQLite (sqlx) : `lib.rs` (`Db`, schéma, migrations), `market` (objets, favoris, relevés), `game` (données du jeu), `vendor` (prix et offres des marchands), `drops` (butin : base et réel ; `drops/zones` : par zone). |
 | `scout-worker` | Thread de fond, runtime tokio `current_thread` : `Command` → `Event` via `mpsc` + callback `notify` (l'app y met `request_repaint`). **Seul** endroit qui touche disque, base, réseau et processus. `config` : réglages, chemins, migration des dossiers `scout-prix` → `scout-rs`. Tests sur la vraie machine dans `tests/local.rs` (`#[ignore]`). |
 | `app` (paquet et binaire `scout-rs`) | UI egui uniquement. `main.rs`, `app.rs` (onglets de modules, barre d'état, module courant), `state.rs` (`State` lu par l'UI : données du worker, module / vue / filtre / sélection ; `revision` change à chaque modification des objets ou favoris, pour les caches ; `auction_price`, `buy_price`). |
 
 `app/src/ui/` : `header` (onglets, en-tête Market, barre d'état, fenêtre Réglages), `sidebar` (barre latérale Market,
 icônes de catégories), `item_list`, `chart` (`plots` réutilisé par la fiche objet), `analysis_view` (+ `charts`),
-`calculator`, `items` (+ `items/{rows,sidebar,sheet,merchants,drops}`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
-couleurs de qualité, prix ou tiret : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
+`calculator`, `items` (+ `items/{rows,sidebar,sheet,merchants,drops}`), `loot` (+ `loot/npc`), `recipes` (+ `recipes/detail`), `widgets` (étoile de favori,
+couleurs de qualité, prix ou tiret, chance et chance réelle : partagés), `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.
 - Une règle métier utilisée par l'UI va dans `scout-core` ; un widget utilisé par deux panneaux va dans `ui/widgets.rs`.

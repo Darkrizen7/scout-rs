@@ -276,8 +276,10 @@ pub fn format_percent(p: f64) -> String {
 
 mod records;
 mod sort;
+mod zone;
 pub use records::{BaseRow, DropName, DropSource, DropsExport, ObservedLoot, ObservedRow};
 pub use sort::{DropColumn, compare};
+pub use zone::{NpcDrop, Zone, ZoneDropRow, ZoneLoot, ZoneNpc, ZoneNpcRow, ZoneObservedRow};
 
 #[cfg(test)]
 mod tests;

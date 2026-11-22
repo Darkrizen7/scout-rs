@@ -9,9 +9,6 @@ use scout_core::pricing::Source;
 use crate::state::State;
 use crate::ui::{coins, theme, widgets};
 
-/// Auction house cut on sales, as in the calculator.
-const AH_CUT: f64 = 0.05;
-
 /// Shows a recipe; returns the item clicked (opened in the Objects module).
 pub fn show(ui: &mut egui::Ui, game: &GameData, state: &State, recipe_index: usize) -> Option<i64> {
     let mut next = None;
@@ -171,9 +168,10 @@ fn recipe(ui: &mut egui::Ui, game: &GameData, state: &State, r: &Recipe, next: &
             });
             ui.end_row();
             let Some(made) = r.creates else { return };
-            let auction = state
-                .auction_price(made.item_id)
-                .map(|unit| (unit as f64 * made.count as f64 * (1.0 - AH_CUT)).round() as i64);
+            let auction = state.auction_price(made.item_id).map(|unit| {
+                (unit as f64 * made.count as f64 * (1.0 - scout_core::pricing::AUCTION_CUT)).round()
+                    as i64
+            });
             let merchant = game
                 .items
                 .get(&made.item_id)

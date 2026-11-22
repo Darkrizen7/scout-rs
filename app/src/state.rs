@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use scout_core::analysis::Analysis;
-use scout_core::drops::ItemDrops;
+use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::pricing::{self, Source};
 use scout_core::{ItemSummary, Snapshot, VendorData};
@@ -20,6 +20,8 @@ pub enum Module {
     Recipes,
     /// Auction house prices (list, charts, analysis, calculator).
     Market,
+    /// Loot by map zone: the monsters of a zone and what they drop.
+    Loot,
 }
 
 /// Screen inside the Market module.
@@ -63,6 +65,12 @@ pub struct State {
     /// Where the item of the open sheet comes from, and the item asked for (None once answered).
     pub drops: Option<(i64, ItemDrops)>,
     drops_asked: Option<i64>,
+    /// Zones with known loot, and whether they were asked for.
+    zones: Option<Arc<Vec<Zone>>>,
+    zones_asked: bool,
+    /// Monsters of the zone open in the Loot module, and the zone asked for (None once answered).
+    zone_loot: Option<Arc<ZoneLoot>>,
+    zone_asked: Option<String>,
     /// Latest analysis and the items revision it was asked for.
     pub analysis: Option<Analysis>,
     pub analysis_for: Option<u64>,
@@ -96,6 +104,10 @@ impl Default for State {
             history: None,
             drops: None,
             drops_asked: None,
+            zones: None,
+            zones_asked: false,
+            zone_loot: None,
+            zone_asked: None,
             analysis: None,
             analysis_for: None,
             favorites: HashSet::new(),
@@ -129,11 +141,20 @@ impl State {
                 // Sent after each import: the drops may have changed, the open sheet asks again.
                 self.drops = None;
                 self.drops_asked = None;
+                self.zones = None;
+                self.zones_asked = false;
+                self.zone_loot = None;
+                self.zone_asked = None;
             }
             Event::History(id, history) => self.history = Some((id, history)),
             Event::Drops(id, drops) => {
                 self.drops = Some((id, *drops));
                 self.drops_asked = None;
+            }
+            Event::Zones(zones) => self.zones = Some(Arc::new(zones)),
+            Event::ZoneLoot(loot) => {
+                self.zone_loot = Some(Arc::from(loot));
+                self.zone_asked = None;
             }
             Event::Analysis(analysis) => self.analysis = Some(*analysis),
             Event::GameData(game) => self.game = game,
@@ -214,6 +235,25 @@ impl State {
             .as_ref()
             .filter(|(id, _)| *id == item_id)
             .map(|(_, d)| d)
+    }
+
+    /// Zones with known loot once loaded; asks the worker for them (once) otherwise.
+    pub fn zones(&mut self, worker: &WorkerHandle) -> Option<Arc<Vec<Zone>>> {
+        if self.zones.is_none() && !self.zones_asked {
+            self.zones_asked = true;
+            worker.send(Command::LoadZones);
+        }
+        self.zones.clone()
+    }
+
+    /// The monsters of a zone once loaded; asks the worker for them (once) otherwise.
+    pub fn zone_loot(&mut self, zone: &str, worker: &WorkerHandle) -> Option<Arc<ZoneLoot>> {
+        let loaded = self.zone_loot.as_ref().is_some_and(|z| z.zone == zone);
+        if !loaded && self.zone_asked.as_deref() != Some(zone) {
+            self.zone_asked = Some(zone.to_owned());
+            worker.send(Command::LoadZone(zone.to_owned()));
+        }
+        self.zone_loot.clone().filter(|z| z.zone == zone)
     }
 
     /// Switches to the Objects module on this item's sheet.

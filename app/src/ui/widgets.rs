@@ -1,8 +1,9 @@
 //! Small widgets and colors shared by several panels.
 
-use eframe::egui::{self, Color32};
+use eframe::egui::{self, Color32, RichText};
 
 use crate::ui::{coins, theme};
+use scout_core::drops::{Observed, TRUSTED_KILLS, format_percent};
 
 /// Files-like star: dim outline, filled and colored when starred.
 pub fn star_button(ui: &mut egui::Ui, favorite: bool, palette: &theme::Palette) -> egui::Response {
@@ -42,4 +43,44 @@ pub fn money_or_dash(ui: &mut egui::Ui, copper: Option<i64>) {
             ui.weak("—");
         }
     }
+}
+
+/// Forever Guide's chance of a drop, "?" when unknown.
+pub fn chance_label(ui: &mut egui::Ui, chance: Option<f64>) {
+    match chance {
+        Some(p) => {
+            ui.label(format_percent(p));
+        }
+        None => {
+            ui.weak("?")
+                .on_hover_text("Chance inconnue (liste de Questie, de Forever ou objet garanti)");
+        }
+    }
+}
+
+/// The user's own rate (Scout), "30 % (3/10)", highlighted once there are enough corpses; interval on hover.
+pub fn observed_label(ui: &mut egui::Ui, observed: Option<Observed>, palette: &theme::Palette) {
+    let Some(o) = observed else {
+        ui.weak("—").on_hover_text("Jamais enregistré par Scout");
+        return;
+    };
+    let text = format!("{} ({}/{})", format_percent(o.rate()), o.drops, o.total);
+    let label = if o.total >= TRUSTED_KILLS {
+        RichText::new(text).color(palette.gain)
+    } else {
+        RichText::new(text)
+    };
+    let (low, high) = o.interval();
+    let mut hint = format!(
+        "Intervalle à 95 % : {} – {}",
+        format_percent(low),
+        format_percent(high)
+    );
+    if o.drops > 0 {
+        hint += &format!("\nQuantité moyenne : {:.1}", o.average_quantity()).replace('.', ",");
+    }
+    if o.total < TRUSTED_KILLS {
+        hint += &format!("\nPeu de corps : moins de {TRUSTED_KILLS}, la base sert au tri.");
+    }
+    ui.label(label).on_hover_text(hint);
 }

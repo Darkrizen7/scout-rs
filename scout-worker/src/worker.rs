@@ -72,6 +72,10 @@ pub(crate) fn run(commands: Receiver<Command>, send: impl Fn(Event)) {
             Command::LoadDrops(id) => runtime
                 .block_on(db.item_drops(id))
                 .map(|d| send(Event::Drops(id, Box::new(d)))),
+            Command::LoadZones => runtime.block_on(db.zones()).map(|z| send(Event::Zones(z))),
+            Command::LoadZone(zone) => runtime
+                .block_on(db.zone_loot(&zone))
+                .map(|z| send(Event::ZoneLoot(Box::new(z)))),
             Command::SetWowDir(dir) => {
                 config.wow_dir = Some(dir);
                 send(Event::Config(config.clone()));
