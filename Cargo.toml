@@ -1,0 +1,35 @@
+[package]
+name = "scout-prix"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+csv = "1.4.0"
+directories = "6.0.0"
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "wayland", "x11", "clipboard"] }
+egui = { version = "0.37", default-features = false, features = ["monochrome_emoji_fonts"] }
+egui_extras = { version = "0.37", default-features = false }
+egui_plot = "0.38.0"
+serde = { version = "1.0.229", features = ["derive"] }
+sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "sqlite", "derive"] }
+tokio = { version = "1.54.1", features = ["rt"] }
+toml = "1.2.2"
+
+[lints.clippy]
+mod_module_files = { level = "warn" }
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+strip = true
+codegen-units = 1
+lto = true
+
+[dev-dependencies]
+tokio = { version = "1.54.1", features = ["macros", "rt"] }
