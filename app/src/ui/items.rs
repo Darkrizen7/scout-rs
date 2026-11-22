@@ -15,7 +15,7 @@ use eframe::egui::{self, RichText};
 use crate::state::State;
 use crate::ui::theme;
 use scout_core::gamedata::{GameData, GameItem};
-use scout_worker::{Command, WorkerHandle};
+use scout_worker::{Command, Task, WorkerHandle};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Sort {
@@ -162,10 +162,10 @@ fn empty(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
         ui.add_space(6.0);
         ui.label("Il faut d'abord télécharger les données du jeu (objets, recettes, métiers de WoW Forever).");
         ui.add_space(10.0);
-        if ui.add_enabled(!state.busy, egui::Button::new("⤓ Télécharger les données du jeu")).clicked() {
+        if ui.add_enabled(!state.busy(Task::GameData), egui::Button::new("⤓ Télécharger les données du jeu")).clicked() {
             worker.send(Command::UpdateGameData);
         }
-        if state.busy {
+        if state.busy(Task::GameData) {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.spinner();

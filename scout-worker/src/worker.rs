@@ -1,25 +1,91 @@
-//! The worker loop: the only place that touches disk, database, network and processes.
+//! The worker: the only place that touches disk, database, network and processes.
+//!
+//! Quick commands (loading a sheet, a zone, a favorite…) are answered by the worker loop; long tasks
+//! (imports, game data download) each run on their own thread, so they never hold up the others.
 
-use std::collections::HashMap;
-use std::sync::Arc;
+mod tasks;
+
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, Mutex, PoisonError};
+use std::thread;
 
 use anyhow::Result;
 use scout_core::analysis;
-use scout_core::gamedata::{GameData, Tables};
-use scout_core::{GAME_FORMAT, Row};
 use scout_db::Db;
 use scout_sources as sources;
 use scout_sources::wow;
 
 use crate::config::{self, Config};
-use crate::message::{Command, Event};
+use crate::message::{Command, Event, Task};
 
-pub(crate) fn run(commands: Receiver<Command>, send: impl Fn(Event)) {
-    let runtime = match tokio::runtime::Builder::new_current_thread()
+/// Sends an event to the UI (and wakes it up); shared by the loop and the task threads.
+pub(crate) type Sink = Arc<dyn Fn(Event) + Send + Sync>;
+
+/// What every thread shares.
+#[derive(Clone)]
+struct Shared {
+    db: Db,
+    config: Arc<Mutex<Config>>,
+    /// Long tasks running: a second click on the same one is ignored.
+    running: Arc<Mutex<HashSet<Task>>>,
+    send: Sink,
+}
+
+impl Shared {
+    fn config(&self) -> std::sync::MutexGuard<'_, Config> {
+        self.config.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Runs `job` on its own thread (with its own runtime), unless that task is already running.
+    fn spawn(
+        &self,
+        task: Task,
+        job: impl FnOnce(&tokio::runtime::Runtime, &Shared) -> Result<()> + Send + 'static,
+    ) {
+        if !self
+            .running
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(task)
+        {
+            return;
+        }
+        let shared = self.clone();
+        let spawned = thread::Builder::new()
+            .name(format!("{task:?}"))
+            .spawn(move || {
+                let send = &shared.send;
+                send(Event::Busy(task, true));
+                let result = runtime().and_then(|runtime| job(&runtime, &shared));
+                if let Err(e) = result {
+                    send(Event::Error(format!("{e:#}")));
+                }
+                shared
+                    .running
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .remove(&task);
+                send(Event::Busy(task, false));
+            });
+        if let Err(e) = spawned {
+            self.running
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&task);
+            (self.send)(Event::Error(format!("impossible de lancer la tâche : {e}")));
+        }
+    }
+}
+
+fn runtime() -> Result<tokio::runtime::Runtime> {
+    Ok(tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()
-    {
+        .build()?)
+}
+
+pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
+    let runtime = match runtime() {
         Ok(runtime) => runtime,
         Err(e) => return send(Event::Error(format!("runtime tokio : {e}"))),
     };
@@ -27,7 +93,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: impl Fn(Event)) {
     if let Err(e) = config::migrate_old_folders() {
         return send(Event::Error(format!("migration de scout-prix : {e:#}")));
     }
-    let mut config = Config::load();
+    let config = Config::load();
     send(Event::Config(config.clone()));
 
     let db = match runtime.block_on(open_db()) {
@@ -43,228 +109,110 @@ pub(crate) fn run(commands: Receiver<Command>, send: impl Fn(Event)) {
         Ok(prices) => send(Event::Vendor(Arc::new(prices))),
         Err(e) => send(Event::Error(format!("prix marchands : {e:#}"))),
     }
-    if let Err(e) = runtime.block_on(refresh(&db, &send)) {
+    if let Err(e) = runtime.block_on(refresh(&db, &*send)) {
         send(Event::Error(format!("{e:#}")));
     }
 
-    // Is the stored game data the newest Forever build? (network; the UI is already usable)
-    send(Event::LatestBuild(
-        sources::latest_build().map_err(|e| format!("{e:#}")),
-    ));
-
-    for command in commands {
-        send(Event::Busy(true));
-        let result = match command {
-            Command::Import => runtime
-                .block_on(import(&db, &config, &send))
-                .and_then(|()| {
-                    config.last_import = Some(chrono::Utc::now().timestamp());
-                    send(Event::Config(config.clone()));
-                    config.save()
-                }),
-            Command::ImportLegacy => runtime.block_on(import_legacy(&db, &config, &send)),
-            Command::SetFavorite(id, favorite) => runtime.block_on(async {
-                db.set_favorite(id, favorite).await?;
-                send(Event::Favorites(db.favorites().await?));
-                Ok(())
-            }),
-            Command::UpdateGameData => update_game_data(&runtime, &db, &send),
-            Command::Analyze => runtime.block_on(db.observations()).map(|observations| {
-                send(Event::Analysis(Box::new(analysis::analyze(&observations))));
-            }),
-            Command::LoadHistory(id) => runtime
-                .block_on(db.history(id))
-                .map(|h| send(Event::History(id, h))),
-            Command::LoadDrops(id) => runtime
-                .block_on(db.item_drops(id))
-                .map(|d| send(Event::Drops(id, Box::new(d)))),
-            Command::LoadZones => runtime.block_on(db.zones()).map(|z| send(Event::Zones(z))),
-            Command::LoadZone(zone) => runtime
-                .block_on(db.zone_loot(&zone))
-                .map(|z| send(Event::ZoneLoot(Box::new(z)))),
-            Command::LoadMapMasks => {
-                let dir = config.wow_dir().ok().and_then(wow::open_map_masks);
-                // Without OpenMap, the zones are drawn as rectangles: an empty answer is enough.
-                let (masks, result) =
-                    match dir.map_or_else(|| Ok(HashMap::new()), |d| sources::zone_masks(&d)) {
-                        Ok(masks) => (masks, Ok(())),
-                        Err(e) => (HashMap::new(), Err(e)),
-                    };
-                send(Event::MapMasks(Arc::new(masks)));
-                result
-            }
-            Command::SetWowDir(dir) => {
-                config.wow_dir = Some(dir);
-                send(Event::Config(config.clone()));
-                config.save()
-            }
-            Command::SetTheme(theme) => {
-                config.theme = theme;
-                config.save()
-            }
-            Command::SetHideObsolete(hide) => {
-                config.hide_obsolete = hide;
-                config.save()
-            }
-        };
-        if let Err(e) = result {
-            send(Event::Error(format!("{e:#}")));
-        }
-        send(Event::Busy(false));
+    // Is the stored game data the newest Forever build? (network: on its own, the UI is already usable)
+    let latest = send.clone();
+    if let Err(e) = thread::Builder::new()
+        .name("latest-build".into())
+        .spawn(move || {
+            latest(Event::LatestBuild(
+                sources::latest_build().map_err(|e| format!("{e:#}")),
+            ))
+        })
+    {
+        send(Event::LatestBuild(Err(e.to_string())));
     }
+
+    let shared = Shared {
+        db,
+        config: Arc::new(Mutex::new(config)),
+        running: Arc::default(),
+        send,
+    };
+    for command in commands {
+        if let Err(e) = handle(command, &runtime, &shared) {
+            (shared.send)(Event::Error(format!("{e:#}")));
+        }
+    }
+}
+
+fn handle(command: Command, runtime: &tokio::runtime::Runtime, shared: &Shared) -> Result<()> {
+    let (db, send) = (&shared.db, &*shared.send);
+    match command {
+        Command::Import => shared.spawn(Task::Import, |runtime, shared| {
+            let config = shared.config().clone();
+            runtime.block_on(tasks::import(&shared.db, &config, &*shared.send))?;
+            let mut config = shared.config();
+            config.last_import = Some(chrono::Utc::now().timestamp());
+            (shared.send)(Event::Config(config.clone()));
+            config.save()
+        }),
+        Command::ImportLegacy => shared.spawn(Task::ImportLegacy, |runtime, shared| {
+            let config = shared.config().clone();
+            runtime.block_on(tasks::import_legacy(&shared.db, &config, &*shared.send))
+        }),
+        Command::UpdateGameData => shared.spawn(Task::GameData, |runtime, shared| {
+            tasks::update_game_data(runtime, &shared.db, &*shared.send)
+        }),
+        Command::SetFavorite(id, favorite) => runtime.block_on(async {
+            db.set_favorite(id, favorite).await?;
+            send(Event::Favorites(db.favorites().await?));
+            anyhow::Ok(())
+        })?,
+        Command::Analyze => {
+            let observations = runtime.block_on(db.observations())?;
+            send(Event::Analysis(Box::new(analysis::analyze(&observations))));
+        }
+        Command::LoadHistory(id) => send(Event::History(id, runtime.block_on(db.history(id))?)),
+        Command::LoadDrops(id) => {
+            let drops = runtime.block_on(db.item_drops(id))?;
+            send(Event::Drops(id, Box::new(drops)));
+        }
+        Command::LoadZones => send(Event::Zones(runtime.block_on(db.zones())?)),
+        Command::LoadZone(zone) => {
+            let loot = runtime.block_on(db.zone_loot(&zone))?;
+            send(Event::ZoneLoot(Box::new(loot)));
+        }
+        Command::LoadMapMasks => {
+            let dir = shared.config().wow_dir().ok().and_then(wow::open_map_masks);
+            // Without OpenMap, the zones are drawn as rectangles: an empty answer is enough.
+            let (masks, result) =
+                match dir.map_or_else(|| Ok(HashMap::new()), |d| sources::zone_masks(&d)) {
+                    Ok(masks) => (masks, Ok(())),
+                    Err(e) => (HashMap::new(), Err(e)),
+                };
+            send(Event::MapMasks(Arc::new(masks)));
+            result?;
+        }
+        Command::SetWowDir(dir) => {
+            let mut config = shared.config();
+            config.wow_dir = Some(dir);
+            send(Event::Config(config.clone()));
+            config.save()?;
+        }
+        Command::SetTheme(theme) => {
+            let mut config = shared.config();
+            config.theme = theme;
+            config.save()?;
+        }
+        Command::SetHideObsolete(hide) => {
+            let mut config = shared.config();
+            config.hide_obsolete = hide;
+            config.save()?;
+        }
+    }
+    Ok(())
 }
 
 async fn open_db() -> Result<Db> {
     Db::open(&config::database_path()?).await
 }
 
-async fn refresh(db: &Db, send: &impl Fn(Event)) -> Result<()> {
+async fn refresh(db: &Db, send: &dyn Fn(Event)) -> Result<()> {
     send(Event::Items(db.items().await?));
     send(Event::Favorites(db.favorites().await?));
-    Ok(())
-}
-
-async fn import(db: &Db, config: &Config, send: &impl Fn(Event)) -> Result<()> {
-    let saved_variables = wow::saved_variables(config.wow_dir()?)?;
-    send(Event::Status(format!(
-        "Export de {}…",
-        saved_variables.display()
-    )));
-    let script = wow::export_script(config.wow_dir()?)?;
-    let rows = sources::run_scout_export(&script, &saved_variables)?;
-    db.set_names(&sources::run_scout_names(&script, &saved_variables)?)
-        .await?;
-    let vendor = sources::run_vendor_export(
-        &saved_variables,
-        wow::guide_vendor_prices(config.wow_dir()?).as_deref(),
-    )?;
-    db.save_vendor_prices(&vendor).await?;
-    send(Event::Vendor(Arc::new(db.vendor_data().await?)));
-    // Drops are a bonus: a failure there must not stop the price import.
-    if let Err(e) = import_drops(db, config, send).await {
-        send(Event::Error(format!("butin de Forever Guide : {e:#}")));
-    }
-    match sources::run_scout_loot(&script, &saved_variables) {
-        Ok(loot) => {
-            db.save_observed_loot(&loot).await?;
-        }
-        Err(e) => send(Event::Error(format!(
-            "butin enregistré par Scout (addon à jour ?) : {e:#}"
-        ))),
-    }
-    store(db, &rows, send).await
-}
-
-/// Forever Guide's item sources, imported again only when its files (or our export) changed.
-async fn import_drops(db: &Db, config: &Config, send: &impl Fn(Event)) -> Result<()> {
-    let Some(guide) = wow::forever_guide(config.wow_dir()?) else {
-        return Ok(());
-    };
-    let fingerprint = wow::guide_fingerprint(&guide, sources::DROPS_FORMAT);
-    if db.drops_fingerprint().await?.as_deref() == Some(fingerprint.as_str()) {
-        return Ok(());
-    }
-    send(Event::Status("Lecture du butin de Forever Guide…".into()));
-    let export = sources::run_drops_export(&guide)?;
-    let count = db.save_drops(&export, &fingerprint).await?;
-    send(Event::Status(format!(
-        "Butin de Forever Guide : {count} sources"
-    )));
-    Ok(())
-}
-
-/// Newest Forever build → client tables (+ Wowhead for the items they lack) → recipes, stored
-/// with the build they come from.
-fn update_game_data(
-    runtime: &tokio::runtime::Runtime,
-    db: &Db,
-    send: &impl Fn(Event),
-) -> Result<()> {
-    send(Event::Status(
-        "Recherche de la dernière version de WoW Forever…".into(),
-    ));
-    let build = sources::latest_build()?;
-    send(Event::LatestBuild(Ok(build.clone())));
-    if runtime.block_on(db.game_version())? == Some((build.clone(), GAME_FORMAT)) {
-        send(Event::Status(format!(
-            "Données du jeu déjà à jour (Forever {build})."
-        )));
-        return Ok(());
-    }
-    let mut tables = HashMap::new();
-    for (i, table) in sources::TABLES.iter().enumerate() {
-        send(Event::Status(format!(
-            "Forever {build} : téléchargement {}/{} ({table})…",
-            i + 1,
-            sources::TABLES.len()
-        )));
-        tables.insert(*table, sources::table_csv(table, &build)?);
-    }
-    send(Event::Status("Assemblage des recettes…".into()));
-    let mut tables = sources::assemble(&tables)?;
-    add_wowhead_items(runtime, db, &mut tables, send)?;
-    let now = chrono::Utc::now().timestamp();
-    let game = GameData::new(build.clone(), now, tables);
-    runtime.block_on(db.save_game(&game))?;
-    send(Event::Status(format!(
-        "Données du jeu : Forever {build}, {} recettes, {} objets.",
-        game.recipes.len(),
-        game.items.len()
-    )));
-    send(Event::GameData(Arc::new(game)));
-    Ok(())
-}
-
-/// Recipe items missing from the client tables (sent by Forever's server as hotfixes), named by
-/// Wowhead. Each item is asked for once: the answers are kept across updates.
-fn add_wowhead_items(
-    runtime: &tokio::runtime::Runtime,
-    db: &Db,
-    tables: &mut Tables,
-    send: &impl Fn(Event),
-) -> Result<()> {
-    let missing = tables.missing_recipe_items();
-    let mut known = runtime.block_on(db.wowhead_items())?;
-    let unknown: Vec<i64> = missing
-        .iter()
-        .copied()
-        .filter(|id| !known.contains_key(id))
-        .collect();
-    for (i, &id) in unknown.iter().enumerate() {
-        if i > 0 {
-            std::thread::sleep(sources::wowhead::PAUSE);
-        }
-        send(Event::Status(format!(
-            "Objets absents des tables du jeu, depuis Wowhead : {}/{}…",
-            i + 1,
-            unknown.len()
-        )));
-        if let Some(item) = sources::wowhead::item(id)? {
-            runtime.block_on(db.save_wowhead_item(&item))?;
-            known.insert(id, item);
-        }
-    }
-    tables.add_items(missing.iter().filter_map(|id| known.remove(id)));
-    Ok(())
-}
-
-async fn import_legacy(db: &Db, config: &Config, send: &impl Fn(Event)) -> Result<()> {
-    let saved_variables = wow::saved_variables(config.wow_dir()?)?;
-    let dir = saved_variables.parent().unwrap_or(&saved_variables);
-    send(Event::Status(format!(
-        "Lecture d'Auctionator et Forever Guide dans {}…",
-        dir.display()
-    )));
-    let rows = sources::run_legacy_export(dir)?;
-    store(db, &rows, send).await
-}
-
-async fn store(db: &Db, rows: &[Row], send: &impl Fn(Event)) -> Result<()> {
-    let added = db.insert(rows).await?;
-    refresh(db, send).await?;
-    send(Event::Status(format!(
-        "{} relevés lus, {added} nouveaux enregistrés",
-        rows.len()
-    )));
     Ok(())
 }

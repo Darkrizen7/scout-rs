@@ -52,7 +52,7 @@ impl AnalysisView {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
-        if state.analysis_for != Some(state.revision) && !state.busy {
+        if state.analysis_for != Some(state.revision) && !state.importing() {
             state.analysis_for = Some(state.revision);
             worker.send(Command::Analyze);
         }

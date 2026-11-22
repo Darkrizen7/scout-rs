@@ -42,6 +42,8 @@ const ITEM_COLUMNS: [(&str, &str); 4] = [
     ),
 ];
 
+/// Cheap to clone (a connection pool): shared by the worker's threads.
+#[derive(Clone)]
 pub struct Db {
     pool: SqlitePool,
 }
@@ -53,6 +55,8 @@ impl Db {
             .create_if_missing(true);
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
+            // One connection shared by every thread: a long import may hold it for a while.
+            .acquire_timeout(std::time::Duration::from_secs(600))
             .connect_with(options)
             .await?;
         sqlx::raw_sql(SCHEMA).execute(&pool).await?;

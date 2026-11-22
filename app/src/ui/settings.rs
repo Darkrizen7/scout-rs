@@ -8,7 +8,7 @@ use crate::state::State;
 use crate::ui::{credits, theme};
 use scout_core::time::format_datetime;
 use scout_core::{GAME_FORMAT, Theme};
-use scout_worker::{Command, WorkerHandle};
+use scout_worker::{Command, Task, WorkerHandle};
 
 #[derive(Default)]
 pub struct Settings {
@@ -54,7 +54,7 @@ impl Settings {
                 {
                     self.credits = true;
                 }
-                if state.busy {
+                if state.any_busy() {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
                         ui.spinner();
@@ -69,7 +69,7 @@ impl Settings {
     fn wow(&mut self, ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
         ui.horizontal(|ui| {
             let save = ui
-                .add_enabled(!state.busy, egui::Button::new("Enregistrer"))
+                .add_enabled(!state.importing(), egui::Button::new("Enregistrer"))
                 .on_hover_text("Enregistre le dossier _forever_ de WoW.");
             ui.add(
                 egui::TextEdit::singleline(&mut self.wow_dir)
@@ -126,7 +126,7 @@ fn appearance(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
 fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
     ui.horizontal(|ui| {
         let import = ui
-            .add_enabled(!state.busy, egui::Button::new("⟳ Importer depuis Scout"))
+            .add_enabled(!state.busy(Task::Import), egui::Button::new("⟳ Importer depuis Scout"))
             .on_hover_text(
                 "Prix, noms, marchands et butin enregistrés par Scout. Après chaque scan : /reload en jeu, \
                  puis importer. Les relevés déjà là sont ignorés.",
@@ -142,7 +142,7 @@ fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
     });
     let legacy = ui
         .add_enabled(
-            !state.busy,
+            !state.busy(Task::ImportLegacy),
             egui::Button::new("📥 Historique Auctionator / Forever Guide"),
         )
         .on_hover_text(
@@ -160,7 +160,10 @@ fn game_data(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
     let stored = (!game.is_empty()).then_some(game.build.as_str());
     ui.horizontal(|ui| {
         let update = ui
-            .add_enabled(!state.busy, egui::Button::new("⤓ Mettre à jour"))
+            .add_enabled(
+                !state.busy(Task::GameData),
+                egui::Button::new("⤓ Mettre à jour"),
+            )
             .on_hover_text(
                 "Tables du client WoW Forever (objets, recettes, cartes) depuis wago.tools ; \
                  ne télécharge que si la version a changé.",

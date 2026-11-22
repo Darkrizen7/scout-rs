@@ -39,7 +39,7 @@ pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings) {
             {
                 settings.open(state);
             }
-            if state.busy {
+            if state.any_busy() {
                 ui.spinner();
             }
         },

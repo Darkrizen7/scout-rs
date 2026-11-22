@@ -34,9 +34,21 @@ pub enum Command {
     SetHideObsolete(bool),
 }
 
+/// Long tasks, each on its own thread: several can run at once, but not the same one twice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Task {
+    /// Prices, names, merchants and loot recorded by Scout.
+    Import,
+    /// Older prices kept by Auctionator and Forever Guide.
+    ImportLegacy,
+    /// Forever client tables (and Wowhead).
+    GameData,
+}
+
 pub enum Event {
     Config(Config),
-    Busy(bool),
+    /// A long task started (true) or ended (false).
+    Busy(Task, bool),
     Status(String),
     Error(String),
     Items(Vec<ItemSummary>),

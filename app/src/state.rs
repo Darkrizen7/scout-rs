@@ -10,7 +10,7 @@ use scout_core::map::Mask;
 use scout_core::pricing::{self, Source};
 use scout_core::{ItemSummary, Snapshot, VendorData};
 use scout_worker::Config;
-use scout_worker::{Command, Event, WorkerHandle};
+use scout_worker::{Command, Event, Task, WorkerHandle};
 
 /// Top-level tab: one module of the tool.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -53,7 +53,8 @@ pub struct State {
     pub view: View,
     pub filter: Filter,
     pub config: Option<Config>,
-    pub busy: bool,
+    /// Long tasks the worker is running (several at once).
+    running: HashSet<Task>,
     pub status: String,
     pub error: Option<String>,
     pub items: Vec<ItemSummary>,
@@ -98,7 +99,7 @@ impl Default for State {
             view: View::List,
             filter: Filter::default(),
             config: None,
-            busy: false,
+            running: HashSet::new(),
             status: String::new(),
             error: None,
             items: Vec::new(),
@@ -127,6 +128,19 @@ impl Default for State {
 }
 
 impl State {
+    pub fn busy(&self, task: Task) -> bool {
+        self.running.contains(&task)
+    }
+
+    pub fn any_busy(&self) -> bool {
+        !self.running.is_empty()
+    }
+
+    /// An import is writing prices: the analysis would be stale, the WoW folder is in use.
+    pub fn importing(&self) -> bool {
+        self.busy(Task::Import) || self.busy(Task::ImportLegacy)
+    }
+
     pub fn apply(&mut self, event: Event) {
         match event {
             Event::Config(config) => {
@@ -135,7 +149,12 @@ impl State {
                 }
                 self.config = Some(config);
             }
-            Event::Busy(busy) => self.busy = busy,
+            Event::Busy(task, true) => {
+                self.running.insert(task);
+            }
+            Event::Busy(task, false) => {
+                self.running.remove(&task);
+            }
             Event::Status(status) => {
                 self.status = status;
                 self.error = None;

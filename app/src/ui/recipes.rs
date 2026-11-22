@@ -13,7 +13,7 @@ use crate::ui::sidebar::{Icon, entry, rgb, tint};
 use crate::ui::theme;
 use crate::ui::widgets::landing_search;
 use scout_core::gamedata::GameData;
-use scout_worker::{Command, WorkerHandle};
+use scout_worker::{Command, Task, WorkerHandle};
 
 /// A search result.
 #[derive(Clone, Copy)]
@@ -156,10 +156,10 @@ fn empty(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
         ui.label("Il faut d'abord télécharger les données du jeu (recettes, objets, métiers de WoW Forever).");
         ui.weak("Tables du client Forever en français, depuis wago.tools — environ 12 Mo, une seule fois.");
         ui.add_space(10.0);
-        if ui.add_enabled(!state.busy, egui::Button::new("⤓ Télécharger les données du jeu")).clicked() {
+        if ui.add_enabled(!state.busy(Task::GameData), egui::Button::new("⤓ Télécharger les données du jeu")).clicked() {
             worker.send(Command::UpdateGameData);
         }
-        if state.busy {
+        if state.busy(Task::GameData) {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.spinner();
