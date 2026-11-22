@@ -3,9 +3,10 @@
 use eframe::egui;
 
 use crate::state::{Module, State, View};
+#[cfg(feature = "analysis")]
+use crate::ui::analysis_view;
 use crate::ui::{
-    analysis_view, calculator, chart, fonts, header, item_list, items, loot, recipes, settings,
-    sidebar, theme,
+    calculator, chart, fonts, header, item_list, items, loot, recipes, settings, sidebar, theme,
 };
 use scout_core::Theme;
 use scout_worker::WorkerHandle;
@@ -15,6 +16,7 @@ pub struct App {
     state: State,
     list: item_list::ItemList,
     calculator: calculator::Calculator,
+    #[cfg(feature = "analysis")]
     analysis: analysis_view::AnalysisView,
     sidebar: sidebar::Sidebar,
     recipes: recipes::Recipes,
@@ -34,6 +36,7 @@ impl App {
             state: State::default(),
             list: item_list::ItemList::default(),
             calculator: calculator::Calculator::default(),
+            #[cfg(feature = "analysis")]
             analysis: analysis_view::AnalysisView::default(),
             sidebar: sidebar::Sidebar::default(),
             recipes: recipes::Recipes::default(),
@@ -68,6 +71,7 @@ impl eframe::App for App {
             state,
             list,
             calculator,
+            #[cfg(feature = "analysis")]
             analysis,
             sidebar,
             recipes,
@@ -112,6 +116,7 @@ impl eframe::App for App {
                     .show(ui, |ui| match state.view {
                         View::List => list.show(ui, state, worker),
                         View::Chart => chart::show(ui, state, worker),
+                        #[cfg(feature = "analysis")]
                         View::Analysis => analysis.show(ui, state, worker),
                         View::Calculator => calculator.show(ui, state),
                     });

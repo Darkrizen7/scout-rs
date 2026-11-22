@@ -30,6 +30,7 @@ pub enum Module {
 pub enum View {
     List,
     Chart,
+    #[cfg(feature = "analysis")]
     Analysis,
     Calculator,
 }
@@ -78,6 +79,7 @@ pub struct State {
     masks_asked: bool,
     /// Latest analysis and the items revision it was asked for.
     pub analysis: Option<Analysis>,
+    #[cfg(feature = "analysis")]
     pub analysis_for: Option<u64>,
     pub favorites: HashSet<i64>,
     /// Favorite zones of the Loot module (by name).
@@ -118,6 +120,7 @@ impl Default for State {
             masks: None,
             masks_asked: false,
             analysis: None,
+            #[cfg(feature = "analysis")]
             analysis_for: None,
             favorites: HashSet::new(),
             zone_favorites: HashSet::new(),

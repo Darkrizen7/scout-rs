@@ -62,6 +62,7 @@ impl Sidebar {
             };
             state.view = View::List;
         }
+        #[cfg(feature = "analysis")]
         if entry(
             ui,
             Some(("📊", palette.gain)),
@@ -96,7 +97,10 @@ impl Sidebar {
                 if self.categories.is_empty() {
                     ui.weak("Catégories : importe depuis Scout (Réglages).");
                 }
+                #[cfg(feature = "analysis")]
                 let filtering = matches!(state.view, View::List | View::Analysis);
+                #[cfg(not(feature = "analysis"))]
+                let filtering = state.view == View::List;
                 for category in &self.categories {
                     let id = category.class_id;
                     let chosen = state.filter.class_id == Some(id);
@@ -225,9 +229,11 @@ fn choose(state: &mut State, class_id: Option<i64>, subclass_id: Option<i64>) {
         class_id,
         subclass_id,
     };
-    if state.view != View::Analysis {
-        state.view = View::List;
+    #[cfg(feature = "analysis")]
+    if state.view == View::Analysis {
+        return;
     }
+    state.view = View::List;
 }
 
 /// One side bar row: icon, label, count on the right; rounded highlight when selected or hovered.

@@ -1,7 +1,7 @@
 # Modules (onglets en haut)
 
 - **Market** : historique HdV. Barre latérale façon Fichiers (tous les objets, favoris, Analyse, Rentabilité,
-  catégories dépliables), liste, graphique prix / quantité (une ligne par jour : Scout seul, sinon moyenne Auctionator + Forever Guide ; source au survol), analyse, calculateur de rentabilité.
+  catégories dépliables), liste, graphique prix / quantité (une ligne par jour : Scout seul, sinon moyenne Auctionator + Forever Guide ; source au survol), calculateur de rentabilité ; l'analyse n'est compilée qu'avec `--features analysis` (désactivée par défaut).
 - **Objets** : les ~19 400 objets du jeu par catégorie (icône de catégorie aussi dans le tableau), avec prix HdV /
   achat PNJ / revente. À l'arrivée, seule la recherche, au milieu de la page (`widgets::landing_search`) ; le
   tableau s'affiche dès qu'on tape ou qu'on choisit une catégorie. Une **fiche objet**

@@ -15,5 +15,9 @@ scout-worker = { path = "../scout-worker" }
 # does not draw server-side decorations and winit otherwise falls back to a bare frame.
 winit = { version = "0.30.13", default-features = false, features = ["wayland-csd-adwaita"] }
 
+[features]
+# Market analysis screen: not good enough yet, so left out of the default build.
+analysis = []
+
 [lints]
 workspace = true

@@ -1,5 +1,6 @@
 //! UI panels. They never touch the disk: everything goes through the worker.
 
+#[cfg(feature = "analysis")]
 pub mod analysis_view;
 pub mod calculator;
 pub mod chart;

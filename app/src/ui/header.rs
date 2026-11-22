@@ -81,6 +81,7 @@ fn title(state: &State) -> String {
     let base = match state.view {
         View::Chart => return state.selected_item().map(item_name).unwrap_or_default(),
         View::Calculator => return "Rentabilité".into(),
+        #[cfg(feature = "analysis")]
         View::Analysis => "Analyse",
         View::List if state.filter.favorites => return "Favoris".into(),
         View::List => "Tous les objets",
