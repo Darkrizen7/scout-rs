@@ -200,7 +200,7 @@ fn market(ui: &mut egui::Ui, state: &State, id: i64) {
     ));
     ui.add_space(8.0);
     match &state.history {
-        Some((history_id, history)) if *history_id == id => chart::plots(ui, history),
+        Some((history_id, history)) if *history_id == id => chart::plots(ui, id, history),
         _ => {
             ui.spinner();
         }

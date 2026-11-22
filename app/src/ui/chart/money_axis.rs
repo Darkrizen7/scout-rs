@@ -46,7 +46,7 @@ pub fn draw(ui: &mut egui::Ui, plot: &PlotResponse<()>) {
         painter.hline(
             frame.x_range(),
             y,
-            egui::Stroke::new(1.0, palette.border.gamma_multiply(0.5)),
+            egui::Stroke::new(1.0, palette.dim_text.gamma_multiply(0.3)),
         );
         let width = coins::money_width(ui, tick);
         let area = egui::Rect::from_min_size(

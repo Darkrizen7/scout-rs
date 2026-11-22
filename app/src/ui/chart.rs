@@ -1,9 +1,10 @@
 //! Price and quantity over time for the selected item (two plots sharing the time axis).
 
+mod limits;
 mod money_axis;
 
 use eframe::egui;
-use egui_plot::{GridMark, Line, Plot, PlotResponse, Points};
+use egui_plot::{GridInput, GridMark, Line, Plot, PlotResponse, Points};
 
 use crate::state::State;
 use crate::ui::coins;
@@ -49,18 +50,30 @@ pub fn show(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
         }
     };
 
-    plots(ui, history);
+    plots(ui, item_id, history);
 }
 
 /// Price (top) and quantity (bottom) over time, one series per source, sharing the time axis.
-pub fn plots(ui: &mut egui::Ui, history: &[Snapshot]) {
+pub fn plots(ui: &mut egui::Ui, item_id: i64, history: &[Snapshot]) {
     let color = theme::current(ui).series[0];
+    // A new item starts from a fresh view, not from the previous item's zoom and offset.
+    let seen = egui::Id::NULL.with(("scout-prix/chart-item", ui.scope_id()));
+    let changed = ui.data(|d| d.get_temp::<i64>(seen)) != Some(item_id);
+    if changed {
+        ui.data_mut(|d| d.insert_temp(seen, item_id));
+    }
     let link = egui::Id::unique("scout-prix/time-axis");
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+        if ui.button("Aujourd'hui").clicked() {
+            limits::show_all(ui.ctx());
+        }
+    });
     let height = ((ui.available_height() - 20.0) / 2.0).max(90.0);
     let prices = merge::merge(history, |s| Some(s.price? as f64 / 10_000.0));
     let quantities = merge::merge(history, |s| Some(s.quantity? as f64));
+    let limits = limits::Limits::of(prices.iter().chain(&quantities));
     let plot = |id: &'static str, y_axis_money: bool| {
-        let plot = Plot::new(id)
+        let mut plot = Plot::new(id)
             .show_grid([false, true])
             .grid_spacing(egui::Rangef::new(40.0, 300.0))
             .link_axis(link, [true, false])
@@ -68,7 +81,15 @@ pub fn plots(ui: &mut egui::Ui, history: &[Snapshot]) {
             .x_axis_formatter(time_axis)
             // The tooltip is drawn by `hover_tooltip`, with coins.
             .label_formatter(|_| None)
-            .include_y(0.0);
+            .include_y(0.0)
+            // Panning and zooming are done by `Limits::navigate`, which keeps them in bounds.
+            .allow_drag(false)
+            .allow_zoom(false)
+            .allow_scroll(false)
+            .allow_axis_zoom_drag(false);
+        if changed {
+            plot = plot.reset();
+        }
         if y_axis_money {
             // Labels and grid are drawn by `money_axis`, with coins.
             plot.show_grid([false, false])
@@ -76,17 +97,41 @@ pub fn plots(ui: &mut egui::Ui, history: &[Snapshot]) {
                 .y_axis_formatter(|_, _| String::new())
         } else {
             plot.y_axis_min_width(money_axis::WIDTH)
+                .y_grid_spacer(count_grid)
         }
     };
-    let response = plot("price", true)
-        .height(height * 1.3)
-        .show(ui, |plot| add_series(plot, &prices, color));
+    let response = plot("price", true).height(height * 1.3).show(ui, |plot| {
+        limits.navigate(plot, limits::Role::Price, &prices);
+        add_series(plot, &prices, color);
+    });
     money_axis::draw(ui, &response);
     hover_tooltip(ui, &response, &prices, Unit::Money);
     let response = plot("quantity", false)
         .height(height * 0.7)
-        .show(ui, |plot| add_series(plot, &quantities, color));
+        .show(ui, |plot| {
+            limits.navigate(plot, limits::Role::Quantity, &quantities);
+            add_series(plot, &quantities, color);
+        });
     hover_tooltip(ui, &response, &quantities, Unit::Count);
+}
+
+/// Grid of the quantity plot: whole numbers, steps of 1, 2 or 5 × 10^k (egui_plot's default only
+/// uses powers of ten, which leaves a small range with no line at all).
+fn count_grid(input: GridInput) -> Vec<GridMark> {
+    let (lo, hi) = input.bounds;
+    let step = [1.0, 2.0, 5.0]
+        .into_iter()
+        .flat_map(|m| (0..12).map(move |k| m * 10_f64.powi(k)))
+        .filter(|s| *s >= input.base_step_size)
+        .fold(f64::MAX, f64::min);
+    let first = (lo / step).ceil() as i64;
+    let last = (hi / step).floor() as i64;
+    (first..=last)
+        .map(|i| GridMark {
+            value: i as f64 * step,
+            step_size: step,
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy)]
