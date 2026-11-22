@@ -99,10 +99,11 @@ fn appearance(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
     }
     let mut hide = config.hide_obsolete;
     let changed = ui
-        .checkbox(&mut hide, "Masquer les objets périmés et inutilisés")
+        .checkbox(&mut hide, "Masquer les objets inutilisables")
         .on_hover_text(
-            "Objets restés dans les tables du jeu sans être obtenables : « Deprecated », « Unused », \
-             « [INUTILISÉ] », « périmé » dans le nom.",
+            "Objets restés dans les tables du jeu sans être obtenables : périmés (« Deprecated », « périmé »), \
+             inutilisés (« Unused », « [INUTILISÉ] »), provisoires (« [PH] »), anciennes versions (« OLD »), \
+             armes tenues par les monstres (« Monster - ») et objets internes (« DNT »).",
         )
         .changed();
     if changed {

@@ -155,14 +155,29 @@ impl GameData {
     }
 }
 
-/// Words Blizzard puts in the names of items left in the tables but not in the game
-/// ("Deprecated …", "Unused …", "[INUTILISÉ] …", "Poison périmé").
-const OBSOLETE_WORDS: [&str; 4] = ["deprecated", "unused", "inutilisé", "périmé"];
+/// Marks Blizzard puts anywhere in the names of items left in the tables but not in the game, lower case:
+/// deprecated, unused, placeholder (`[PH]`), old version, "do not translate" (internal).
+const OBSOLETE_WORDS: [&str; 9] = [
+    "deprecated",
+    "unused",
+    "inutilisé",
+    "périmé",
+    "[ph]",
+    "(old)",
+    "[old]",
+    "(dnt)",
+    "[dnt]",
+];
 
-/// Whether an item name marks it as obsolete (never obtainable).
+/// Name starts of the same kind, case kept: `OLD` glued to the old version's name, `Monster -` for the weapons
+/// monsters hold (only shown, never looted).
+const OBSOLETE_PREFIXES: [&str; 3] = ["OLD", "Monster -", "DNT "];
+
+/// Whether an item name marks it as never obtainable (obsolete, placeholder, monster model…).
 pub fn is_obsolete(name: &str) -> bool {
-    let name = name.to_lowercase();
-    OBSOLETE_WORDS.iter().any(|w| name.contains(w))
+    let lower = name.to_lowercase();
+    OBSOLETE_WORDS.iter().any(|w| lower.contains(w))
+        || OBSOLETE_PREFIXES.iter().any(|p| name.starts_with(p))
 }
 
 #[cfg(test)]
@@ -178,6 +193,14 @@ mod tests {
             "[INUTILISÉ] Fiole rayée",
             "Gantelets en mithril électrifiés INUTILISÉS",
             "Poison périmé",
+            "[PH] Hakkar'i Urn",
+            "OLDRecruit's Belt",
+            "(OLD)Medium Throwing Knife",
+            "Large Moneybag (old)",
+            "Monster - Sword, Short Rusty",
+            "Monster Weapon [DNT]",
+            "Hidden Belt (DNT)",
+            "DNT HEAD",
         ] {
             assert!(is_obsolete(name), "{name}");
         }
@@ -185,6 +208,8 @@ mod tests {
             "Ration de la semaine passée",
             "Charge explosive",
             "Lingot de fer",
+            "Old Blanchy",
+            "Bourse d'or",
         ] {
             assert!(!is_obsolete(name), "{name}");
         }
