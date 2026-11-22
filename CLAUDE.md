@@ -78,3 +78,11 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 - Sujet en français, phrase courte avec majuscule, corps qui explique le pourquoi. Branche `master`.
   Commit et push **seulement à la demande**.
 - Quand un changement modifie ce que décrit `docs/`, mettre à jour le fichier concerné.
+
+## Versions et releases
+- Une version = un tag `vX.Y.Z` posé **par l'utilisateur** (jamais de tag sans demande). Le push du tag lance
+  `.github/workflows/release.yml` : tests, compilation, Release GitHub avec le binaire Linux et son `.sha256`.
+- Avant le tag : augmenter `version` dans `[workspace.package]` du `Cargo.toml` racine (commit à part,
+  `Cargo.lock` compris). Le tag doit être identique à cette version (`v` + version), sinon l'Action échoue :
+  la mise à jour automatique compare `CARGO_PKG_VERSION` au dernier tag.
+- Poser la version : `git tag -a vX.Y.Z -m "Version X.Y.Z" && git push origin vX.Y.Z`.
