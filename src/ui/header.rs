@@ -19,9 +19,9 @@ pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings) {
         ),
         |ui| {
             for (module, icon, label) in [
-                (Module::Market, "📈", "Market"),
                 (Module::Items, "📦", "Objets"),
                 (Module::Recipes, "🔨", "Recettes"),
+                (Module::Market, "📈", "Market"),
             ] {
                 if tab(ui, icon, label, state.module == module).clicked() {
                     state.module = module;

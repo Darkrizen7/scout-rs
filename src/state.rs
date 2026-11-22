@@ -12,12 +12,12 @@ use crate::worker::{Command, Event, WorkerHandle};
 /// Top-level tab: one module of the tool.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Module {
-    /// Auction house prices (list, charts, analysis, calculator).
-    Market,
     /// Every game item, each with a sheet (market, recipes, merchants, drops).
     Items,
     /// Game recipes and items: what crafts what, what is used where.
     Recipes,
+    /// Auction house prices (list, charts, analysis, calculator).
+    Market,
 }
 
 /// Screen inside the Market module.
@@ -77,7 +77,7 @@ pub struct State {
 impl Default for State {
     fn default() -> Self {
         Self {
-            module: Module::Market,
+            module: Module::Items,
             view: View::List,
             filter: Filter::default(),
             config: None,
