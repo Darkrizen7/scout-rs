@@ -1,16 +1,30 @@
 # scout-rs
 
-Outil de bureau (Rust, egui) pour étudier l'historique des prix de l'HdV relevé par l'addon
-[Scout](https://github.com/Darkrizen7/scout-addon) sur WoW Forever.
+Outil de bureau (Rust, egui) compagnon de l'addon [Scout](https://github.com/Darkrizen7/scout-addon) sur
+WoW Forever. Il lit des fichiers sur disque et télécharge des données publiques ; il ne touche jamais au jeu.
 
-- **Import Scout** : lance `lua Interface/AddOns/Scout/tools/export.lua` sur le `SavedVariables/Scout.lua`
-  le plus récent et ajoute les nouveaux relevés à une base SQLite (sqlx). La base garde tout, même ce que
-  Scout oublie en jeu après 21 jours. Fais `/reload` en jeu avant d'importer.
-- **Historique Auctionator / Forever Guide** : import ponctuel des prix passés gardés par ces addons
-  (`scout-sources/lua/legacy_export.lua`, intégré au binaire ; décode le CBOR d'Auctionator). Mêmes numéros d'objet
-  que Scout ; les noms viennent des scans Scout.
-- **Objets** : liste avec recherche (nom ou numéro) et tri. **Graphique** : prix min et quantité en vente
-  dans le temps, une courbe par source. **Rentabilité** : bénéfice net après commission HdV.
+Quatre modules :
+- **Objets** : les ~19 400 objets du jeu par catégorie. Fiche objet : prix HdV et graphique, recettes (produit
+  par, utilisé dans, enseigne), marchands qui le vendent, **butin** (monstres, dépeçage, vol à la tire, coffres,
+  conteneurs, quêtes ; chance de Forever Guide et chance réelle relevée par Scout, intervalle à 95 %).
+- **Recettes** : recherche par recette, objet ou métier ; composants au moins cher (marchand ou HdV), bénéfice.
+- **Butin** : carte cliquable des continents, zones colorées par niveau ; monstres d'une ou plusieurs zones
+  (Ctrl+clic), recherche par monstre ou par objet, tri par niveau, valeur par kill ou valeur ÷ niveau ; butin
+  détaillé de chaque monstre.
+- **Market** : historique des prix de l'HdV, analyse (week-end, prix anormaux), rentabilité.
+
+Un clic sur une position copie `/way #<carte> x y Nom` : colle-le dans le chat du jeu pour poser un point sur la
+carte (commande de l'addon Scout, ou de TomTom s'il est installé).
+
+## Sources
+- **Scout** (⚙ Réglages → Importer depuis Scout, après un `/reload` en jeu) : relevés HdV, noms et catégories,
+  marchands vus, butin enregistré (`tools/export.lua` de l'addon). La base garde tout, même ce que Scout oublie
+  en jeu après 21 jours.
+- **Forever Guide** : sources du butin et chances, noms français des PNJ et des zones (relu seulement quand ses
+  fichiers changent) ; prix des composants vendus par les marchands.
+- **Auctionator / Forever Guide** : import ponctuel de leurs prix passés.
+- **OpenMap** : contours des zones pour la carte (lus dans le dossier AddOns, jamais copiés).
+- **wago.tools** : tables du client Forever en français (objets, recettes, métiers, cartes).
 
 ## Commandes
 - `cargo run --release`
@@ -20,8 +34,8 @@ Outil de bureau (Rust, egui) pour étudier l'historique des prix de l'HdV relev�
 Prérequis : `lua` (5.4) dans le `PATH`.
 
 ## Données
-- Base : `~/.local/share/scout-rs/prix.db` — tables `items (item_id, name)` et
-  `snapshots (item_id, source, ts, price, quantity)` ; `price` en cuivre, `ts` en secondes Unix.
+- Base SQLite : `~/.local/share/scout-rs/prix.db` (relevés HdV, données du jeu, marchands, butin ; détail des
+  tables dans `CLAUDE.md`). Prix en cuivre, dates en secondes Unix.
 - Réglages : `~/.config/scout-rs/config.toml` (dossier `_forever_`, détecté automatiquement ; thème).
 
 Police : [Inter](https://github.com/rsms/inter) (SIL Open Font License 1.1, `app/assets/fonts/Inter-LICENSE.txt`),
