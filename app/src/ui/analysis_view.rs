@@ -10,6 +10,7 @@ mod charts;
 use crate::state::{Filter, State};
 use crate::ui::{coins, theme};
 use scout_core::analysis::{self, Analysis, ItemAnalysis};
+use scout_core::search::Query;
 use scout_worker::{Command, WorkerHandle};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -119,18 +120,16 @@ impl AnalysisView {
             .iter()
             .filter_map(|i| Some((i.item_id, i.name.as_deref()?)))
             .collect();
-        let needle = self.search.trim().to_lowercase();
+        let query = Query::new(&self.search);
         let mut rows: Vec<(&ItemAnalysis, f64)> = analysis
             .items
             .iter()
             .filter(|i| i.median_quantity.is_none_or(|q| q >= self.min_quantity))
             .filter(|i| state.shown(i.item_id))
             .filter(|i| {
-                needle.is_empty()
-                    || i.item_id.to_string() == needle
-                    || names
-                        .get(&i.item_id)
-                        .is_some_and(|n| n.to_lowercase().contains(&needle))
+                query.is_empty()
+                    || query.is_id(i.item_id)
+                    || names.get(&i.item_id).is_some_and(|n| query.matches(n))
             })
             .filter_map(|i| {
                 let (diff, significant) = match self.table {

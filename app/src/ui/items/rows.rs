@@ -4,6 +4,7 @@ use scout_core::gamedata::{GameData, GameItem};
 
 use super::{Items, Sort};
 use crate::state::State;
+use scout_core::search::Query;
 
 impl Items {
     pub(super) fn rebuild(&mut self, game: &GameData, state: &State) {
@@ -18,7 +19,7 @@ impl Items {
         if self.built_for.as_ref() == Some(&key) {
             return;
         }
-        let needle = self.search.trim().to_lowercase();
+        let query = Query::new(&self.search);
         let f = &self.filter;
         let mut rows: Vec<&GameItem> = game
             .items
@@ -27,11 +28,7 @@ impl Items {
             .filter(|i| !f.favorites || state.is_favorite(i.id))
             .filter(|i| f.class_id.is_none() || i.class_id == f.class_id)
             .filter(|i| f.subclass_id.is_none() || i.subclass_id == f.subclass_id)
-            .filter(|i| {
-                needle.is_empty()
-                    || i.id.to_string() == needle
-                    || i.name.to_lowercase().contains(&needle)
-            })
+            .filter(|i| query.is_id(i.id) || query.matches(&i.name))
             .collect();
         match self.sort {
             Sort::Name => rows.sort_by_key(|i| (i.name.to_lowercase(), i.id)),

@@ -9,6 +9,7 @@ use crate::ui::sidebar::class_icon;
 use crate::ui::theme;
 use crate::ui::widgets::search_box;
 use scout_core::gamedata::GameData;
+use scout_core::search::Query;
 
 impl Recipes {
     pub(super) fn results(&mut self, ui: &mut egui::Ui, game: &GameData, state: &mut State) {
@@ -97,8 +98,8 @@ impl Recipes {
         if self.built_for.as_ref() == Some(&key) {
             return;
         }
-        let needle = self.search.trim().to_lowercase();
-        let matches = |name: &str| needle.is_empty() || name.to_lowercase().contains(&needle);
+        let query = Query::new(&self.search);
+        let matches = |name: &str| query.matches(name);
         let mut recipes: Vec<usize> = (0..game.recipes.len())
             .filter(|&i| {
                 let r = &game.recipes[i];
@@ -115,7 +116,7 @@ impl Recipes {
             )
         });
         self.hits = recipes.into_iter().map(Hit::Recipe).collect();
-        if !needle.is_empty() {
+        if !query.is_empty() {
             // Reagents (and products) matching the search, limited to the selected profession.
             let mut items: Vec<i64> = game
                 .used_in

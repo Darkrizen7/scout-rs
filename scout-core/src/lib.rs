@@ -6,6 +6,7 @@ pub mod gamedata;
 pub mod map;
 pub mod money;
 pub mod pricing;
+pub mod search;
 pub mod time;
 
 mod market;

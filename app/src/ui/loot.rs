@@ -15,6 +15,7 @@ use crate::ui::theme;
 use scout_core::drops::{Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::pricing;
+use scout_core::search::Query;
 use scout_worker::WorkerHandle;
 
 #[derive(Default)]
@@ -181,7 +182,7 @@ impl Loot {
             ui.weak("Aucun butin en base : installe Forever Guide, puis ⚙ Réglages → Importer depuis Scout.");
             return;
         }
-        let needle = self.search.trim().to_lowercase();
+        let query = Query::new(&self.search);
         let dark = theme::current(ui).dark;
         egui::ScrollArea::vertical()
             .auto_shrink(false)
@@ -192,10 +193,10 @@ impl Loot {
                 ] {
                     ui.add_space(4.0);
                     ui.weak(title);
-                    for z in zones.iter().filter(|z| {
-                        z.dungeon == dungeon
-                            && (needle.is_empty() || z.name.to_lowercase().contains(&needle))
-                    }) {
+                    for z in zones
+                        .iter()
+                        .filter(|z| z.dungeon == dungeon && query.matches(&z.name))
+                    {
                         let selected = self.zones.contains(&z.name);
                         let response = entry(
                             ui,

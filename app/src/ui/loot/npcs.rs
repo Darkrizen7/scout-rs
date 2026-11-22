@@ -9,6 +9,7 @@ use crate::state::State;
 use crate::ui::coins;
 use scout_core::drops::{DropKind, ZoneLoot, ZoneNpc};
 use scout_core::gamedata::GameData;
+use scout_core::search::Query;
 
 /// Order of the monster list.
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
@@ -137,20 +138,20 @@ impl Loot {
         if self.built_for.as_ref() == Some(&key) {
             return;
         }
-        let needle = self.filter.trim().to_lowercase();
+        let query = Query::new(&self.filter);
         self.rows = loot
             .npcs
             .iter()
             .enumerate()
             .filter(|(_, npc)| !self.normal_only || npc.npc.is_normal())
             .filter_map(|(index, npc)| {
-                let matched = if needle.is_empty() || npc.name().to_lowercase().contains(&needle) {
+                let matched = if query.matches(&npc.name()) {
                     None
                 } else {
                     let drop = npc
                         .drops
                         .iter()
-                        .find(|d| game.item_name(d.item_id).to_lowercase().contains(&needle))?;
+                        .find(|d| query.matches(&game.item_name(d.item_id)))?;
                     Some((game.item_name(drop.item_id), drop.best_chance()))
                 };
                 let price = |id| unit_value(state, game, id);

@@ -9,6 +9,7 @@ use crate::state::{Filter, State, item_name};
 use crate::ui::widgets::star_button;
 use crate::ui::{coins, theme};
 use scout_core::ItemSummary;
+use scout_core::search::Query;
 use scout_core::time::format_datetime;
 use scout_worker::WorkerHandle;
 
@@ -180,10 +181,10 @@ impl ItemList {
         if self.built_for.as_ref() == Some(&key) {
             return;
         }
-        let needle = self.search.trim().to_lowercase();
+        let query = Query::new(&self.search);
         let items = &state.items;
         self.rows = (0..items.len())
-            .filter(|&i| state.shown(items[i].item_id) && matches(&items[i], &needle))
+            .filter(|&i| state.shown(items[i].item_id) && matches(&items[i], &query))
             .collect();
         let sort = self.sort;
         self.rows
@@ -195,13 +196,10 @@ impl ItemList {
     }
 }
 
-fn matches(item: &ItemSummary, needle: &str) -> bool {
-    needle.is_empty()
-        || item.item_id.to_string() == needle
-        || item
-            .name
-            .as_deref()
-            .is_some_and(|n| n.to_lowercase().contains(needle))
+fn matches(item: &ItemSummary, query: &Query) -> bool {
+    query.is_empty()
+        || query.is_id(item.item_id)
+        || item.name.as_deref().is_some_and(|n| query.matches(n))
 }
 
 fn compare(a: &ItemSummary, b: &ItemSummary, sort: Sort) -> Ordering {
