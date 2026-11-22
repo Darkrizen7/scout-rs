@@ -4,8 +4,8 @@ use eframe::egui;
 
 use crate::state::{Module, State, View};
 use crate::ui::{
-    analysis_view, calculator, chart, fonts, header, item_list, items, loot, recipes, sidebar,
-    theme,
+    analysis_view, calculator, chart, fonts, header, item_list, items, loot, recipes, settings,
+    sidebar, theme,
 };
 use scout_core::Theme;
 use scout_worker::WorkerHandle;
@@ -20,7 +20,7 @@ pub struct App {
     recipes: recipes::Recipes,
     items: items::Items,
     loot: loot::Loot,
-    settings: header::Settings,
+    settings: settings::Settings,
     /// Theme currently applied to the egui context.
     theme: Option<Theme>,
 }
@@ -39,7 +39,7 @@ impl App {
             recipes: recipes::Recipes::default(),
             items: items::Items::default(),
             loot: loot::Loot::default(),
-            settings: header::Settings::default(),
+            settings: settings::Settings::default(),
             theme: None,
         }
     }

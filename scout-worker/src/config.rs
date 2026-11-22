@@ -19,6 +19,9 @@ pub struct Config {
     pub wow_dir: Option<PathBuf>,
     #[serde(default)]
     pub theme: Theme,
+    /// When the last import from Scout succeeded (Unix seconds).
+    #[serde(default)]
+    pub last_import: Option<i64>,
 }
 
 fn project_dirs(app: &str) -> Result<ProjectDirs> {

@@ -55,7 +55,13 @@ pub(crate) fn run(commands: Receiver<Command>, send: impl Fn(Event)) {
     for command in commands {
         send(Event::Busy(true));
         let result = match command {
-            Command::Import => runtime.block_on(import(&db, &config, &send)),
+            Command::Import => runtime
+                .block_on(import(&db, &config, &send))
+                .and_then(|()| {
+                    config.last_import = Some(chrono::Utc::now().timestamp());
+                    send(Event::Config(config.clone()));
+                    config.save()
+                }),
             Command::ImportLegacy => runtime.block_on(import_legacy(&db, &config, &send)),
             Command::SetFavorite(id, favorite) => runtime.block_on(async {
                 db.set_favorite(id, favorite).await?;
