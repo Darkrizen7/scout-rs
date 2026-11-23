@@ -54,6 +54,9 @@ impl eframe::App for App {
         for event in events {
             self.state.apply(event);
         }
+        if self.state.quit {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
         let wanted = self
             .state
             .config
@@ -89,7 +92,7 @@ impl eframe::App for App {
 
         egui::Panel::top("tabs")
             .frame(bar(palette.header))
-            .show(ui, |ui| header::tabs(ui, state, settings));
+            .show(ui, |ui| header::tabs(ui, state, settings, worker));
         egui::Panel::bottom("status")
             .frame(bar(palette.header))
             .show(ui, |ui| header::status(ui, state));

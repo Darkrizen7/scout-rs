@@ -9,6 +9,7 @@ use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::{self, GameData};
 use scout_core::map::Mask;
 use scout_core::pricing::{self, Source};
+use scout_core::update::Release;
 use scout_core::{ItemSummary, Snapshot, VendorData};
 use scout_worker::Config;
 use scout_worker::{Command, Task, WorkerHandle};
@@ -101,6 +102,12 @@ pub struct State {
     pub scout_addon: Option<bool>,
     /// Items merchants really sell: prices and NPCs.
     pub vendor: Arc<VendorData>,
+    /// Newer version of the tool on GitHub (checked at start).
+    pub update: Option<Release>,
+    /// Version installed by an update, used after a restart.
+    pub update_installed: Option<String>,
+    /// The new version is running: close this window.
+    pub quit: bool,
 }
 
 impl Default for State {
@@ -134,6 +141,9 @@ impl Default for State {
             zone_favorites: HashSet::new(),
             game: Arc::default(),
             vendor: Arc::default(),
+            update: None,
+            update_installed: None,
+            quit: false,
             latest_build: None,
             scout_addon: None,
             open_item: None,

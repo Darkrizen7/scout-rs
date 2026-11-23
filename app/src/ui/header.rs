@@ -1,13 +1,14 @@
 //! Module tabs (top bar), Market header (back, title) and status bar.
 
 use eframe::egui;
+use scout_worker::{Command, Task, WorkerHandle};
 
 use crate::state::{Module, State, View, item_name};
 use crate::ui::settings::Settings;
 use crate::ui::theme;
 
 /// Top bar: module switcher in the middle (GNOME view switcher style), settings on the right.
-pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings) {
+pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings, worker: &WorkerHandle) {
     ui.set_min_height(34.0);
     let full = ui.max_rect();
     ui.scope_builder(
@@ -39,11 +40,41 @@ pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings) {
             {
                 settings.open(state);
             }
+            update_button(ui, state, worker);
             if state.any_busy() {
                 ui.spinner();
             }
         },
     );
+}
+
+/// "Mettre à jour" when GitHub has a newer version, then "Redémarrer" once it is installed.
+fn update_button(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
+    if let Some(version) = &state.update_installed {
+        if ui
+            .button(format!("Redémarrer ({version})"))
+            .on_hover_text("Relance l'outil dans sa nouvelle version")
+            .clicked()
+        {
+            worker.send(Command::Restart);
+        }
+    } else if let Some(release) = &state.update {
+        let busy = state.busy(Task::Update);
+        let button = ui
+            .add_enabled(
+                !busy,
+                egui::Button::new(format!("Mettre à jour ({})", release.version)),
+            )
+            .on_hover_text(format!(
+                "Version {} disponible (tu as la {}) : la télécharge depuis GitHub \
+                 et remplace l'exécutable",
+                release.version,
+                env!("CARGO_PKG_VERSION")
+            ));
+        if button.clicked() {
+            worker.send(Command::InstallUpdate(release.clone()));
+        }
+    }
 }
 
 /// One tab of the switcher: rounded, filled when selected.

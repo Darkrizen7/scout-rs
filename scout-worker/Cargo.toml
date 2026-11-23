@@ -11,7 +11,9 @@ directories = "6.0.0"
 scout-core = { path = "../scout-core" }
 scout-db = { path = "../scout-db" }
 scout-sources = { path = "../scout-sources" }
+self-replace = "1.5.1"
 serde = { version = "1.0.229", features = ["derive"] }
+sha2 = "0.11.1"
 tokio = { version = "1.54.1", features = ["rt-multi-thread"] }
 toml = "1.2.2"
 

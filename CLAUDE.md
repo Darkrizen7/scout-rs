@@ -84,5 +84,6 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
   `.github/workflows/release.yml` : tests, compilation, Release GitHub avec les binaires Linux et Windows et leurs `.sha256`.
 - Avant le tag : augmenter `version` dans `[workspace.package]` du `Cargo.toml` racine (commit à part,
   `Cargo.lock` compris). Le tag doit être identique à cette version (`v` + version), sinon l'Action échoue :
-  la mise à jour automatique compare `CARGO_PKG_VERSION` au dernier tag.
+  la mise à jour automatique (`worker/update`, bouton « Mettre à jour » en haut) compare `CARGO_PKG_VERSION` à
+  la dernière Release et télécharge le binaire dont le nom est dans `scout_core::update::BINARY` (= l'Action).
 - Poser la version : `git tag -a vX.Y.Z -m "Version X.Y.Z" && git push origin vX.Y.Z`.

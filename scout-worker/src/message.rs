@@ -8,6 +8,7 @@ use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::map::Mask;
+use scout_core::update::Release;
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
 
 use crate::Config;
@@ -35,6 +36,10 @@ pub enum Command {
     CheckScoutAddon,
     SetTheme(Theme),
     SetHideObsolete(bool),
+    /// Downloads this release and replaces the executable (answered by `Event::UpdateInstalled`).
+    InstallUpdate(Release),
+    /// Starts the new executable, then `Event::Quit`.
+    Restart,
 }
 
 /// Long tasks, each on its own thread: several can run at once, but not the same one twice.
@@ -46,6 +51,8 @@ pub enum Task {
     ImportLegacy,
     /// Forever client tables (and Wowhead).
     GameData,
+    /// New version of the tool.
+    Update,
 }
 
 pub enum Event {
@@ -72,4 +79,10 @@ pub enum Event {
     ScoutAddon(bool),
     /// Merchant prices and which NPCs sell what.
     Vendor(Arc<VendorData>),
+    /// A newer version of the tool is published (checked at start).
+    UpdateAvailable(Release),
+    /// That version replaced the executable: it runs after a restart.
+    UpdateInstalled(String),
+    /// The new executable is running: the UI closes.
+    Quit,
 }

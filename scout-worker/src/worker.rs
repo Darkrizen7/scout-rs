@@ -9,13 +9,15 @@
 //! idle thread holding it never returned.
 
 mod tasks;
+mod update;
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use scout_core::analysis;
 use scout_db::Db;
 use scout_sources as sources;
@@ -36,6 +38,8 @@ struct Shared {
     /// Long tasks running: a second click on the same one is ignored.
     running: Arc<Mutex<HashSet<Task>>>,
     send: Sink,
+    /// This executable, found before an update replaces it (Linux then names it "… (deleted)").
+    exe: Option<PathBuf>,
 }
 
 impl Shared {
@@ -135,6 +139,15 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     {
         send(Event::LatestBuild(Err(e.to_string())));
     }
+    // A newer version of the tool? (network too; silent when offline)
+    let updates = send.clone();
+    let _ = thread::Builder::new()
+        .name("update-check".into())
+        .spawn(move || {
+            if let Some(release) = update::check() {
+                updates(Event::UpdateAvailable(release));
+            }
+        });
 
     let shared = Shared {
         runtime: Arc::new(runtime),
@@ -142,6 +155,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         config: Arc::new(Mutex::new(config)),
         running: Arc::default(),
         send,
+        exe: std::env::current_exe().ok(),
     };
     for command in commands {
         if let Err(e) = handle(command, &shared) {
@@ -225,6 +239,20 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             let mut config = shared.config();
             config.hide_obsolete = hide;
             config.save()?;
+        }
+        Command::InstallUpdate(release) => shared.spawn(Task::Update, move |_, shared| {
+            let exe = shared
+                .exe
+                .as_deref()
+                .context("chemin de l'exécutable inconnu")?;
+            update::install(&release, exe, &*shared.send)
+        }),
+        Command::Restart => {
+            let exe = shared
+                .exe
+                .as_deref()
+                .context("chemin de l'exécutable inconnu")?;
+            update::restart(exe, send)?;
         }
     }
     Ok(())

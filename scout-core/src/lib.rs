@@ -10,6 +10,7 @@ pub mod money;
 pub mod pricing;
 pub mod search;
 pub mod time;
+pub mod update;
 
 mod market;
 mod records;

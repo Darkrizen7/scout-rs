@@ -1,6 +1,7 @@
 //! Everything that comes from outside: the WoW folder, Scout's Lua exports (and the other addons'),
-//! wago.tools and Wowhead.
+//! wago.tools, Wowhead and the tool's own releases on GitHub.
 
+pub mod github;
 mod import;
 mod tga;
 mod wago;
