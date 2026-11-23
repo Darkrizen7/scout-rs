@@ -59,15 +59,24 @@ pub fn guide_fingerprint(guide: &Path, format: u32) -> String {
 /// The most recently written `Scout.lua` among the accounts' SavedVariables.
 pub fn saved_variables(wow_dir: &Path) -> Result<PathBuf> {
     let accounts = wow_dir.join("WTF/Account");
-    let entries =
-        fs::read_dir(&accounts).with_context(|| format!("lecture de {}", accounts.display()))?;
+    let entries = fs::read_dir(&accounts).with_context(|| {
+        format!(
+            "aucun compte WoW dans {} : est-ce bien le dossier _forever_ ? (sinon lance le jeu une fois)",
+            wow_dir.display()
+        )
+    })?;
     entries
         .flatten()
         .map(|e| e.path().join("SavedVariables/Scout.lua"))
         .filter_map(|p| Some((fs::metadata(&p).ok()?.modified().ok()?, p)))
         .max_by_key(|(modified, _)| *modified)
         .map(|(_, p)| p)
-        .with_context(|| format!("aucun SavedVariables/Scout.lua sous {}", accounts.display()))
+        .with_context(|| {
+            format!(
+                "Scout n'a encore rien enregistré ({} absent) : en jeu, addon Scout activé, fais un /reload",
+                accounts.join("*/SavedVariables/Scout.lua").display()
+            )
+        })
 }
 
 /// Where WoW is usually installed, relative to a drive (Windows) or a Wine prefix's `drive_c`.
