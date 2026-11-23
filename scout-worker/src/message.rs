@@ -8,7 +8,7 @@ use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::map::Mask;
-use scout_core::update::Release;
+use scout_core::update::{AddonInstall, Release};
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
 
 use crate::Config;
@@ -32,7 +32,7 @@ pub enum Command {
     /// Downloads the newest Forever client tables (unless already stored).
     UpdateGameData,
     SetWowDir(PathBuf),
-    /// Is the Scout addon in the WoW folder? (answered by `Event::ScoutAddon`)
+    /// What Scout addon the WoW folder holds (answered by `Event::ScoutAddon`).
     CheckScoutAddon,
     SetTheme(Theme),
     SetHideObsolete(bool),
@@ -40,6 +40,8 @@ pub enum Command {
     InstallUpdate(Release),
     /// Starts the new executable, then `Event::Quit`.
     Restart,
+    /// Installs (or updates) the Scout addon from this release.
+    InstallAddon(Release),
 }
 
 /// Long tasks, each on its own thread: several can run at once, but not the same one twice.
@@ -53,6 +55,8 @@ pub enum Task {
     GameData,
     /// New version of the tool.
     Update,
+    /// Scout addon download and install.
+    Addon,
 }
 
 pub enum Event {
@@ -75,8 +79,10 @@ pub enum Event {
     GameData(Arc<GameData>),
     /// Newest Forever build on wago.tools, or why it could not be checked.
     LatestBuild(Result<String, String>),
-    /// Whether the Scout addon is installed in the WoW folder.
-    ScoutAddon(bool),
+    /// The Scout addon in the WoW folder (missing, dev install, version).
+    ScoutAddon(AddonInstall),
+    /// Newest release of the Scout addon (checked at start).
+    AddonRelease(Release),
     /// Merchant prices and which NPCs sell what.
     Vendor(Arc<VendorData>),
     /// A newer version of the tool is published (checked at start).

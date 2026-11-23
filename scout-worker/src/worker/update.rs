@@ -1,25 +1,30 @@
 //! Updates of the tool itself: check for a newer GitHub release, then replace the running binary.
 
-use std::fmt::Write as _;
 use std::path::Path;
 use std::process;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use scout_core::update::{self, Release};
-use scout_sources::github;
-use sha2::{Digest, Sha256};
+use scout_sources::{self as sources, github};
 
 use crate::message::Event;
 
-/// The newest release when it is newer than this build. Dev builds never update themselves:
-/// `cargo run` must not overwrite `target/debug` with a release.
-pub(super) fn check() -> Option<Release> {
+/// The newest release of the tool when it is newer than this build. Dev builds never update
+/// themselves: `cargo run` must not overwrite `target/debug` with a release.
+pub(super) fn check_tool() -> Option<Release> {
     if cfg!(debug_assertions) {
         return None;
     }
     // Offline or GitHub unreachable: nothing to offer, not worth an error.
-    let release = github::latest_release().ok()??;
+    let release = github::latest_release(github::TOOL_REPO, update::BINARY?).ok()??;
     update::is_newer(&release.version, env!("CARGO_PKG_VERSION")).then_some(release)
+}
+
+/// The newest release of the Scout addon (the UI compares it with the installed one).
+pub(super) fn check_addon() -> Option<Release> {
+    github::latest_release(github::ADDON_REPO, update::ADDON_ARCHIVE)
+        .ok()
+        .flatten()
 }
 
 /// Downloads the release's binary, checks its SHA-256 and puts it in place of the running one.
@@ -28,21 +33,7 @@ pub(super) fn install(release: &Release, exe: &Path, send: &dyn Fn(Event)) -> Re
         "Téléchargement de la version {}…",
         release.version
     )));
-    let checksum = String::from_utf8(github::download(&release.checksum_url)?)
-        .ok()
-        .as_deref()
-        .and_then(update::parse_checksum)
-        .context("somme de contrôle de la mise à jour illisible")?;
-    let binary = github::download(&release.binary_url)?;
-    let actual = Sha256::digest(&binary)
-        .iter()
-        .fold(String::new(), |mut hex, b| {
-            let _ = write!(hex, "{b:02x}");
-            hex
-        });
-    if actual != checksum {
-        bail!("mise à jour corrompue (somme de contrôle différente), rien n'a été remplacé");
-    }
+    let binary = github::download_checked(release)?;
 
     // Next to the executable: same disk, and a folder the user can write to.
     let dir = exe.parent().context("dossier de l'exécutable")?;
@@ -71,5 +62,21 @@ pub(super) fn restart(exe: &Path, send: &dyn Fn(Event)) -> Result<()> {
         .spawn()
         .with_context(|| format!("lancement de {}", exe.display()))?;
     send(Event::Quit);
+    Ok(())
+}
+
+/// Downloads the addon's zip, checks it and installs it in the WoW folder.
+pub(super) fn install_addon(release: &Release, wow_dir: &Path, send: &dyn Fn(Event)) -> Result<()> {
+    send(Event::Status(format!(
+        "Téléchargement de l'addon Scout {}…",
+        release.version
+    )));
+    let zip = github::download_checked(release)?;
+    sources::install_addon(wow_dir, &zip)?;
+    send(Event::ScoutAddon(sources::addon_install(wow_dir)));
+    send(Event::Status(format!(
+        "Addon Scout {} installé : /reload en jeu (ou relance le jeu).",
+        release.version
+    )));
     Ok(())
 }

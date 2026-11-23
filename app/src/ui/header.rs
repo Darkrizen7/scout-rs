@@ -5,7 +5,7 @@ use scout_worker::{Command, Task, WorkerHandle};
 
 use crate::state::{Module, State, View, item_name};
 use crate::ui::settings::Settings;
-use crate::ui::theme;
+use crate::ui::{theme, widgets};
 
 /// Top bar: module switcher in the middle (GNOME view switcher style), settings on the right.
 pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings, worker: &WorkerHandle) {
@@ -41,6 +41,7 @@ pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings, worke
                 settings.open(state);
             }
             update_button(ui, state, worker);
+            widgets::addon_button(ui, state, worker);
             if state.any_busy() {
                 ui.spinner();
             }

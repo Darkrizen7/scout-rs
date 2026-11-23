@@ -19,6 +19,7 @@ use std::thread;
 
 use anyhow::{Context, Result};
 use scout_core::analysis;
+use scout_core::update::AddonInstall;
 use scout_db::Db;
 use scout_sources as sources;
 use scout_sources::wow;
@@ -144,8 +145,11 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     let _ = thread::Builder::new()
         .name("update-check".into())
         .spawn(move || {
-            if let Some(release) = update::check() {
+            if let Some(release) = update::check_tool() {
                 updates(Event::UpdateAvailable(release));
+            }
+            if let Some(release) = update::check_addon() {
+                updates(Event::AddonRelease(release));
             }
         });
 
@@ -164,9 +168,11 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     }
 }
 
-/// Whether the Scout addon is in the configured WoW folder (false without one).
-fn scout_addon(config: &Config) -> bool {
-    config.wow_dir().is_ok_and(wow::scout_addon_installed)
+/// The Scout addon in the configured WoW folder (missing without one).
+fn scout_addon(config: &Config) -> AddonInstall {
+    config
+        .wow_dir()
+        .map_or(AddonInstall::Missing, sources::addon_install)
 }
 
 fn handle(command: Command, shared: &Shared) -> Result<()> {
@@ -246,6 +252,10 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
                 .as_deref()
                 .context("chemin de l'exécutable inconnu")?;
             update::install(&release, exe, &*shared.send)
+        }),
+        Command::InstallAddon(release) => shared.spawn(Task::Addon, move |_, shared| {
+            let wow_dir = shared.config().wow_dir()?.to_path_buf();
+            update::install_addon(&release, &wow_dir, &*shared.send)
         }),
         Command::Restart => {
             let exe = shared

@@ -2,8 +2,11 @@
 
 use eframe::egui::{self, Color32, RichText};
 
+use crate::state::State;
 use crate::ui::{coins, theme};
 use scout_core::drops::{Observed, TRUSTED_KILLS, format_percent};
+use scout_core::update::AddonInstall;
+use scout_worker::{Command, Task, WorkerHandle};
 
 /// Files-like star: dim outline, filled and colored when starred.
 pub fn star_button(ui: &mut egui::Ui, favorite: bool, palette: &theme::Palette) -> egui::Response {
@@ -207,4 +210,29 @@ pub fn vertical_separator(ui: &mut egui::Ui) {
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let stroke = ui.visuals().widgets.noninteractive.bg_stroke;
     ui.painter().vline(rect.center().x, rect.y_range(), stroke);
+}
+
+/// "Installer l'addon Scout" or "Mettre à jour l'addon Scout" when GitHub has what the WoW folder lacks.
+pub fn addon_button(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
+    let Some(release) = state.addon_offer() else {
+        return;
+    };
+    let label = match &state.scout_addon {
+        Some(AddonInstall::Installed(Some(old))) => {
+            format!("Mettre à jour l'addon Scout ({old} → {})", release.version)
+        }
+        Some(AddonInstall::Installed(None)) => {
+            format!("Mettre à jour l'addon Scout ({})", release.version)
+        }
+        _ => format!("Installer l'addon Scout ({})", release.version),
+    };
+    let button = ui
+        .add_enabled(!state.busy(Task::Addon), egui::Button::new(label))
+        .on_hover_text(
+            "Télécharge l'addon depuis GitHub et le met dans Interface/AddOns du dossier WoW. \
+             Tes données (WTF/…/SavedVariables) ne sont pas touchées. En jeu : /reload.",
+        );
+    if button.clicked() {
+        worker.send(Command::InstallAddon(release.clone()));
+    }
 }

@@ -9,7 +9,7 @@ use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::{self, GameData};
 use scout_core::map::Mask;
 use scout_core::pricing::{self, Source};
-use scout_core::update::Release;
+use scout_core::update::{AddonInstall, Release};
 use scout_core::{ItemSummary, Snapshot, VendorData};
 use scout_worker::Config;
 use scout_worker::{Command, Task, WorkerHandle};
@@ -98,8 +98,10 @@ pub struct State {
     pub open_recipe: Option<usize>,
     /// Newest Forever build on wago.tools (checked at start), or the error.
     pub latest_build: Option<Result<String, String>>,
-    /// Whether the Scout addon is in the WoW folder (None until the worker has looked).
-    pub scout_addon: Option<bool>,
+    /// The Scout addon in the WoW folder (None until the worker has looked).
+    pub scout_addon: Option<AddonInstall>,
+    /// Newest release of the Scout addon on GitHub (checked at start).
+    pub addon_release: Option<Release>,
     /// Items merchants really sell: prices and NPCs.
     pub vendor: Arc<VendorData>,
     /// Newer version of the tool on GitHub (checked at start).
@@ -146,6 +148,7 @@ impl Default for State {
             quit: false,
             latest_build: None,
             scout_addon: None,
+            addon_release: None,
             open_item: None,
             open_recipe: None,
         }
@@ -162,6 +165,13 @@ impl State {
     }
 
     /// An import is writing prices: the analysis would be stale, the WoW folder is in use.
+    /// The addon release to offer: missing, or older than the newest one.
+    pub fn addon_offer(&self) -> Option<&Release> {
+        self.scout_addon
+            .as_ref()?
+            .offer(self.addon_release.as_ref())
+    }
+
     pub fn importing(&self) -> bool {
         self.busy(Task::Import) || self.busy(Task::ImportLegacy)
     }

@@ -32,7 +32,8 @@ carte (commande de l'addon Scout, ou de TomTom s'il est installé).
 - `cargo clippy --workspace --all-targets` (zéro avertissement), `cargo fmt --all`
 
 Aucun prérequis : Lua 5.4 est intégré au binaire (`mlua`). Binaires Linux et Windows : page *Releases* du dépôt ;
-l'outil propose ensuite lui-même les nouvelles versions (bouton « Mettre à jour » en haut à droite).
+l'outil propose ensuite lui-même les nouvelles versions (bouton « Mettre à jour » en haut à droite), et installe ou
+met à jour l'addon Scout.
 
 ## Données
 - Base SQLite : `~/.local/share/scout-rs/prix.db` (relevés HdV, données du jeu, marchands, butin ; détail des

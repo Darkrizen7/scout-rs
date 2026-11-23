@@ -5,8 +5,9 @@ use std::path::PathBuf;
 use eframe::egui;
 
 use crate::state::State;
-use crate::ui::{credits, theme};
+use crate::ui::{credits, theme, widgets};
 use scout_core::time::format_datetime;
+use scout_core::update::AddonInstall;
 use scout_core::{GAME_FORMAT, Theme};
 use scout_worker::{Command, Task, WorkerHandle};
 
@@ -130,7 +131,7 @@ fn appearance(ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
 }
 
 fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
-    let missing = state.scout_addon == Some(false);
+    let missing = state.scout_addon == Some(AddonInstall::Missing);
     ui.horizontal(|ui| {
         let palette = theme::current(ui);
         let label = "⟳ Importer depuis Scout";
@@ -141,7 +142,7 @@ fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
         };
         let hint = if missing {
             "⚠ Addon Scout introuvable dans Interface/AddOns du dossier WoW (réglage « WoW » plus bas) : \
-             l'import échouera. Installe l'addon, puis rouvre les réglages."
+             l'import échouera. Installe l'addon (bouton ci-dessous)."
         } else {
             "Prix, noms, marchands et butin enregistrés par Scout. Après chaque scan : /reload en jeu, \
              puis importer. Les relevés déjà là sont ignorés."
@@ -165,6 +166,19 @@ fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
             "⚠ Addon Scout introuvable dans le dossier WoW",
         );
     }
+    match &state.scout_addon {
+        Some(AddonInstall::Dev(_)) => {
+            ui.weak("Addon Scout : installation de développement (lien), jamais mise à jour par l'outil.");
+        }
+        Some(AddonInstall::Installed(version)) if state.addon_offer().is_none() => {
+            ui.weak(format!(
+                "Addon Scout {} : à jour.",
+                version.as_deref().unwrap_or("(version inconnue)")
+            ));
+        }
+        _ => {}
+    }
+    widgets::addon_button(ui, state, worker);
     let legacy = ui
         .add_enabled(
             !state.busy(Task::ImportLegacy),

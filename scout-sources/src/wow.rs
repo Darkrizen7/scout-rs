@@ -14,11 +14,6 @@ pub fn export_script(wow_dir: &Path) -> Result<PathBuf> {
     Ok(path)
 }
 
-/// Whether the Scout addon is installed (its `Scout.toc` is in the AddOns folder).
-pub fn scout_addon_installed(wow_dir: &Path) -> bool {
-    wow_dir.join("Interface/AddOns/Scout/Scout.toc").is_file()
-}
-
 /// Forever Guide's list of merchant prices for profession reagents, when that addon is installed.
 pub fn guide_vendor_prices(wow_dir: &Path) -> Option<PathBuf> {
     let path = wow_dir.join("Interface/AddOns/ForeverGuide/VendorPrices.lua");

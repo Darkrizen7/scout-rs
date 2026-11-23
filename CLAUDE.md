@@ -86,4 +86,6 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
   `Cargo.lock` compris). Le tag doit être identique à cette version (`v` + version), sinon l'Action échoue :
   la mise à jour automatique (`worker/update`, bouton « Mettre à jour » en haut) compare `CARGO_PKG_VERSION` à
   la dernière Release et télécharge le binaire dont le nom est dans `scout_core::update::BINARY` (= l'Action).
+- Addon : sa propre Action publie `Scout.zip` (+ `.sha256`) à chaque tag de `scout-addon` ; l'outil l'installe ou
+  le met à jour (`ADDON_ARCHIVE`), jamais par-dessus un lien symbolique ou un clone git (installation de dev).
 - Poser la version : `git tag -a vX.Y.Z -m "Version X.Y.Z" && git push origin vX.Y.Z`.
