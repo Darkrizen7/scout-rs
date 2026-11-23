@@ -8,6 +8,7 @@ license.workspace = true
 anyhow = "1.0.104"
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 directories = "6.0.0"
+flate2 = "1.1.11"
 scout-core = { path = "../scout-core" }
 scout-db = { path = "../scout-db" }
 scout-sources = { path = "../scout-sources" }

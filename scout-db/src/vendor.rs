@@ -1,8 +1,10 @@
-//! Items merchants sell: unit price and, when Scout saw it, which NPC and where. Replaced at each Scout import.
+//! Items merchants sell: unit price and, when Scout saw it, which NPC and where. Updated at each Scout import;
+//! the reference database's merchants stay (an NPC seen by Scout is updated, never removed).
 
 use anyhow::Result;
 
 use super::Db;
+use scout_core::merge::FOREVER_GUIDE;
 use scout_core::{VendorData, VendorOffer, VendorPrice};
 
 pub(super) const SCHEMA: &str = "
@@ -36,11 +38,15 @@ impl Db {
         Ok(())
     }
 
+    /// Adds or updates these prices. Forever Guide's list is replaced only when it comes with them (kept
+    /// from the reference database when Forever Guide is not installed).
     pub async fn save_vendor_prices(&self, prices: &[VendorPrice]) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        sqlx::query("DELETE FROM vendor_prices")
-            .execute(&mut *tx)
-            .await?;
+        if prices.iter().any(|p| p.source == FOREVER_GUIDE) {
+            sqlx::query("DELETE FROM vendor_prices WHERE source = 'foreverguide'")
+                .execute(&mut *tx)
+                .await?;
+        }
         for p in prices {
             sqlx::query(
                 "INSERT OR REPLACE INTO vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)

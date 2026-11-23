@@ -58,7 +58,7 @@ pub fn show(
             if drops.drops.is_empty() && drops.more.is_empty() {
                 ui.add_space(14.0);
                 ui.vertical_centered(|ui| {
-                    ui.weak("Aucune source connue (Forever Guide n'est pas installé ou ne connaît pas cet objet).");
+                    ui.weak("Aucune source connue : Forever Guide ne connaît pas cet objet.");
                 });
                 return;
             }

@@ -30,6 +30,9 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - Vraies données : `cargo test --workspace -- --ignored --nocapture` (import de l'installation WoW dans une base
   jetable, résumé de l'analyse sur la base locale ; téléchargement complet des données du jeu :
   `cargo test -p scout-worker --test local downloads -- --ignored --nocapture`).
+- Base de référence intégrée (données du jeu, butin, marchands ; GPL) : `cargo run -p scout-worker --example reference`
+  la régénère depuis `prix.db` (après une mise à jour des données du jeu, de Forever Guide, ou de `GAME_FORMAT` /
+  `DROPS_FORMAT` : le test `embedded_reference_is_up_to_date` le rappelle).
 - Les scripts Lua tournent dans Lua 5.4 intégré (`mlua`, feature `vendored`) : rien à installer.
 
 ## Données (règles ; détail dans `docs/donnees.md`)
@@ -38,6 +41,8 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - Formats CSV des exports Scout = **contrat avec l'addon** : les changer des deux côtés.
 - `GAME_FORMAT` (`scout-core/src/gamedata.rs`) : l'augmenter quand on garde de nouvelles colonnes ou tables du jeu ;
   `DROPS_FORMAT` : l'augmenter quand `drops_export.lua` change.
+- La base de référence (`scout-worker/data/reference.db.gz`) n'a **jamais** de données personnelles : ni prix,
+  ni favoris, ni butin enregistré (liste des tables dans `scout-db/src/reference.rs`).
 - Une nouvelle source de données se cite dans `ui/credits.rs` (`SOURCES`).
 
 ## Architecture

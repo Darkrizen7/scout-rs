@@ -26,6 +26,7 @@ use scout_sources::wow;
 
 use crate::config::{self, Config};
 use crate::message::{Command, Event, Task};
+use crate::reference;
 
 /// Sends an event to the UI (and wakes it up); shared by the loop and the task threads.
 pub(crate) type Sink = Arc<dyn Fn(Event) + Send + Sync>;
@@ -115,6 +116,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         Ok(db) => db,
         Err(e) => return send(Event::Error(format!("base de données : {e:#}"))),
     };
+    apply_reference(&runtime, &db, &*send);
     match runtime.block_on(db.load_game()) {
         Ok(game) if !game.is_empty() => send(Event::GameData(Arc::new(game))),
         Ok(_) => {}
@@ -266,6 +268,19 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Game data and loot shipped with the tool, for a new database or after an update of the tool.
+fn apply_reference(runtime: &tokio::runtime::Runtime, db: &Db, send: &dyn Fn(Event)) {
+    // Unpacked next to the database while it is copied.
+    let unpacked = config::database_path().map(|p| p.with_extension("reference.tmp"));
+    match unpacked.and_then(|path| runtime.block_on(reference::apply(db, &path))) {
+        Ok(Some(update)) if update.game || update.drops => send(Event::Status(
+            "Données de référence installées (données du jeu, butin, marchands).".into(),
+        )),
+        Ok(_) => {}
+        Err(e) => send(Event::Error(format!("données de référence : {e:#}"))),
+    }
 }
 
 async fn open_db() -> Result<Db> {

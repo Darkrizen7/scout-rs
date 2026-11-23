@@ -4,6 +4,7 @@
 
 mod config;
 mod message;
+mod reference;
 mod worker;
 
 use std::sync::Arc;
@@ -12,6 +13,7 @@ use std::thread;
 
 pub use config::{Config, database_path};
 pub use message::{Command, Event, Task};
+pub use reference::export as export_reference;
 
 /// Callback invoked after each event is sent.
 pub type Notify = Box<dyn Fn() + Send + Sync + 'static>;

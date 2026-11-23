@@ -4,7 +4,7 @@
 use eframe::egui;
 
 /// (name, link, what the tool takes from it).
-const SOURCES: [(&str, Option<&str>, &str); 6] = [
+const SOURCES: [(&str, Option<&str>, &str); 7] = [
     (
         "wago.tools",
         Some("https://wago.tools"),
@@ -19,7 +19,13 @@ const SOURCES: [(&str, Option<&str>, &str); 6] = [
     (
         "Forever Guide",
         None,
-        "Addon : butin des monstres et des coffres, prix des marchands, dernier prix vu à l'hôtel des ventes.",
+        "Addon : butin des monstres et des coffres, prix des marchands, dernier prix vu à l'hôtel des ventes. \
+         Son butin est inclus dans l'outil (base de référence, GPL-3.0).",
+    ),
+    (
+        "cmangos classic-db et QuestieDB",
+        Some("https://github.com/cmangos/classic-db"),
+        "Bases d'où Forever Guide tire l'essentiel de son butin (chances, PNJ, noms français).",
     ),
     (
         "Auctionator",

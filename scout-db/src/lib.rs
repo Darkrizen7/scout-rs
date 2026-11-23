@@ -8,7 +8,10 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 mod drops;
 mod game;
 mod market;
+mod reference;
 mod vendor;
+
+pub use reference::ReferenceUpdate;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS items (
@@ -17,6 +20,10 @@ CREATE TABLE IF NOT EXISTS items (
 );
 CREATE TABLE IF NOT EXISTS favorites (
     item_id INTEGER PRIMARY KEY
+);
+CREATE TABLE IF NOT EXISTS meta (
+    key   TEXT PRIMARY KEY,  -- reference: id of the reference database last applied
+    value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS zone_favorites (
     zone TEXT PRIMARY KEY  -- zone name (Loot module)

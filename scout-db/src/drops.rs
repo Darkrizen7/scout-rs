@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS drop_names (
     PRIMARY KEY (kind, id)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS drop_meta (
-    key   TEXT PRIMARY KEY,  -- fingerprint: Forever Guide files the drops come from
+    key   TEXT PRIMARY KEY,  -- fingerprint: Forever Guide files the drops come from; updated: Unix seconds
     value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS loot_npcs (
@@ -154,6 +154,10 @@ impl Db {
         }
         sqlx::query("INSERT OR REPLACE INTO drop_meta (key, value) VALUES ('fingerprint', ?)")
             .bind(fingerprint)
+            .execute(&mut *tx)
+            .await?;
+        // When: a newer reference database replaces them, an older one does not.
+        sqlx::query("INSERT OR REPLACE INTO drop_meta (key, value) VALUES ('updated', CAST(unixepoch() AS TEXT))")
             .execute(&mut *tx)
             .await?;
         tx.commit().await?;

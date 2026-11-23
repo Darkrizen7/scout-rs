@@ -38,10 +38,16 @@ met à jour l'addon Scout.
 ## Données
 - Base SQLite : `~/.local/share/scout-rs/prix.db` (relevés HdV, données du jeu, marchands, butin ; détail des
   tables dans `CLAUDE.md`). Prix en cuivre, dates en secondes Unix.
+- Base de référence intégrée à l'exécutable (données du jeu, butin, marchands) : l'outil marche sans télécharger
+  les données du jeu ni installer Forever Guide. Elle ne contient aucun prix ni donnée personnelle.
 - Réglages : `~/.config/scout-rs/config.toml` (dossier `_forever_`, détecté automatiquement ; thème).
 
 Police : [Inter](https://github.com/rsms/inter) (SIL Open Font License 1.1, `app/assets/fonts/Inter-LICENSE.txt`),
 intégrée au binaire.
+
+Licence : MIT (`LICENSE`), sauf la base de référence `scout-worker/data/reference.db.gz` (butin de Forever Guide,
+tiré de [cmangos classic-db](https://github.com/cmangos/classic-db) et de QuestieDB) : GPL-3.0-or-later
+(`LICENSE-GPL-3.0`).
 
 Workspace : `scout-core` (logique pure) ← `scout-sources` (Lua, wago.tools) et `scout-db` (SQLite) ← `scout-worker` ← `app`.
 Ancien nom : `scout-prix` ; ses dossiers de données sont déplacés automatiquement au premier lancement.
