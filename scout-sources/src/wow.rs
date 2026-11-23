@@ -4,7 +4,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use directories::BaseDirs;
 
 /// `tools/export.lua` of the installed Scout addon.
 pub fn export_script(wow_dir: &Path) -> Result<PathBuf> {
@@ -76,17 +75,42 @@ pub fn saved_variables(wow_dir: &Path) -> Result<PathBuf> {
         .with_context(|| format!("aucun SavedVariables/Scout.lua sous {}", accounts.display()))
 }
 
-/// Looks for `<prefix>/drive_c/Program Files (x86)/World of Warcraft/_forever_` in usual Wine prefixes.
+/// Where WoW is usually installed, relative to a drive (Windows) or a Wine prefix's `drive_c`.
+const INSTALL_DIRS: [&str; 4] = [
+    "Program Files (x86)/World of Warcraft/_forever_",
+    "Program Files/World of Warcraft/_forever_",
+    "World of Warcraft/_forever_",
+    "Games/World of Warcraft/_forever_",
+];
+
+/// The first usual install folder that holds accounts: on Windows, on every drive; elsewhere, in
+/// usual Wine prefixes (`~/.wine`, `~/Games/*`, Lutris).
 pub fn detect_wow_dir() -> Option<PathBuf> {
-    let home = BaseDirs::new()?.home_dir().to_path_buf();
+    roots()
+        .into_iter()
+        .flat_map(|root| INSTALL_DIRS.map(|dir| root.join(dir)))
+        .find(|p| p.join("WTF/Account").is_dir())
+}
+
+#[cfg(windows)]
+fn roots() -> Vec<PathBuf> {
+    (b'C'..=b'Z')
+        .map(|letter| PathBuf::from(format!("{}:\\", letter as char)))
+        .filter(|drive| drive.is_dir())
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn roots() -> Vec<PathBuf> {
+    let Some(dirs) = directories::BaseDirs::new() else {
+        return Vec::new();
+    };
+    let home = dirs.home_dir();
     let mut prefixes = vec![home.join(".wine")];
     for parent in ["Games", ".local/share/lutris/prefixes"] {
         if let Ok(entries) = fs::read_dir(home.join(parent)) {
             prefixes.extend(entries.flatten().map(|e| e.path()));
         }
     }
-    prefixes
-        .into_iter()
-        .map(|p| p.join("drive_c/Program Files (x86)/World of Warcraft/_forever_"))
-        .find(|p| p.join("WTF/Account").is_dir())
+    prefixes.into_iter().map(|p| p.join("drive_c")).collect()
 }

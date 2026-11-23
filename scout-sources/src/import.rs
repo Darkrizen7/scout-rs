@@ -1,12 +1,12 @@
-//! Runs the Lua exporters and parses their CSV output:
+//! Runs the Lua exporters (embedded Lua 5.4) and parses their CSV output:
 //! Scout's own `tools/export.lua`, and the embedded one-off export of Auctionator / Forever Guide.
 
-use std::io::Write;
+use std::fs;
 use std::path::Path;
-use std::process::{Command, Stdio};
 
-use anyhow::{Context, Result, bail};
-use scout_core::drops::{DropName, DropNpc, DropSource, DropsExport, ObservedLoot};
+use anyhow::{Context, Result, anyhow};
+use mlua::{Function, Lua, LuaString};
+use scout_core::drops::{DropsExport, ObservedLoot};
 use scout_core::{ItemName, Row, VendorPrice};
 use serde::de::DeserializeOwned;
 
@@ -16,100 +16,102 @@ const LEGACY_EXPORT: &str = include_str!("../lua/legacy_export.lua");
 const VENDOR_EXPORT: &str = include_str!("../lua/vendor_export.lua");
 /// Exports where items come from, according to Forever Guide.
 const DROPS_EXPORT: &str = include_str!("../lua/drops_export.lua");
+/// Runs an exporter in-process: stdout collected, stderr dropped, files read by Rust.
+const SANDBOX: &str = include_str!("../lua/sandbox.lua");
 
 /// Bumped when `drops_export.lua` changes, so the drops are imported again.
 pub const DROPS_FORMAT: u32 = 2;
 
-/// Scout's history: `lua <AddOns/Scout/tools/export.lua> <Scout.lua>`.
+/// Scout's history: `export.lua <Scout.lua>`.
 pub fn run_scout_export(script: &Path, saved_variables: &Path) -> Result<Vec<Row>> {
-    run_lua(Command::new("lua").arg(script).arg(saved_variables), None)
+    run_lua(&read_script(script)?, script, &[saved_variables.into()])
 }
 
-/// Every item name Scout knows: `lua export.lua <Scout.lua> --names`.
+/// Every item name Scout knows: `export.lua <Scout.lua> --names`.
 pub fn run_scout_names(script: &Path, saved_variables: &Path) -> Result<Vec<ItemName>> {
     run_lua(
-        Command::new("lua")
-            .arg(script)
-            .arg(saved_variables)
-            .arg("--names"),
-        None,
+        &read_script(script)?,
+        script,
+        &[saved_variables.into(), "--names".into()],
     )
 }
 
-/// The loot Scout recorded in game: `lua export.lua <Scout.lua> --loot`.
+/// The loot Scout recorded in game: `export.lua <Scout.lua> --loot`.
 pub fn run_scout_loot(script: &Path, saved_variables: &Path) -> Result<Vec<ObservedLoot>> {
     run_lua(
-        Command::new("lua")
-            .arg(script)
-            .arg(saved_variables)
-            .arg("--loot"),
-        None,
+        &read_script(script)?,
+        script,
+        &[saved_variables.into(), "--loot".into()],
     )
 }
 
 /// Forever Guide's item sources, the NPCs they name and the names of objects and quests:
-/// `lua - <ForeverGuide> <mode>` with the embedded script, once per mode.
+/// the embedded script `<ForeverGuide> <mode>`, once per mode.
 pub fn run_drops_export(guide: &Path) -> Result<DropsExport> {
-    let run = |mode: &str| -> Command {
-        let mut command = Command::new("lua");
-        command.arg("-").arg(guide).arg(mode);
-        command
-    };
-    let sources: Vec<DropSource> = run_lua(&mut run("sources"), Some(DROPS_EXPORT))?;
-    let npcs: Vec<DropNpc> = run_lua(&mut run("npcs"), Some(DROPS_EXPORT))?;
-    let names: Vec<DropName> = run_lua(&mut run("names"), Some(DROPS_EXPORT))?;
+    let name = Path::new("drops_export.lua");
+    let run = |mode: &str| [guide.into(), mode.into()];
     Ok(DropsExport {
-        sources,
-        npcs,
-        names,
+        sources: run_lua(DROPS_EXPORT, name, &run("sources"))?,
+        npcs: run_lua(DROPS_EXPORT, name, &run("npcs"))?,
+        names: run_lua(DROPS_EXPORT, name, &run("names"))?,
     })
 }
 
-/// Auctionator and Forever Guide: the embedded script is fed to `lua -` on stdin.
+/// Auctionator and Forever Guide: the embedded script `<SavedVariables dir>`.
 pub fn run_legacy_export(saved_variables_dir: &Path) -> Result<Vec<Row>> {
-    run_lua(
-        Command::new("lua").arg("-").arg(saved_variables_dir),
-        Some(LEGACY_EXPORT),
-    )
+    let name = Path::new("legacy_export.lua");
+    run_lua(LEGACY_EXPORT, name, &[saved_variables_dir.into()])
 }
 
-/// `lua - <Scout.lua> [<ForeverGuide/VendorPrices.lua>]` with the embedded script.
+/// The embedded script `<Scout.lua> [<ForeverGuide/VendorPrices.lua>]`.
 pub fn run_vendor_export(saved_variables: &Path, guide: Option<&Path>) -> Result<Vec<VendorPrice>> {
-    let mut command = Command::new("lua");
-    command.arg("-").arg(saved_variables);
-    if let Some(guide) = guide {
-        command.arg(guide);
-    }
-    run_lua(&mut command, Some(VENDOR_EXPORT))
+    let mut args = vec![saved_variables.into()];
+    args.extend(guide.map(Arg::from));
+    run_lua(VENDOR_EXPORT, Path::new("vendor_export.lua"), &args)
 }
 
-fn run_lua<T: DeserializeOwned>(command: &mut Command, stdin: Option<&str>) -> Result<Vec<T>> {
-    let mut child = command
-        .stdin(if stdin.is_some() {
-            Stdio::piped()
-        } else {
-            Stdio::null()
+/// A command-line argument handed to an exporter (`arg[i]` and `...`).
+struct Arg(String);
+
+impl From<&Path> for Arg {
+    fn from(path: &Path) -> Self {
+        Self(path.to_string_lossy().into_owned())
+    }
+}
+
+impl From<&str> for Arg {
+    fn from(text: &str) -> Self {
+        Self(text.to_owned())
+    }
+}
+
+fn read_script(script: &Path) -> Result<String> {
+    fs::read_to_string(script).with_context(|| format!("lecture de {}", script.display()))
+}
+
+/// Runs an exporter with the embedded Lua (no `lua` to install) and parses the CSV it writes.
+fn run_lua<T: DeserializeOwned>(script: &str, name: &Path, args: &[Arg]) -> Result<Vec<T>> {
+    let failed = |e: mlua::Error| anyhow!("l'export Lua a échoué : {e}");
+    let lua = Lua::new();
+    let read_file = lua
+        .create_function(|lua, path: String| match fs::read(&path) {
+            Ok(bytes) => Ok((Some(lua.create_string(bytes)?), None)),
+            Err(e) => Ok((None, Some(format!("{path}: {e}")))),
         })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context("impossible de lancer `lua` (est-il installé ?)")?;
-    if let Some(script) = stdin {
-        // Dropping the handle closes stdin so lua starts running the script.
-        child
-            .stdin
-            .take()
-            .context("stdin de lua")?
-            .write_all(script.as_bytes())?;
-    }
-    let output = child.wait_with_output()?;
-    if !output.status.success() {
-        bail!(
-            "l'export Lua a échoué : {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        );
-    }
-    parse(&output.stdout)
+        .map_err(failed)?;
+    let run: Function = lua
+        .load(SANDBOX)
+        .set_name("=sandbox")
+        .call(read_file)
+        .map_err(failed)?;
+    let chunk = lua
+        .load(script)
+        .set_name(format!("@{}", name.display()))
+        .into_function()
+        .map_err(failed)?;
+    let args: Vec<&str> = args.iter().map(|a| a.0.as_str()).collect();
+    let csv: LuaString = run.call((chunk, args)).map_err(failed)?;
+    parse(&csv.as_bytes())
 }
 
 fn parse<T: DeserializeOwned>(csv: &[u8]) -> Result<Vec<T>> {
@@ -124,6 +126,7 @@ fn parse<T: DeserializeOwned>(csv: &[u8]) -> Result<Vec<T>> {
 #[cfg(test)]
 mod tests {
     use scout_core::SCOUT;
+    use scout_core::drops::DropSource;
 
     use super::*;
 

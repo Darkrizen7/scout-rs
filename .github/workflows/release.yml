@@ -9,10 +9,23 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  linux:
-    # Oldest supported runner: an older glibc makes the binary run on more distributions.
-    runs-on: ubuntu-22.04
+  build:
+    strategy:
+      matrix:
+        include:
+          # Oldest supported runner: an older glibc makes the binary run on more distributions.
+          - os: ubuntu-22.04
+            binary: scout-rs
+            asset: scout-rs-x86_64-linux
+          - os: windows-latest
+            binary: scout-rs.exe
+            asset: scout-rs-x86_64-windows.exe
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -25,12 +38,11 @@ jobs:
           fi
 
       - name: System dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            lua5.4 libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
-          # Tests call `lua`, the Debian package only installs `lua5.4`.
-          sudo ln -sf /usr/bin/lua5.4 /usr/local/bin/lua
+            libxkbcommon-dev libwayland-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -41,12 +53,28 @@ jobs:
       - name: Build
         run: cargo build --release --locked
 
+      - name: Package
+        run: |
+          cp "target/release/${{ matrix.binary }}" "${{ matrix.asset }}"
+          sha256sum "${{ matrix.asset }}" > "${{ matrix.asset }}.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          asset=scout-rs-x86_64-linux
-          cp target/release/scout-rs "$asset"
-          sha256sum "$asset" > "$asset.sha256"
-          gh release create "$GITHUB_REF_NAME" "$asset" "$asset.sha256" \
-            --title "$GITHUB_REF_NAME" --generate-notes
+          gh release create "$GITHUB_REF_NAME" assets/* \
+            --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

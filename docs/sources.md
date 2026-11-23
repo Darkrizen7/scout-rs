@@ -1,11 +1,15 @@
 # Sources
 
+Les scripts Lua tournent dans le Lua 5.4 intégré au binaire (`mlua`, `scout-sources/src/import.rs` +
+`lua/sandbox.lua` : `arg` rempli, `io.write`/`io.stdout` collectés en mémoire, `io.stderr` ignoré, `loadfile`
+lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` = script `x.lua` lancé avec `a b`.
+
 - **Scout** : addon détecté par `Interface/AddOns/Scout/Scout.toc` (sinon bouton d'import rouge dans Réglages,
   vérifié au démarrage, à l'ouverture des Réglages et quand le dossier WoW change). `lua <wow_dir>/Interface/AddOns/Scout/tools/export.lua <Scout.lua>` (historique) et `… --names`
   (noms + catégories). Format CSV = **contrat avec l'addon** : le changer des deux côtés (`scout-sources/src/import.rs`).
   Rappeler `/reload` en jeu avant d'importer (le jeu n'écrit le fichier qu'à ce moment).
-- **Auctionator / Forever Guide** (import ponctuel) : `scout-sources/lua/legacy_export.lua`, intégré (`include_str!`), passé à
-  `lua -`. Auctionator stocke son historique en **CBOR** (décodeur Lua inclus) : par jour (depuis le 01/01/2020
+- **Auctionator / Forever Guide** (import ponctuel) : `scout-sources/lua/legacy_export.lua`, intégré (`include_str!`), lancé avec
+  le dossier SavedVariables. Auctionator stocke son historique en **CBOR** (décodeur Lua inclus) : par jour (depuis le 01/01/2020
   local), `l`/`h` = prix min le plus bas / haut, `a` = quantité ; relevé daté de midi. Forever Guide ne garde que
   le dernier prix vu par objet.
 - **PNJ** : `scout-sources/lua/vendor_export.lua` (intégré), à chaque import Scout : `ScoutDB.merchants` (PNJ, zone, position,
@@ -13,7 +17,7 @@
   (composants vendus sans limite). `BuyPrice` du client existe pour **tous** les objets : ne jamais s'en servir pour
   dire « vendu par un PNJ ». Revente au marchand = `SellPrice`.
 - **Butin** :
-  - Forever Guide : `scout-sources/lua/drops_export.lua` (intégré), `lua - <AddOns/ForeverGuide> sources | npcs |
+  - Forever Guide : `scout-sources/lua/drops_export.lua` (intégré), lancé avec `<AddOns/ForeverGuide> sources | npcs |
     names`. Lit `ItemSearchData.lua` (`SI_ITEM` : sources par objet, ids en base 36 sauf les quêtes `q=`, `c` =
     au choix, `pct` suivi de `q` = seulement quête en cours, `+N` = sources non listées ; `SI_NPC`, `SI_OBJ`,
     `SI_QUEST`), `DungeonLoot.lua` (boss, chances plus récentes : elles remplacent celles de `d=`), `DataFrFR.lua`

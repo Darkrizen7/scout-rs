@@ -31,7 +31,7 @@ carte (commande de l'addon Scout, ou de TomTom s'il est installé).
 - `cargo test --workspace` ; sur l'installation locale : `cargo test --workspace -- --ignored --nocapture`
 - `cargo clippy --workspace --all-targets` (zéro avertissement), `cargo fmt --all`
 
-Prérequis : `lua` (5.4) dans le `PATH`.
+Aucun prérequis : Lua 5.4 est intégré au binaire (`mlua`). Binaires Linux et Windows : page *Releases* du dépôt.
 
 ## Données
 - Base SQLite : `~/.local/share/scout-rs/prix.db` (relevés HdV, données du jeu, marchands, butin ; détail des

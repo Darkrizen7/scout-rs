@@ -30,7 +30,7 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - Vraies données : `cargo test --workspace -- --ignored --nocapture` (import de l'installation WoW dans une base
   jetable, résumé de l'analyse sur la base locale ; téléchargement complet des données du jeu :
   `cargo test -p scout-worker --test local downloads -- --ignored --nocapture`).
-- Prérequis : `lua` 5.4 dans le `PATH` (les exports passent par des scripts Lua).
+- Les scripts Lua tournent dans Lua 5.4 intégré (`mlua`, feature `vendored`) : rien à installer.
 
 ## Données (règles ; détail dans `docs/donnees.md`)
 - Base `~/.local/share/scout-rs/prix.db`, réglages `~/.config/scout-rs/config.toml`.
@@ -81,7 +81,7 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 
 ## Versions et releases
 - Une version = un tag `vX.Y.Z` posé **par l'utilisateur** (jamais de tag sans demande). Le push du tag lance
-  `.github/workflows/release.yml` : tests, compilation, Release GitHub avec le binaire Linux et son `.sha256`.
+  `.github/workflows/release.yml` : tests, compilation, Release GitHub avec les binaires Linux et Windows et leurs `.sha256`.
 - Avant le tag : augmenter `version` dans `[workspace.package]` du `Cargo.toml` racine (commit à part,
   `Cargo.lock` compris). Le tag doit être identique à cette version (`v` + version), sinon l'Action échoue :
   la mise à jour automatique compare `CARGO_PKG_VERSION` au dernier tag.

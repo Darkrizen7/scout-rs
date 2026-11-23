@@ -5,6 +5,7 @@ members = ["app", "scout-core", "scout-sources", "scout-db", "scout-worker"]
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [workspace.lints.clippy]
 mod_module_files = { level = "warn" }
