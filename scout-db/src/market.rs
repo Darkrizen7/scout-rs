@@ -218,6 +218,8 @@ mod tests {
         db.set_favorite(1, false).await?;
         assert!(db.favorites().await?.is_empty());
 
+        // Windows cannot delete a file that is still open.
+        db.pool.close().await;
         std::fs::remove_dir_all(&dir)?;
         Ok(())
     }
