@@ -54,13 +54,18 @@ impl Settings {
                 self.wow(ui, state, worker);
                 ui.add_space(6.0);
                 ui.separator();
-                if ui
-                    .button("ℹ Sources des données")
-                    .on_hover_text("D'où viennent les données de l'outil, avec les liens.")
-                    .clicked()
-                {
-                    self.credits = true;
-                }
+                ui.horizontal(|ui| {
+                    if ui
+                        .button("ℹ Sources des données")
+                        .on_hover_text("D'où viennent les données de l'outil, avec les liens.")
+                        .clicked()
+                    {
+                        self.credits = true;
+                    }
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.weak(version(state));
+                    });
+                });
                 if state.any_busy() {
                     ui.add_space(8.0);
                     ui.horizontal(|ui| {
@@ -91,6 +96,19 @@ impl Settings {
                 worker.send(Command::SetWowDir(PathBuf::from(self.wow_dir.trim())));
             }
         });
+    }
+}
+
+/// "scout-rs 0.2.1", and whether a newer version is out or waits for a restart.
+fn version(state: &State) -> String {
+    let current = format!("scout-rs {}", env!("CARGO_PKG_VERSION"));
+    if cfg!(debug_assertions) {
+        return format!("{current} (dev)");
+    }
+    match (&state.update_installed, &state.update) {
+        (Some(installed), _) => format!("{current} · {installed} installée, à redémarrer"),
+        (None, Some(release)) => format!("{current} · {} disponible", release.version),
+        (None, None) => current,
     }
 }
 
