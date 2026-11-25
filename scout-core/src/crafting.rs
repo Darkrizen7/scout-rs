@@ -1,6 +1,7 @@
 //! What a reagent costs when crafted instead of bought, by the same profession.
 
-use crate::gamedata::GameData;
+use crate::gamedata::{GameData, Recipe};
+use crate::pricing;
 
 /// Cheapest way to craft one unit of an item.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -65,6 +66,63 @@ fn cost(
         .min_by(|a, b| a.unit.total_cmp(&b.unit));
     path.pop();
     best
+}
+
+/// What one craft sells for, in copper, through each channel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sale {
+    /// Auction house price × count, after the auction cut.
+    pub auction: Option<i64>,
+    /// Merchant buy-back price × count (None when the item cannot be sold to a merchant).
+    pub merchant: Option<i64>,
+}
+
+impl Sale {
+    /// Best of the two channels.
+    pub fn best(self) -> Option<i64> {
+        self.auction.max(self.merchant)
+    }
+}
+
+/// Sale value of what a recipe makes; None for a recipe without a product.
+/// `auction`: copper per unit at the auction house; `merchant`: merchant buy-back per unit.
+pub fn sale(
+    recipe: &Recipe,
+    auction: &impl Fn(i64) -> Option<i64>,
+    merchant: &impl Fn(i64) -> Option<i64>,
+) -> Option<Sale> {
+    let made = recipe.creates?;
+    Some(Sale {
+        auction: auction(made.item_id).map(|unit| {
+            (unit as f64 * made.count as f64 * (1.0 - pricing::AUCTION_CUT)).round() as i64
+        }),
+        merchant: merchant(made.item_id)
+            .map(|unit| unit * made.count)
+            .filter(|&p| p > 0),
+    })
+}
+
+/// Profit of one craft: best sale minus the cost of every reagent (bought, or crafted by the same
+/// profession when cheaper). None when it cannot be told: no product, no sale price, or a reagent
+/// without a known price.
+pub fn profit(
+    game: &GameData,
+    recipe: &Recipe,
+    auction: &impl Fn(i64) -> Option<i64>,
+    merchant: &impl Fn(i64) -> Option<i64>,
+    buy: &impl Fn(i64) -> Option<f64>,
+) -> Option<i64> {
+    let best = sale(recipe, auction, merchant)?.best()?;
+    let mut cost = 0.0;
+    for reagent in &recipe.reagents {
+        let crafted = craft_cost(game, reagent.item_id, recipe.profession, buy).map(|c| c.unit);
+        let unit = match (buy(reagent.item_id), crafted) {
+            (Some(b), Some(c)) => b.min(c),
+            (b, c) => b.or(c)?,
+        };
+        cost += unit * reagent.count as f64;
+    }
+    Some(best - cost.round() as i64)
 }
 
 #[cfg(test)]
@@ -145,5 +203,29 @@ mod tests {
             Some(8.0)
         );
         assert_eq!(craft_cost(&game, 4, LEATHER, &|_| None), None);
+    }
+
+    #[test]
+    fn profit_cases() {
+        let game = game(vec![recipe(LEATHER, (2, 2), &[(1, 3)])]);
+        let r = &game.recipes[0];
+        let buy = |id| (id == 1).then_some(10.0);
+        let merchant = |_| None;
+        // 2 items at 100 each, minus 5 %, minus 30 for the reagents.
+        let rich = |id| (id == 2).then_some(100);
+        assert_eq!(profit(&game, r, &rich, &merchant, &buy), Some(190 - 30));
+        // Sells for less than the reagents cost.
+        let poor = |id| (id == 2).then_some(5);
+        assert_eq!(profit(&game, r, &poor, &merchant, &buy), Some(10 - 30));
+        // Merchant buy-back wins over the auction house.
+        let vendor = |id| (id == 2).then_some(50);
+        assert_eq!(profit(&game, r, &poor, &vendor, &buy), Some(100 - 30));
+        // No price for the product, or for a reagent.
+        assert_eq!(profit(&game, r, &|_| None, &merchant, &buy), None);
+        assert_eq!(profit(&game, r, &rich, &merchant, &|_| None), None);
+        // No product.
+        let mut none = r.clone();
+        none.creates = None;
+        assert_eq!(profit(&game, &none, &rich, &merchant, &buy), None);
     }
 }

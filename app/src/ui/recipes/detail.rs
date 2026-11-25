@@ -2,6 +2,7 @@
 
 use eframe::egui::{self, Color32, RichText};
 
+use scout_core::crafting;
 use scout_core::gamedata::{GameData, Recipe};
 use scout_core::pricing::Source;
 
@@ -104,16 +105,12 @@ fn recipe(ui: &mut egui::Ui, game: &GameData, state: &State, r: &Recipe, next: &
         .num_columns(2)
         .spacing([16.0, 6.0])
         .show(ui, |ui| {
-            let Some(made) = r.creates else { return };
-            let auction = state.auction_price(made.item_id).map(|unit| {
-                (unit as f64 * made.count as f64 * (1.0 - scout_core::pricing::AUCTION_CUT)).round()
-                    as i64
-            });
-            let merchant = game
-                .items
-                .get(&made.item_id)
-                .map(|i| i.sell_price * made.count)
-                .filter(|&p| p > 0);
+            let Some(sale) = crafting::sale(r, &|id| state.auction_price(id), &|id| {
+                game.items.get(&id).map(|i| i.sell_price)
+            }) else {
+                return;
+            };
+            let (auction, merchant) = (sale.auction, sale.merchant);
             if let Some(sale) = auction {
                 ui.label("Vente à l'HdV (après 5 %)");
                 coins::money(ui, sale, None);
@@ -124,7 +121,7 @@ fn recipe(ui: &mut egui::Ui, game: &GameData, state: &State, r: &Recipe, next: &
                 coins::money(ui, sale, None);
                 ui.end_row();
             }
-            if let Some(best) = auction.max(merchant) {
+            if let Some(best) = sale.best() {
                 let profit = best - total;
                 let via = if auction == Some(best) {
                     "en vendant à l'HdV"

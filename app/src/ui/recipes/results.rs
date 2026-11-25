@@ -6,8 +6,9 @@ use egui_extras::{Column, TableBuilder};
 use super::{Hit, Recipes, SEARCH_HINT, SEARCH_ID, profession_icon};
 use crate::state::State;
 use crate::ui::sidebar::class_icon;
-use crate::ui::theme;
 use crate::ui::widgets::search_box;
+use crate::ui::{coins, theme};
+use scout_core::crafting;
 use scout_core::gamedata::GameData;
 use scout_core::search::Query;
 
@@ -30,18 +31,25 @@ impl Recipes {
         ui.add_space(6.0);
         ui.separator();
         ui.add_space(2.0);
-        self.rebuild(game);
+        self.rebuild(game, state);
         ui.weak(format!("{} résultats", self.hits.len()));
         let dark = theme::current(ui).dark;
         let mut clicked = None;
         TableBuilder::new(ui)
             .sense(egui::Sense::click())
             .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+            .column(Column::exact(22.0))
             .column(Column::remainder().clip(true))
             .body(|body| {
                 body.rows(40.0, self.hits.len(), |mut row| {
-                    let hit = self.hits[row.index()];
+                    let index = row.index();
+                    let hit = self.hits[index];
                     row.set_selected(matches!(hit, Hit::Recipe(i) if self.selection == Some(i)));
+                    row.col(|ui| {
+                        if matches!(hit, Hit::Recipe(_)) {
+                            profit_icon(ui, self.profits[index]);
+                        }
+                    });
                     row.col(|ui| {
                         ui.vertical(|ui| match hit {
                             Hit::Recipe(i) => {
@@ -89,11 +97,12 @@ impl Recipes {
     }
 
     /// Recipes whose name or product matches, then the reagents that match.
-    fn rebuild(&mut self, game: &GameData) {
+    fn rebuild(&mut self, game: &GameData, state: &State) {
         let key = (
             game as *const GameData as usize,
             self.search.clone(),
             self.profession,
+            state.revision,
         );
         if self.built_for.as_ref() == Some(&key) {
             return;
@@ -132,8 +141,44 @@ impl Recipes {
             items.sort_by_key(|id| game.item_name(*id).to_lowercase());
             self.hits.extend(items.into_iter().map(Hit::Item));
         }
+        self.profits = self
+            .hits
+            .iter()
+            .map(|hit| match *hit {
+                Hit::Recipe(i) => crafting::profit(
+                    game,
+                    &game.recipes[i],
+                    &|id| state.auction_price(id),
+                    &|id| game.items.get(&id).map(|i| i.sell_price),
+                    &|id| state.buy_price(id).map(|(unit, _)| unit),
+                ),
+                Hit::Item(_) => None,
+            })
+            .collect();
         self.built_for = Some(key);
     }
+}
+
+/// "$" in green (profit), red (loss) or grey (unknown); the tooltip gives the profit.
+fn profit_icon(ui: &mut egui::Ui, profit: Option<i64>) {
+    let palette = theme::current(ui);
+    let color = match profit {
+        Some(p) if p >= 0 => palette.gain,
+        Some(_) => palette.loss,
+        None => ui.visuals().weak_text_color(),
+    };
+    ui.label(RichText::new("$").strong().color(color))
+        .on_hover_ui(|ui| match profit {
+            Some(p) => {
+                ui.horizontal(|ui| {
+                    ui.label("Bénéfice par craft :");
+                    coins::money(ui, p, Some(color));
+                });
+            }
+            None => {
+                ui.label("Prix inconnu");
+            }
+        });
 }
 
 /// Tinted icon followed by a name, as one label: a nested `horizontal` would be taller than a
