@@ -24,7 +24,14 @@ C'est la seule situation où Claude lance des sous-agents sans demande explicite
 | **Claude écrit la spec, Sonnet code** | architecture, plusieurs crates, contrat avec l'addon | cache serveur, premier lancement, envoi des données de l'app vers l'addon |
 | **Pas de délégation** | décision qui revient à l'utilisateur | passer à MySQL HeatWave : poser la question (commentaire + AskUserQuestion) |
 
-Annoncer le classement à l'utilisateur en quelques lignes avant de lancer.
+## 2 bis. Choix des tickets par l'utilisateur (toujours, avant toute action)
+Ne rien lancer sans ce choix, même avec un argument ou un seul ticket prenable. Une seule `AskUserQuestion`
+(`multiSelect: true`) qui liste les tickets prenables, dans l'ordre du tri : libellé = identifiant + titre court,
+description = priorité, catégorie et modèle prévus (ex. « high · Haiku, consigne directe »). Au plus 4 options
+par question : au-delà, plusieurs questions dans le même appel (4 au maximum), sinon proposer les 4 premiers et
+signaler les autres dans le texte. L'utilisateur peut aussi répondre « Autre » (ex. changer de modèle, ordre).
+Ne traiter ensuite **que** les tickets cochés, dans l'ordre du tri ; aucun coché : s'arrêter sans rien toucher.
+Ne passer aucun ticket en « In Progress » avant cette réponse.
 
 ## 3. Spec (catégories 2 et 3)
 Une quinzaine de lignes, dans le scratchpad (jamais dans le dépôt) : objectif, fichiers concernés,
@@ -32,7 +39,7 @@ contraintes, critères d'acceptation, ce qu'il ne faut pas toucher. En catégori
 sous-agent d'écrire cette spec lui-même en tête de son travail et de la rappeler dans son rapport.
 
 ## 4. Délégation (séquentielle)
-Pour chaque ticket, dans l'ordre :
+Pour chaque ticket choisi à l'étape 2 bis, dans l'ordre :
 1. Passer le ticket en « In Progress » et l'assigner à l'utilisateur (`member list_workspace` pour l'id).
 2. Depuis `master` à jour : `git switch -c <ID>-<description-courte>` (ex. `APP-3-selecteur-hdv`).
 3. Lancer l'agent `dev` (`model: haiku` ou `sonnet` selon le classement) avec la consigne ou la spec,
