@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
+use scout_core::scout_api::house_for_faction;
 use scout_core::{GAME_FORMAT, Row};
 use scout_db::Db;
 use scout_gamedata::Manifest;
@@ -144,13 +145,18 @@ pub(super) fn latest_game_data(server: &PriceServer) -> Result<Option<Manifest>>
     price_server::gamedata_latest(&server.url, GAME_FORMAT)
 }
 
-/// Scout does not say which auction house it scanned: the one chosen in the settings
-/// (none yet: given to the first one chosen).
+/// The auction house of a Scout scan: the settings' game mode on the side of the scan's faction;
+/// without faction (older exports) or house chosen, the settings' house itself (none yet: given to
+/// the first one chosen). The realm is not stored: the mode comes from the settings.
 async fn store(db: &Db, config: &Config, mut rows: Vec<Row>, send: &dyn Fn(Event)) -> Result<()> {
     let house = config.price_server.auction_house();
     for row in &mut rows {
         row.region.clone_from(&house.region);
-        row.house = i64::from(house.id);
+        row.house = row
+            .faction
+            .as_deref()
+            .and_then(|f| house_for_faction(house.id, f))
+            .map_or(i64::from(house.id), i64::from);
     }
     let added = db.insert(&rows).await?;
     refresh(db, &house, send).await?;
