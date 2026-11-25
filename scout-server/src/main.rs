@@ -93,7 +93,8 @@ async fn main() -> Result<()> {
 
     let gamedata = Arc::new(GameStore::new(&data_dir)?);
     let gamedata_every = Duration::from_secs(env_or("SCOUT_GAMEDATA_SECS", "21600").parse()?);
-    tokio::spawn(gamedata.clone().run(gamedata_every));
+    let dbs = regions.values().map(|r| r.db.clone()).collect();
+    tokio::spawn(gamedata.clone().run(dbs, gamedata_every));
 
     let app = api::router(Arc::new(Api {
         regions,

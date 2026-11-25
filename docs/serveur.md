@@ -190,7 +190,13 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - Au démarrage puis toutes les 6 h (`SCOUT_GAMEDATA_SECS`) : dernière version `wowf` de wago.tools ; nouveau paquet si
   elle a changé, si le `GAME_FORMAT` du serveur (redéployé) n'en a pas encore, ou si le dernier est incomplet
   (Wowhead a refusé : nouvel essai au tour suivant). Environ 10 min la première fois (1 s entre deux objets Wowhead).
+- Objets vus à l'HdV : à chaque tour, les `item_id` de `prices` (toutes les régions) que ni les tables du client ni le
+  paquet de référence embarqué (`api/reference.rs::named_items`, calculé au démarrage) ne nomment sont nommés par
+  Wowhead aussi (mêmes règles : une requête par objet, 1 s de pause, arrêt au premier refus). Même build : le paquet
+  courant est complété sur place (nouvel `updated`, pas de nouveau téléchargement wago.tools), seulement s'il est
+  incomplet ou s'il manque des objets que Wowhead peut encore nommer.
 - `data/gamedata/wowhead.json` : objets déjà nommés par Wowhead (chacun n'est demandé qu'une fois) ;
+  `data/gamedata/wowhead_unknown.json` : ids que Wowhead ne connaît pas (liste triée, pas redemandés) ;
   `data/gamedata/<format>/<updated>.json.gz` (`scout_gamedata::Package` : `Tables` en JSON gzip) et `latest.json`
   (`Manifest`). Seul le dernier paquet de chaque format est gardé ; les anciens formats restent pour les anciennes
   versions de l'appli. Tout se reconstruit : rien à sauvegarder.

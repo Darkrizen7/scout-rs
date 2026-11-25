@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 anyhow = "1.0.104"
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio"] }
+flate2 = "1.1.11"
 scout-core = { path = "../scout-core" }
 scout-gamedata = { path = "../scout-gamedata" }
 rustix = { version = "1", features = ["fs"] }

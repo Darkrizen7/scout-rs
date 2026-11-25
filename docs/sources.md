@@ -48,6 +48,8 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   requêtes (sans pause, CloudFront bloque l'adresse en 403 après ~300) ; au premier refus (403…) on
   arrête de demander : le paquet est publié marqué incomplet (`complete: false`, « ⚠ Incomplètes » dans Réglages)
   et le serveur recommence au tour suivant (son cache `data/gamedata/wowhead.json` garde ce qui a été lu).
+  Le serveur nomme aussi, de la même façon, les objets vus à l'HdV que ni le client ni le paquet de référence
+  ne nomment ; ceux que Wowhead ne connaît pas sont retenus dans `wowhead_unknown.json` (`docs/serveur.md` §3.7).
 - Les sources sont citées dans Réglages → bouton « ℹ Sources des données » qui ouvre la page `/thanks`
   du serveur de prix (`scout_core::credits::SOURCES` : à compléter si on en ajoute une).
 
