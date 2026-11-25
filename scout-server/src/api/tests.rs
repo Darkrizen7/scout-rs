@@ -56,6 +56,7 @@ async fn api(minute_burst: u32, hour_burst: u32) -> Router {
         gamedata,
         by_minute: Limiter::new(minute_burst, 60),
         by_hour: Limiter::new(hour_burst, 60),
+        trusted: vec!["192.0.2.9".to_owned()],
     }))
 }
 
@@ -140,6 +141,10 @@ async fn each_address_has_a_minute_and_an_hour_rate() {
     assert_eq!(get_from("203.0.113.7").await, StatusCode::TOO_MANY_REQUESTS);
     // Another address has its own buckets.
     assert_eq!(get_from("198.51.100.1").await, StatusCode::OK);
+    // A trusted address is never limited.
+    for _ in 0..5 {
+        assert_eq!(get_from("192.0.2.9").await, StatusCode::OK);
+    }
     // /health is not limited.
     assert_eq!(get(&app, "/health").await.0, StatusCode::OK);
 }

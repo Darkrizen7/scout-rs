@@ -46,6 +46,8 @@ pub struct Api {
     pub by_minute: Limiter,
     /// Per address: the sustained rate (the hour window).
     pub by_hour: Limiter,
+    /// Addresses never limited (`SCOUT_TRUSTED_IPS`: the administrator's own, for tests).
+    pub trusted: Vec<String>,
 }
 
 pub fn router(api: Arc<Api>) -> Router {
@@ -80,7 +82,8 @@ pub fn router(api: Arc<Api>) -> Router {
 async fn guard(State(api): State<Arc<Api>>, request: Request, next: Next) -> Response {
     let now = Instant::now();
     let ip = access::client_ip(request.headers());
-    if !(api.by_minute.allow(&ip, now) && api.by_hour.allow(&ip, now)) {
+    let trusted = api.trusted.contains(&ip);
+    if !trusted && !(api.by_minute.allow(&ip, now) && api.by_hour.allow(&ip, now)) {
         return (
             StatusCode::TOO_MANY_REQUESTS,
             "trop de requêtes, réessaie plus tard\n",
