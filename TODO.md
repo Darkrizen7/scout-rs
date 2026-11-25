@@ -1,9 +1,19 @@
-1. ~~Dans le calcul des prix des recettes, afficher le prix des composants si craftés (si meilleur que l'HdV et du même métier que l'objet sélectionné).~~ Fait : toujours appliqué (étiquette « Craft »).
-2. ~~Dans Réglages, le bouton « Importer depuis Scout » doit être rouge avec un avertissement si l'addon est manquant.~~ Fait.
-   - ~~Reste (futur) : permettre de télécharger l'addon depuis l'outil.~~ Fait (point 3).
-3. ~~Version 0.3.0 : installer l'addon Scout depuis l'outil s'il manque, et le mettre à jour s'il est plus ancien que
-   la dernière Release de `Darkrizen7/scout-addon` (comparer `## Version` de `Scout.toc` au tag).~~ Fait (boutons en
-   haut et dans Réglages ; `Scout.zip` publié par l'Action de l'addon).
-4. ~~Un selecteur pour pouvoir choisir son HDV (à côté de réglage), aussi dans les réglages pouvoir choisir son serveur US/EU/Etc ...~~ Fait.
-5. ~~On va pouvoir rettirer la dépendance à Auctionnator ainsi qu'à ForeverGuide, car maintenant qu'on télécharge depuis le serveur les prix ce n'est plus nécessaire. Tu peux donc le retirer des crédits et des réglages. Ainsi que de la BDD.~~ Fait : plus aucun import d'Auctionator ni de Forever Guide, leurs prix supprimés de `prix.db` ; le butin reste celui de la base de référence (Forever Guide cité comme origine).
-6. ~~J'aimerai que toutes les données que l'on télécharge actuellement via Données du jeu -> Mettre à jours soit maintenant récupéré depuis l'API, c'est elle qui fera ce fetch et qui distribuera les données aux clients comme ça on ne fait qu'un appel à wago, wow head etc. Il faudra donc qu'il enregistre ça dans un dossier compressé avec un numéro de version, qu'il y ai une route qui donne le latest que le client compare ett télécharge si nous ne sommes pas au latest.~~ Fait : crate `scout-gamedata`, routes `/v1/gamedata/…` (`docs/serveur.md` §3.7) ; reste à déployer le serveur.
+**SERVEUR**
+[NOW - 1] Ajouter un cache pour soulager la BDD
+[NOW - 2] Ajouter une page accessible par tous qui donne les sources de données utilisées "/thanks"
+[LATER - 1] Retirer la clé d'accès du serveur
+[VERY FUTURE - 1] Passer la BDD en BDD mysql-heatwave fourni par Oracle Cloud
+
+**APP**
+[NOW - 1] Remplacer la fenêtre source de donnée par ouvrir le lien créé sur le serveur "/thanks"
+[NOW - 2] Ajouter une sélecteur dans les réglages comme pour la région pour choisir son mode de jeu Normal / PVP / etc ...
+[NOW - 3] Retirer de l'affichage du sélecteur d'HDV sur la page principale la région et le mode de jeu du serveur car déjà visible dans les réglages
+[NOW - 4] Retirer le champ adresse du serveur des réglages hors build dev
+[LATER - 1] Retirer le champ de la clé d'accès du serveur des réglages (non utilisé depuis LATER - 1 de SERVEUR)
+[LATER - 2] Pastille rouge lorsqu'une mise à jours des données WOW est nécessaire sur le bouton réglage.
+[VERY FUTURE - 1] Lors du premier lancement de l'application, demander à l'utilisateur si pas auto trouvé son dossier wow, lui proposer d'installer l'addon et lui demander de relancer le jeu puis lui dire qu'on va télécharger les informations depuis le serveur pour mettre à jours les données WOW (et le faire)
+
+**ADDON**
+[LATER - 1] Refacto UI à réfléchir
+[VERY FUTURE - 1] L'app permet d'update les données de l'addon : lorsque l'app est lancé elle peut pousser à l'addon les données sur les 30 derniers jours (celle qu'elle a déja en cache), jour par jour seulement. Lorsqu'elle doit faire ça (pas poussé de la journée sur l'addon), elle informe l'utilisateur via une popup, fais l'action puis indique qu'il faut / reload.
+[VERY FUTURE - 2] Affichage d'une courbe de prix sur 30 jours depuis les données poussées par l'APP.
