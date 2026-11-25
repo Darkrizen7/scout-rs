@@ -240,3 +240,34 @@ pub fn addon_button(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
         worker.send(Command::InstallAddon(release.clone()));
     }
 }
+
+/// The download button of the game data (and loot), or "Téléchargement…" with the status while it runs.
+pub fn download_game_data(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
+    if state.busy(Task::GameData) {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label("Téléchargement…");
+            ui.weak(&state.status);
+        });
+    } else if ui.button("⤓ Télécharger les données du jeu").clicked() {
+        worker.send(Command::UpdateGameData);
+    }
+}
+
+/// A tab with nothing to show because the data was never downloaded from the server.
+pub fn data_missing(
+    ui: &mut egui::Ui,
+    state: &State,
+    worker: &WorkerHandle,
+    (glyph, title): (&str, &str),
+) {
+    ui.vertical_centered(|ui| {
+        ui.add_space(80.0);
+        ui.label(RichText::new(glyph).size(48.0));
+        ui.heading(title);
+        ui.add_space(6.0);
+        ui.label("Les données du jeu n'ont pas encore été téléchargées depuis le serveur.");
+        ui.add_space(10.0);
+        download_game_data(ui, state, worker);
+    });
+}

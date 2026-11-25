@@ -22,8 +22,8 @@ SOFTWARE.
 
 ---
 
-Exception: scout-worker/data/reference.db.gz (reference data embedded in the
-executable: loot from Forever Guide, itself drawn from cmangos classic-db
-(https://github.com/cmangos/classic-db) and QuestieDB, plus game tables from
-wago.tools) is licensed under the GNU General Public License v3.0 or later;
-see LICENSE-GPL-3.0.
+Exception: scout-server/data/reference.db.gz (the loot and merchants package
+served by the price server, never embedded in the executable: loot from Forever
+Guide, itself drawn from cmangos classic-db
+(https://github.com/cmangos/classic-db) and QuestieDB) is licensed under the
+GNU General Public License v3.0 or later; see LICENSE-GPL-3.0.

@@ -10,11 +10,11 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   Rappeler `/reload` en jeu avant d'importer (le jeu n'écrit le fichier qu'à ce moment).
 - **PNJ** : `scout-sources/lua/vendor_export.lua` (intégré), à chaque import Scout : `ScoutDB.merchants` (PNJ, zone, position,
   stock limité ; prioritaire) et `ScoutDB.vendor` (anciens relevés sans PNJ). La liste de composants vendus sans limite
-  (lignes `foreverguide`) ne vient plus que de la base de référence intégrée. `BuyPrice` du client existe pour **tous**
+  (lignes `foreverguide`) ne vient plus que du paquet de référence du serveur. `BuyPrice` du client existe pour **tous**
   les objets : ne jamais s'en servir pour dire « vendu par un PNJ ». Revente au marchand = `SellPrice`.
 - **Butin** :
-  - Base de référence : le butin de monstres, coffres et quêtes (chances, PNJ, noms français) vient de la base intégrée
-    (`docs/donnees.md`), **figée** : il dérive de Forever Guide (GPL), mais l'outil ne lit plus cet addon
+  - Paquet de référence : le butin de monstres, coffres et quêtes (chances, PNJ, noms français) vient du paquet
+    téléchargé du serveur (`docs/donnees.md`), **figé** : il dérive de Forever Guide (GPL), mais l'outil ne lit plus cet addon
     (ni son historique de prix, ni son butin, ni sa liste de marchands) ; pas d'import de remplacement.
   - Scout : `export.lua <Scout.lua> --loot` (contrat avec l'addon : `npc_id,name,zone,kills,skins,kind,item_id,drops,quantity`).
 - **Contours des zones** : addon **OpenMap** (`Media/Textures/Forever/MapTerritory/<UiMap>.tga`, 256×256, forme dans

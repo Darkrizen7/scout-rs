@@ -14,7 +14,7 @@ use std::thread;
 
 pub use config::{Config, PriceServer, database_path};
 pub use message::{Command, Event, Manifest, Task};
-pub use reference::{ServerSync, export as export_reference, sync_server};
+pub use reference::{ServerSync, sync_server};
 pub use server_reference::export_server_reference;
 
 /// Callback invoked after each event is sent.

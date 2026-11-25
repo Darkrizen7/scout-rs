@@ -278,3 +278,60 @@ async fn syncs_server_reference_once() -> Result<()> {
     assert!(!leftover, "temporary file left behind");
     Ok(())
 }
+
+/// A worker on an empty data folder downloads the game data and the loot by itself (about 5 requests to the
+/// real server). Runs the worker in a child process of this test binary whose XDG folders are throwaway ones,
+/// so that the real database and settings are never touched.
+#[test]
+#[ignore = "downloads the game data and the loot from the price server"]
+fn first_start_downloads_everything() -> Result<()> {
+    use scout_worker::{Event, Task, WorkerHandle};
+    use std::time::{Duration, Instant};
+
+    const CHILD: &str = "SCOUT_FIRST_START_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        let dir = std::env::temp_dir().join(format!("scout-rs-first-start-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir)?;
+        let status = std::process::Command::new(std::env::current_exe()?)
+            .args([
+                "first_start_downloads_everything",
+                "--exact",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env("XDG_DATA_HOME", dir.join("data"))
+            .env("XDG_CONFIG_HOME", dir.join("config"))
+            .status()?;
+        std::fs::remove_dir_all(&dir)?;
+        assert!(status.success(), "the child worker failed");
+        return Ok(());
+    }
+
+    let worker = WorkerHandle::spawn(Box::new(|| {}));
+    let (mut started, mut finished, mut installed, mut game_items) = (false, false, false, 0);
+    let deadline = Instant::now() + Duration::from_secs(180);
+    while !finished && Instant::now() < deadline {
+        for event in worker.poll() {
+            match event {
+                Event::Busy(Task::GameData, true) => started = true,
+                Event::Busy(Task::GameData, false) => finished = true,
+                Event::GameData(game) => game_items = game.items.len(),
+                Event::Status(text) => {
+                    installed |= text.ends_with("installés.");
+                    println!("status : {text}");
+                }
+                Event::Error(text) => println!("error : {text}"),
+                _ => {}
+            }
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    println!(
+        "started {started}, finished {finished}, items {game_items}, loot installed {installed}"
+    );
+    assert!(started && finished, "the download did not run to its end");
+    assert!(game_items > 0 && installed);
+    Ok(())
+}

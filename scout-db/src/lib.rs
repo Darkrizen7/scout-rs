@@ -12,7 +12,6 @@ mod reference;
 mod vendor;
 
 pub use market::scout_api::HistoryCache;
-pub use reference::ReferenceUpdate;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS items (
@@ -23,7 +22,7 @@ CREATE TABLE IF NOT EXISTS favorites (
     item_id INTEGER PRIMARY KEY
 );
 CREATE TABLE IF NOT EXISTS meta (
-    key   TEXT PRIMARY KEY,  -- reference: id of the reference database last applied
+    key   TEXT PRIMARY KEY,  -- server_reference: version of the loot package last applied
     value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS zone_favorites (

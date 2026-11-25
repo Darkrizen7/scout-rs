@@ -20,8 +20,8 @@ carte (commande de l'addon Scout, ou de TomTom s'il est installé).
 - **Scout** (⚙ Réglages → Importer depuis Scout, après un `/reload` en jeu) : relevés HdV, noms et catégories,
   marchands vus, butin enregistré (`tools/export.lua` de l'addon). La base garde tout, même ce que Scout oublie
   en jeu après 21 jours.
-- **Forever Guide** : le butin (sources, chances, noms français) et la liste des marchands de la base de référence
-  intégrée en dérivent ; l'outil ne lit plus l'addon.
+- **Forever Guide** : le butin (sources, chances, noms français) et la liste des marchands du paquet de référence
+  du serveur en dérivent ; l'outil ne lit plus l'addon.
 - **OpenMap** : contours des zones pour la carte (lus dans le dossier AddOns, jamais copiés).
 - **wago.tools** et **Wowhead** : tables du client Forever en français (objets, recettes, métiers, cartes), téléchargées
   une fois par le serveur de prix et distribuées à l'outil.
@@ -38,16 +38,17 @@ met à jour l'addon Scout.
 ## Données
 - Base SQLite : `~/.local/share/scout-rs/prix.db` (relevés HdV, données du jeu, marchands, butin ; détail des
   tables dans `CLAUDE.md`). Prix en cuivre, dates en secondes Unix.
-- Base de référence intégrée à l'exécutable (données du jeu, butin, marchands) : l'outil marche sans télécharger
-  les données du jeu ni installer Forever Guide. Elle ne contient aucun prix ni donnée personnelle.
+- Rien n'est intégré à l'exécutable : au premier lancement, l'outil télécharge du serveur les données du jeu, puis
+  le butin et les marchands de référence (aucun prix ni donnée personnelle), sans installer Forever Guide.
 - Réglages : `~/.config/scout-rs/config.toml` (dossier `_forever_`, détecté automatiquement ; thème).
 
 Police : [Inter](https://github.com/rsms/inter) (SIL Open Font License 1.1, `app/assets/fonts/Inter-LICENSE.txt`),
 intégrée au binaire.
 
-Licence : MIT (`LICENSE`), sauf la base de référence `scout-worker/data/reference.db.gz` (butin de Forever Guide,
-tiré de [cmangos classic-db](https://github.com/cmangos/classic-db) et de QuestieDB) : GPL-3.0-or-later
-(`LICENSE-GPL-3.0`).
+Licence : MIT (`LICENSE`) pour tout le code et le binaire. Seul le paquet de butin et de marchands du serveur,
+`scout-server/data/reference.db.gz` (butin de Forever Guide, tiré de
+[cmangos classic-db](https://github.com/cmangos/classic-db) et de QuestieDB), est GPL-3.0-or-later
+(`LICENSE-GPL-3.0`) ; il n'est pas dans l'exécutable, l'outil le télécharge du serveur.
 
 Workspace : `scout-core` (logique pure) ← `scout-gamedata` (données du jeu) ← `scout-sources` (Lua, serveur de prix) et
 `scout-db` (SQLite) ← `scout-worker` ← `app` ; `scout-server` (serveur du VPS) ← `scout-gamedata`.
