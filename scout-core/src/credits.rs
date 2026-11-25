@@ -9,7 +9,7 @@ pub struct Source {
     pub what: &'static str,
 }
 
-pub const SOURCES: [Source; 7] = [
+pub const SOURCES: [Source; 6] = [
     Source {
         name: "wago.tools",
         url: Some("https://wago.tools"),
@@ -22,15 +22,10 @@ pub const SOURCES: [Source; 7] = [
          Season of Discovery) : nom, qualité, niveaux, revente.",
     },
     Source {
-        name: "Forever Guide",
-        url: None,
-        what: "Addon dont dérivent le butin des monstres et des coffres et la liste des marchands de la base de \
-         référence incluse dans l'outil (GPL-3.0). L'outil ne lit pas l'addon.",
-    },
-    Source {
         name: "cmangos classic-db et QuestieDB",
         url: Some("https://github.com/cmangos/classic-db"),
-        what: "Bases d'où Forever Guide tire l'essentiel de son butin (chances, PNJ, noms français).",
+        what: "Bases d'où vient l'essentiel du butin de la base de référence incluse dans l'outil \
+         (chances, PNJ, noms français).",
     },
     Source {
         name: "API Battle.net de Blizzard Entertainment",
