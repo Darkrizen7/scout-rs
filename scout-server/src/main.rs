@@ -5,7 +5,8 @@
 //! `SCOUT_KEYS` (access keys, `name=key,…`; none = `/v1` refuses everyone), `SCOUT_REGIONS` (eu,us,kr,tw:
 //! each region has its own database and raw folder, `data/` for eu, `data/<region>/` for the others),
 //! `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600),
-//! `SCOUT_ZSTD_LEVEL` (15), `SCOUT_GAMEDATA_SECS` (21600: how often to look for a new Forever build).
+//! `SCOUT_ZSTD_LEVEL` (15), `SCOUT_GAMEDATA_SECS` (21600: how often to look for a new Forever build),
+//! `SCOUT_STAGGER_SECS` (5: delay between the first fetches of two regions).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -13,12 +14,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use tokio::sync::Semaphore;
 mod aggregate;
 mod api;
 mod blizzard;
 mod collector;
 mod db;
 mod gamedata;
+#[cfg(test)]
+mod peak;
 mod storage;
 
 use api::{Api, Keys, Limiter, Region};
@@ -43,7 +47,12 @@ async fn main() -> Result<()> {
     let client_secret =
         std::env::var("BLIZZARD_CLIENT_SECRET").context("BLIZZARD_CLIENT_SECRET manquant")?;
     let interval = Duration::from_secs(env_or("SCOUT_INTERVAL_SECS", "600").parse()?);
+    let stagger = Duration::from_secs(env_or("SCOUT_STAGGER_SECS", "5").parse()?);
+    // One heavy job (download, aggregation, compression) at a time over all regions: four at once
+    // went over the memory limit (OOM).
+    let heavy = Arc::new(Semaphore::new(1));
     let mut regions = BTreeMap::new();
+    let mut index = 0u32;
     for region in env_or("SCOUT_REGIONS", "eu,us,kr,tw")
         .split(',')
         .map(str::trim)
@@ -72,9 +81,12 @@ async fn main() -> Result<()> {
                 db: db.clone(),
                 storage: storage.clone(),
                 interval,
+                heavy: heavy.clone(),
+                delay: stagger * index,
             }
             .run(),
         );
+        index += 1;
         regions.insert(region.to_owned(), Region { db, storage });
     }
 

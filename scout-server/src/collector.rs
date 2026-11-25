@@ -7,6 +7,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
+use tokio::sync::Semaphore;
 
 use crate::aggregate;
 use crate::blizzard::{Client, Fetched, Kind};
@@ -25,6 +26,11 @@ pub struct Collector {
     pub db: Db,
     pub storage: Arc<Storage>,
     pub interval: Duration,
+    /// One permit shared by every region: only one download + aggregation + compression at a
+    /// time, because several at once exceeded the memory limit (OOM).
+    pub heavy: Arc<Semaphore>,
+    /// Wait before this region's first work, so the regions do not all start together.
+    pub delay: Duration,
 }
 
 /// What one fetch of a listing gave.
@@ -53,6 +59,7 @@ impl Outcome {
 
 impl Collector {
     pub async fn run(self) {
+        tokio::time::sleep(self.delay).await;
         if let Err(e) = self.price_pending().await {
             eprintln!("prix des anciens instantanés : {e:#}");
         }
@@ -107,6 +114,8 @@ impl Collector {
         }
         let start = Instant::now();
         for p in &pending {
+            // Held for this snapshot only: the other regions get a turn between two.
+            let _permit = self.heavy.acquire().await?;
             let path = self.storage.path(&p.path);
             let rows = tokio::task::spawn_blocking(move || -> Result<_> {
                 let compressed = std::fs::read(&path)
@@ -150,6 +159,7 @@ impl Collector {
     }
 
     async fn fetch_and_store(&self, house: u32, kind: Kind, now: i64) -> Result<Outcome> {
+        let _permit = self.heavy.acquire().await?;
         let last = self.db.last_snapshot(house, kind.as_str()).await?;
         let since = last.as_ref().and_then(|l| l.last_modified.clone());
         let client = self.client.clone();
