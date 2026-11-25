@@ -39,9 +39,17 @@ async fn api(ip_burst: u32, key_burst: u32) -> Router {
         };
         db.insert_snapshot(&snapshot, &rows).await.unwrap();
     }
+    let storage = Arc::new(Storage::new(&std::env::temp_dir(), 3));
+    let empty = Region {
+        db: Db::memory().await.unwrap(),
+        storage: storage.clone(),
+    };
+    let regions = BTreeMap::from([
+        ("eu".to_owned(), Region { db, storage }),
+        ("us".to_owned(), empty),
+    ]);
     router(Arc::new(Api {
-        db,
-        storage: Arc::new(Storage::new(&std::env::temp_dir(), 3)),
+        regions,
         keys: Keys::parse(&format!("test={KEY}")),
         by_key: Limiter::new(key_burst, 60),
         by_ip: Limiter::new(ip_burst, 60),
@@ -84,21 +92,21 @@ async fn health_and_privacy_need_no_key() {
 async fn v1_wants_a_key_and_slows_down_guessers() {
     let app = api(2, 5).await;
     assert_eq!(
-        get(&app, "/v1/houses", None).await.0,
+        get(&app, "/v1/eu/houses", None).await.0,
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
-        get(&app, "/v1/houses", Some("0123456789abcdef0124"))
+        get(&app, "/v1/eu/houses", Some("0123456789abcdef0124"))
             .await
             .0,
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
-        get(&app, "/v1/houses", None).await.0,
+        get(&app, "/v1/eu/houses", None).await.0,
         StatusCode::TOO_MANY_REQUESTS
     );
     // A valid key is not slowed down by the guesses from the same address.
-    let (status, response) = get(&app, "/v1/houses", Some(KEY)).await;
+    let (status, response) = get(&app, "/v1/eu/houses", Some(KEY)).await;
     assert_eq!(status, StatusCode::OK);
     let houses: Value = serde_json::from_str(&text(response).await).unwrap();
     assert_eq!(houses[0]["id"], 114);
@@ -106,11 +114,26 @@ async fn v1_wants_a_key_and_slows_down_guessers() {
 }
 
 #[tokio::test]
+async fn only_regions_with_houses_are_listed() {
+    let app = api(5, 5).await;
+    let (status, response) = get(&app, "/v1/regions", Some(KEY)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(text(response).await, r#"["eu"]"#);
+    assert_eq!(
+        get(&app, "/v1/xx/houses", Some(KEY)).await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
 async fn keys_have_their_own_rate() {
     let app = api(5, 1).await;
-    assert_eq!(get(&app, "/v1/houses", Some(KEY)).await.0, StatusCode::OK);
     assert_eq!(
-        get(&app, "/v1/houses", Some(KEY)).await.0,
+        get(&app, "/v1/eu/houses", Some(KEY)).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        get(&app, "/v1/eu/houses", Some(KEY)).await.0,
         StatusCode::TOO_MANY_REQUESTS
     );
 }
@@ -118,7 +141,7 @@ async fn keys_have_their_own_rate() {
 #[tokio::test]
 async fn prices_come_as_csv_pages() {
     let app = api(5, 5).await;
-    let (status, response) = get(&app, "/v1/houses/114/prices?since=100", Some(KEY)).await;
+    let (status, response) = get(&app, "/v1/eu/houses/114/prices?since=100", Some(KEY)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(response.headers()["x-scout-until"], "200");
     assert_eq!(response.headers()["x-scout-more"], "0");
@@ -126,7 +149,7 @@ async fn prices_come_as_csv_pages() {
         text(response).await,
         "ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less\n200,768,150,150,150,4,2,0\n"
     );
-    let (_, response) = get(&app, "/v1/houses/114/prices", Some(KEY)).await;
+    let (_, response) = get(&app, "/v1/eu/houses/114/prices", Some(KEY)).await;
     let csv = text(response).await;
     assert!(csv.contains("\n100,7,,,,4,2,1\n"), "{csv}");
 }
@@ -134,13 +157,13 @@ async fn prices_come_as_csv_pages() {
 #[tokio::test]
 async fn latest_prices_and_one_item_history() {
     let app = api(5, 5).await;
-    let (status, response) = get(&app, "/v1/houses/114/latest", Some(KEY)).await;
+    let (status, response) = get(&app, "/v1/eu/houses/114/latest", Some(KEY)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         text(response).await,
         "ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less\n200,768,150,150,150,4,2,0\n"
     );
-    let (_, response) = get(&app, "/v1/houses/114/items/768/history", Some(KEY)).await;
+    let (_, response) = get(&app, "/v1/eu/houses/114/items/768/history", Some(KEY)).await;
     let csv = text(response).await;
     assert_eq!(
         csv.lines().skip(1).collect::<Vec<_>>(),
@@ -148,13 +171,13 @@ async fn latest_prices_and_one_item_history() {
     );
     let (_, response) = get(
         &app,
-        "/v1/houses/114/items/768/history?since=100",
+        "/v1/eu/houses/114/items/768/history?since=100",
         Some(KEY),
     )
     .await;
     assert_eq!(text(response).await.lines().count(), 2);
     assert_eq!(
-        get(&app, "/v1/houses/114/latest", None).await.0,
+        get(&app, "/v1/eu/houses/114/latest", None).await.0,
         StatusCode::UNAUTHORIZED
     );
 }

@@ -19,6 +19,8 @@ pub const STOP_RAW_BYTES: u64 = 3_000_000_000;
 const LOG_DAYS: i64 = 7;
 
 pub struct Collector {
+    /// Battle.net region (eu, us, kr, tw), for the log.
+    pub region: String,
     pub client: Arc<Client>,
     pub db: Db,
     pub storage: Arc<Storage>,
@@ -56,10 +58,19 @@ impl Collector {
         }
         let mut ticks = tokio::time::interval(self.interval);
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        // A region without Forever auction houses answers 404 every time: said once.
+        let mut last_error = None;
         loop {
             ticks.tick().await;
-            if let Err(e) = self.cycle().await {
-                eprintln!("relevé interrompu : {e:#}");
+            match self.cycle().await {
+                Ok(()) => last_error = None,
+                Err(e) => {
+                    let error = format!("{e:#}");
+                    if last_error.as_ref() != Some(&error) {
+                        eprintln!("{} : relevé interrompu : {error}", self.region);
+                    }
+                    last_error = Some(error);
+                }
             }
         }
     }
@@ -80,7 +91,8 @@ impl Collector {
         }
         self.db.purge_log(now - LOG_DAYS * 86_400).await?;
         eprintln!(
-            "relevé : {} maisons, {new} nouveaux instantanés, {:.1} s",
+            "{} : relevé : {} maisons, {new} nouveaux instantanés, {:.1} s",
+            self.region,
             houses.len(),
             start.elapsed().as_secs_f32()
         );

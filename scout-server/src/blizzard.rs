@@ -118,7 +118,7 @@ impl Client {
                 .agent
                 .get(format!("https://{region}.api.blizzard.com{path}"))
                 .query("namespace", format!("dynamic-forever-{region}"))
-                .query("locale", "fr_FR")
+                .query("locale", locale(region))
                 .header("Authorization", format!("Bearer {token}"));
             if let Some(since) = since {
                 request = request.header("If-Modified-Since", since);
@@ -198,6 +198,16 @@ pub fn parse_houses(bytes: &[u8]) -> Result<Vec<House>> {
     }
     let list: List = serde_json::from_slice(bytes).context("liste des maisons illisible")?;
     Ok(list.auctions)
+}
+
+/// Names in the region's own language (a locale the region does not serve gives no names).
+fn locale(region: &str) -> &'static str {
+    match region {
+        "us" => "en_US",
+        "kr" => "ko_KR",
+        "tw" => "zh_TW",
+        _ => "fr_FR",
+    }
 }
 
 fn base64(input: &str) -> String {

@@ -2,10 +2,12 @@
 //! (docs/serveur.md): the collector, the prices of every new snapshot, and the API that serves them.
 //!
 //! Settings (environment): `BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET` (required),
-//! `SCOUT_KEYS` (access keys, `name=key,…`; none = `/v1` refuses everyone), `BLIZZARD_REGION` (eu),
+//! `SCOUT_KEYS` (access keys, `name=key,…`; none = `/v1` refuses everyone), `SCOUT_REGIONS` (eu,us,kr,tw:
+//! each region has its own database and raw folder, `data/` for eu, `data/<region>/` for the others),
 //! `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600),
 //! `SCOUT_ZSTD_LEVEL` (15).
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -18,7 +20,7 @@ mod collector;
 mod db;
 mod storage;
 
-use api::{Api, Keys, Limiter};
+use api::{Api, Keys, Limiter, Region};
 use blizzard::{Client, Credentials};
 use collector::Collector;
 use db::Db;
@@ -34,36 +36,52 @@ async fn main() -> Result<()> {
     let data_dir = PathBuf::from(env_or("SCOUT_DATA_DIR", "data"));
     std::fs::create_dir_all(&data_dir)
         .with_context(|| format!("dossier {}", data_dir.display()))?;
-    let db = Db::open(&data_dir.join("scout-server.db")).await?;
-    let storage = Arc::new(Storage::new(
-        &data_dir,
-        env_or("SCOUT_ZSTD_LEVEL", "15").parse()?,
-    ));
-    let client = Arc::new(Client::new(Credentials {
-        region: env_or("BLIZZARD_REGION", "eu"),
-        client_id: std::env::var("BLIZZARD_CLIENT_ID").context("BLIZZARD_CLIENT_ID manquant")?,
-        client_secret: std::env::var("BLIZZARD_CLIENT_SECRET")
-            .context("BLIZZARD_CLIENT_SECRET manquant")?,
-    }));
+    let level: i32 = env_or("SCOUT_ZSTD_LEVEL", "15").parse()?;
+    let client_id = std::env::var("BLIZZARD_CLIENT_ID").context("BLIZZARD_CLIENT_ID manquant")?;
+    let client_secret =
+        std::env::var("BLIZZARD_CLIENT_SECRET").context("BLIZZARD_CLIENT_SECRET manquant")?;
     let interval = Duration::from_secs(env_or("SCOUT_INTERVAL_SECS", "600").parse()?);
-
-    tokio::spawn(
-        Collector {
-            client,
-            db: db.clone(),
-            storage: storage.clone(),
-            interval,
+    let mut regions = BTreeMap::new();
+    for region in env_or("SCOUT_REGIONS", "eu,us,kr,tw")
+        .split(',')
+        .map(str::trim)
+    {
+        if region.is_empty() {
+            continue;
         }
-        .run(),
-    );
+        // eu was the only region at first: its files stay at the top of the data folder.
+        let dir = if region == "eu" {
+            data_dir.clone()
+        } else {
+            data_dir.join(region)
+        };
+        std::fs::create_dir_all(&dir).with_context(|| format!("dossier {}", dir.display()))?;
+        let db = Db::open(&dir.join("scout-server.db")).await?;
+        let storage = Arc::new(Storage::new(&dir, level));
+        let client = Arc::new(Client::new(Credentials {
+            region: region.to_owned(),
+            client_id: client_id.clone(),
+            client_secret: client_secret.clone(),
+        }));
+        tokio::spawn(
+            Collector {
+                region: region.to_owned(),
+                client,
+                db: db.clone(),
+                storage: storage.clone(),
+                interval,
+            }
+            .run(),
+        );
+        regions.insert(region.to_owned(), Region { db, storage });
+    }
 
     let keys = Keys::parse(&env_or("SCOUT_KEYS", ""));
     if keys.len() == 0 {
         eprintln!("aucune clé d'accès (SCOUT_KEYS) : /v1 refuse toutes les requêtes");
     }
     let app = api::router(Arc::new(Api {
-        db,
-        storage,
+        regions,
         keys,
         by_key: Limiter::new(KEY_RATE, KEY_RATE),
         by_ip: Limiter::new(GUESS_RATE, GUESS_RATE),
