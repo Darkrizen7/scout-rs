@@ -104,8 +104,14 @@ impl Db {
     /// The items with a price at `house`, and their latest snapshot there.
     pub async fn items(&self, house: &AuctionHouse) -> Result<Vec<ItemSummary>> {
         let items = sqlx::query_as(
-            // Latest snapshot of each item, any source (Scout wins a tie).
-            "SELECT i.item_id, i.name, i.class_id, i.subclass_id, i.class_name, i.subclass_name,
+            // Latest snapshot of each item, any source (Scout wins a tie). Name and category: what Scout
+            // saw, else the game data, else Wowhead (prices from the server come with ids only).
+            "SELECT i.item_id,
+                    COALESCE(NULLIF(i.name, ''), g.name, wh.name) AS name,
+                    COALESCE(i.class_id, g.class_id, wh.class_id) AS class_id,
+                    COALESCE(i.subclass_id, g.subclass_id, wh.subclass_id) AS subclass_id,
+                    COALESCE(i.class_name, c.name) AS class_name,
+                    COALESCE(i.subclass_name, sc.name) AS subclass_name,
                     s.price, s.quantity, s.ts, s.scans
              FROM items i
              JOIN (SELECT item_id, price, quantity, ts,
@@ -113,7 +119,14 @@ impl Db {
                           ROW_NUMBER() OVER (w ORDER BY ts DESC, source = 'scout' DESC) AS rank
                    FROM snapshots WHERE region = ? AND house = ?
                    WINDOW w AS (PARTITION BY item_id)) s
-               ON s.item_id = i.item_id AND s.rank = 1",
+               ON s.item_id = i.item_id AND s.rank = 1
+             LEFT JOIN game_items g ON g.item_id = i.item_id
+             LEFT JOIN wowhead_items wh ON wh.item_id = i.item_id
+             LEFT JOIN game_categories c
+               ON c.class_id = COALESCE(i.class_id, g.class_id, wh.class_id) AND c.subclass_id = -1
+             LEFT JOIN game_categories sc
+               ON sc.class_id = COALESCE(i.class_id, g.class_id, wh.class_id)
+              AND sc.subclass_id = COALESCE(i.subclass_id, g.subclass_id, wh.subclass_id)",
         )
         .bind(&house.region)
         .bind(house.id)
@@ -241,6 +254,27 @@ mod tests {
         assert_eq!(
             (item.class_id, item.subclass_name.as_deref()),
             (Some(7), Some("Tissu"))
+        );
+
+        // Priced by the server only (no name from Scout): name and category from the game data.
+        assert_eq!(db.insert(&[row(2, None, 100, Some(9), 1)]).await?, 1);
+        sqlx::raw_sql(
+            "INSERT INTO game_items (item_id, name, quality, item_level, required_level, class_id, subclass_id)
+                 VALUES (2, 'Étoffe de laine', 1, 15, 0, 7, 5);
+             INSERT INTO game_categories (class_id, subclass_id, name)
+                 VALUES (7, -1, 'Artisanat'), (7, 5, 'Tissu');",
+        )
+        .execute(&db.pool)
+        .await?;
+        let items = db.items(&AuctionHouse::default()).await?;
+        let wool = items.iter().find(|i| i.item_id == 2).unwrap();
+        assert_eq!(
+            (
+                wool.name.as_deref(),
+                wool.class_name.as_deref(),
+                wool.subclass_name.as_deref()
+            ),
+            (Some("Étoffe de laine"), Some("Artisanat"), Some("Tissu"))
         );
 
         db.set_favorite(1, true).await?;
