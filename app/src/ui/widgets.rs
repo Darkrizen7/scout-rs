@@ -271,6 +271,13 @@ pub fn data_missing(
         ui.add_space(6.0);
         ui.label("Les données du jeu n'ont pas encore été téléchargées depuis le serveur.");
         ui.add_space(10.0);
-        download_game_data(ui, state, worker);
+        // A horizontal row would stick to the left edge: stack the progress instead.
+        if state.busy(Task::GameData) {
+            ui.spinner();
+            ui.label("Téléchargement…");
+            ui.weak(&state.status);
+        } else {
+            download_game_data(ui, state, worker);
+        }
     });
 }
