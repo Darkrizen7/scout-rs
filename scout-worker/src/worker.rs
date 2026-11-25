@@ -279,12 +279,9 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             let wow_dir = shared.config().wow_dir()?.to_path_buf();
             update::install_addon(&release, &wow_dir, &*shared.send)
         }),
-        Command::SetPriceServer {
-            url,
-            key,
-            region,
-            house,
-        } => prices::set_server(shared, url, key, (region, house))?,
+        Command::SetPriceServer { url, region, house } => {
+            prices::set_server(shared, url, (region, house))?
+        }
         Command::LoadServerHouses => prices::load_houses(shared),
         Command::SyncPrices => shared.spawn(Task::Prices, |runtime, shared| {
             prices::sync_latest(runtime, shared, true)

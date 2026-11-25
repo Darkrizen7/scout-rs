@@ -1,4 +1,4 @@
-//! Settings section of the price server (source « Scout API »): address (dev builds only), access key, region and
+//! Settings section of the price server (source « Scout API »): address (dev builds only), region and
 //! auction house.
 
 use eframe::egui;
@@ -12,7 +12,6 @@ use scout_worker::{Command, Task, WorkerHandle};
 #[derive(Default)]
 pub struct Form {
     url: String,
-    key: String,
     /// Ask the worker for the server's regions and houses (once per opening of the settings).
     load_houses: bool,
 }
@@ -21,8 +20,7 @@ impl Form {
     pub fn open(&mut self, state: &State) {
         let server = state.config.as_ref().map(|c| &c.price_server);
         self.url = server.map(|s| s.url.clone()).unwrap_or_default();
-        self.key = server.and_then(|s| s.key.clone()).unwrap_or_default();
-        self.load_houses = server.is_some_and(|s| s.key.is_some());
+        self.load_houses = server.is_some();
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
@@ -45,31 +43,20 @@ impl Form {
                     ui.add(egui::TextEdit::singleline(&mut self.url).desired_width(300.0));
                     ui.end_row();
                 }
-                ui.label("Clé d'accès")
-                    .on_hover_text("Clé personnelle donnée par l'administrateur du serveur.");
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.key)
-                        .password(true)
-                        .desired_width(300.0),
-                );
+                ui.label("Région");
+                region_choice(ui, state, worker);
                 ui.end_row();
-                if server.key.is_some() {
-                    ui.label("Région");
-                    region_choice(ui, state, worker);
-                    ui.end_row();
-                    ui.label("Mode de jeu");
-                    mode_choice(ui, state, worker);
-                    ui.end_row();
-                    ui.label("Hôtel des ventes");
-                    widgets::house_picker(ui, state, worker, 300.0);
-                    ui.end_row();
-                }
+                ui.label("Mode de jeu");
+                mode_choice(ui, state, worker);
+                ui.end_row();
+                ui.label("Hôtel des ventes");
+                widgets::house_picker(ui, state, worker, 300.0);
+                ui.end_row();
             });
         if let Some(Err(error)) = &state.server_houses {
             ui.colored_label(theme::current(ui).loss, format!("⚠ {error}"));
         }
-        let changed =
-            self.url.trim() != server.url || Some(self.key.trim()) != server.key.as_deref();
+        let changed = self.url.trim() != server.url;
         ui.horizontal(|ui| {
             if ui
                 .add_enabled(changed, egui::Button::new("Enregistrer"))
@@ -77,7 +64,6 @@ impl Form {
             {
                 worker.send(Command::SetPriceServer {
                     url: self.url.clone(),
-                    key: Some(self.key.clone()),
                     region: server.region.clone(),
                     house: server.house,
                 });
@@ -128,7 +114,6 @@ fn region_choice(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
                 {
                     worker.send(Command::SetPriceServer {
                         url: server.url.clone(),
-                        key: server.key.clone(),
                         region: region.clone(),
                         house: None,
                     });
@@ -168,7 +153,6 @@ fn mode_choice(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
                 {
                     worker.send(Command::SetPriceServer {
                         url: server.url.clone(),
-                        key: server.key.clone(),
                         region: server.region.clone(),
                         house: Some(house),
                     });

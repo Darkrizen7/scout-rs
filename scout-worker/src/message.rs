@@ -44,10 +44,9 @@ pub enum Command {
     Restart,
     /// Installs (or updates) the Scout addon from this release.
     InstallAddon(Release),
-    /// Price server address, access key and auction house (saved, then the houses and prices follow).
+    /// Price server address and auction house (saved, then the houses and prices follow).
     SetPriceServer {
         url: String,
-        key: Option<String>,
         region: String,
         house: Option<u32>,
     },

@@ -40,11 +40,7 @@ pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings, worke
             {
                 settings.open(state);
             }
-            if state
-                .config
-                .as_ref()
-                .is_some_and(|c| c.price_server.key.is_some())
-            {
+            if state.config.is_some() {
                 widgets::house_picker(ui, state, worker, 210.0);
             }
             update_button(ui, state, worker);

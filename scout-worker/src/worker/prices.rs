@@ -36,7 +36,6 @@ pub(super) fn start(shared: &Shared) {
 pub(super) fn set_server(
     shared: &Shared,
     url: String,
-    key: Option<String>,
     (region, house): (String, Option<u32>),
 ) -> Result<()> {
     let chosen = {
@@ -48,7 +47,6 @@ pub(super) fn set_server(
         } else {
             url.trim_end_matches('/').to_owned()
         };
-        server.key = key.map(|k| k.trim().to_owned()).filter(|k| !k.is_empty());
         // Another region has other houses: one must be chosen again.
         let house = if region == server.region { house } else { None };
         let changed = server.house != house || server.region != region;
@@ -92,17 +90,14 @@ pub(super) fn show_house(runtime: &Runtime, shared: &Shared, house: &AuctionHous
 /// The server's regions and the houses of the chosen one, on their own thread (network).
 pub(super) fn load_houses(shared: &Shared) {
     let server = shared.config().price_server.clone();
-    let Some(key) = server.key.clone() else {
-        return;
-    };
     let send = shared.send.clone();
     let _ = thread::Builder::new()
         .name("server-houses".into())
         .spawn(move || {
             let choice = (|| {
                 Ok::<_, anyhow::Error>(ServerChoice {
-                    regions: price_server::regions(&server.url, &key)?,
-                    houses: price_server::houses(&server.url, &key, &server.region)?,
+                    regions: price_server::regions(&server.url)?,
+                    houses: price_server::houses(&server.url, &server.region)?,
                     region: server.region.clone(),
                 })
             })();
@@ -129,9 +124,9 @@ fn now() -> i64 {
 /// Downloads the latest prices when they are an hour old (or `force`), keeping what changed.
 pub(super) fn sync_latest(runtime: &Runtime, shared: &Shared, force: bool) -> Result<()> {
     let server = shared.config().price_server.clone();
-    let Some((url, key, house)) = server.ready() else {
+    let Some((url, house)) = server.ready() else {
         if force {
-            bail!("serveur de prix : il manque la clé d'accès ou l'hôtel des ventes (Réglages)");
+            bail!("serveur de prix : il manque l'hôtel des ventes (Réglages)");
         }
         return Ok(());
     };
@@ -139,7 +134,7 @@ pub(super) fn sync_latest(runtime: &Runtime, shared: &Shared, force: bool) -> Re
     if !force && server.last_sync.is_some_and(|t| started - t < REFRESH_SECS) {
         return Ok(());
     }
-    let latest = price_server::latest(url, key, &house)?;
+    let latest = price_server::latest(url, &house)?;
     let (db, send) = (&shared.db, &*shared.send);
     let added = runtime.block_on(async {
         let last = db.last_api_prices(&house).await?;
@@ -166,7 +161,7 @@ pub(super) fn sync_latest(runtime: &Runtime, shared: &Shared, force: bool) -> Re
 /// then sends it again.
 fn item_history(runtime: &Runtime, shared: &Shared, item_id: i64) -> Result<()> {
     let server = shared.config().price_server.clone();
-    let Some((url, key, house)) = server.ready() else {
+    let Some((url, house)) = server.ready() else {
         return Ok(());
     };
     let db = &shared.db;
@@ -177,7 +172,7 @@ fn item_history(runtime: &Runtime, shared: &Shared, item_id: i64) -> Result<()> 
         // Never downloaded at this house: all of it.
         None => 0,
     };
-    let lines = price_server::history(url, key, &house, item_id, since)?;
+    let lines = price_server::history(url, &house, item_id, since)?;
     let until = lines.iter().map(|l| l.ts).max().unwrap_or(since);
     let history = runtime.block_on(async {
         db.insert(&scout_api::history_rows(&house, &lines)).await?;

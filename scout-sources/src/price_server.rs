@@ -1,5 +1,5 @@
 //! Our price server (`scout-server`, on the homelab): auction prices of WoW: Forever from the
-//! Battle.net API, read with a personal access key.
+//! Battle.net API.
 
 use std::time::Duration;
 
@@ -20,17 +20,14 @@ fn agent() -> ureq::Agent {
         .into()
 }
 
-fn get(url: &str, key: &str) -> Result<ureq::http::Response<ureq::Body>> {
-    checked(agent().get(url).header("X-Scout-Key", key).call())
+fn get(url: &str) -> Result<ureq::http::Response<ureq::Body>> {
+    checked(agent().get(url).call())
 }
 
 fn checked(
     result: Result<ureq::http::Response<ureq::Body>, ureq::Error>,
 ) -> Result<ureq::http::Response<ureq::Body>> {
     match result {
-        Err(ureq::Error::StatusCode(401)) => {
-            bail!("le serveur de prix refuse la clé d'accès (voir Réglages)")
-        }
         Err(ureq::Error::StatusCode(429)) => {
             bail!("le serveur de prix limite les requêtes : réessaie dans une heure")
         }
@@ -39,9 +36,9 @@ fn checked(
 }
 
 /// The newest game data package the server built for this tool's `format`, None while it has none.
-pub fn gamedata_latest(server: &str, key: &str, format: i64) -> Result<Option<Manifest>> {
+pub fn gamedata_latest(server: &str, format: i64) -> Result<Option<Manifest>> {
     let url = format!("{}/v1/gamedata/latest?format={format}", base(server));
-    let mut response = match agent().get(&url).header("X-Scout-Key", key).call() {
+    let mut response = match agent().get(&url).call() {
         Err(ureq::Error::StatusCode(404)) => return Ok(None),
         result => checked(result)?,
     };
@@ -50,14 +47,14 @@ pub fn gamedata_latest(server: &str, key: &str, format: i64) -> Result<Option<Ma
 }
 
 /// The game data package `manifest` describes (a few megabytes, gzipped).
-pub fn gamedata_package(server: &str, key: &str, manifest: &Manifest) -> Result<Package> {
+pub fn gamedata_package(server: &str, manifest: &Manifest) -> Result<Package> {
     let url = format!(
         "{}/v1/gamedata/{}/{}",
         base(server),
         manifest.format,
         manifest.updated
     );
-    let bytes = get(&url, key)?
+    let bytes = get(&url)?
         .body_mut()
         .with_config()
         .limit(MAX_BYTES)
@@ -67,35 +64,33 @@ pub fn gamedata_package(server: &str, key: &str, manifest: &Manifest) -> Result<
 }
 
 /// The regions where the server found Forever auction houses (eu, us, kr, tw).
-pub fn regions(server: &str, key: &str) -> Result<Vec<String>> {
+pub fn regions(server: &str) -> Result<Vec<String>> {
     read_json(
         &format!("{}/v1/regions", base(server)),
-        key,
         "liste des régions illisible",
     )
 }
 
 /// The houses the server records in `region`.
-pub fn houses(server: &str, key: &str, region: &str) -> Result<Vec<ServerHouse>> {
+pub fn houses(server: &str, region: &str) -> Result<Vec<ServerHouse>> {
     let url = format!("{}/v1/{region}/houses", base(server));
-    read_json(&url, key, "liste des hôtels des ventes illisible")
+    read_json(&url, "liste des hôtels des ventes illisible")
 }
 
 /// The newest prices of every item of `house` (`quantity = 0`: just left the auction house).
-pub fn latest(server: &str, key: &str, house: &AuctionHouse) -> Result<Vec<PriceLine>> {
+pub fn latest(server: &str, house: &AuctionHouse) -> Result<Vec<PriceLine>> {
     let url = format!(
         "{}/v1/{}/houses/{}/latest",
         base(server),
         house.region,
         house.id
     );
-    read_csv(&url, key)
+    read_csv(&url)
 }
 
 /// Every price of one item at `house` after `since` (Unix seconds), oldest first.
 pub fn history(
     server: &str,
-    key: &str,
     house: &AuctionHouse,
     item_id: i64,
     since: i64,
@@ -106,21 +101,21 @@ pub fn history(
         house.region,
         house.id
     );
-    read_csv(&url, key)
+    read_csv(&url)
 }
 
 fn base(server: &str) -> &str {
     server.trim_end_matches('/')
 }
 
-fn read_json<T: serde::de::DeserializeOwned>(url: &str, key: &str, what: &str) -> Result<T> {
-    let mut response = get(url, key)?;
+fn read_json<T: serde::de::DeserializeOwned>(url: &str, what: &str) -> Result<T> {
+    let mut response = get(url)?;
     let body = response.body_mut().with_config().limit(MAX_BYTES).reader();
     serde_json::from_reader(body).context(what.to_owned())
 }
 
-fn read_csv(url: &str, key: &str) -> Result<Vec<PriceLine>> {
-    let body = get(url, key)?
+fn read_csv(url: &str) -> Result<Vec<PriceLine>> {
+    let body = get(url)?
         .body_mut()
         .with_config()
         .limit(MAX_BYTES)
