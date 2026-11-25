@@ -23,6 +23,7 @@ use crate::storage::Storage;
 
 mod access;
 pub(crate) mod reference;
+mod sales;
 
 pub use access::Limiter;
 
@@ -60,6 +61,7 @@ pub fn router(api: Arc<Api>) -> Router {
         .route("/{region}/houses", get(houses))
         .route("/{region}/houses/{id}/prices", get(prices))
         .route("/{region}/houses/{id}/latest", get(latest))
+        .route("/{region}/houses/{id}/sales", get(sales::sales))
         .route(
             "/{region}/houses/{id}/items/{item}/history",
             get(item_history),

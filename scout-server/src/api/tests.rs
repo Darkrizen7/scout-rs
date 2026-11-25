@@ -35,7 +35,14 @@ async fn api(minute_burst: u32, hour_burst: u32) -> Router {
             bytes: 0,
             auctions: 2,
         };
-        db.insert_snapshot(&snapshot, &rows).await.unwrap();
+        let sold = [crate::sales::ItemSales {
+            item_id: 768,
+            sold_proven: 2,
+            sold_estimated: 1,
+            sold_value: 450,
+        }];
+        let sales = if ts == 200 { &sold[..] } else { &[] };
+        db.insert_snapshot(&snapshot, &rows, sales).await.unwrap();
     }
     let storage = Arc::new(Storage::new(&std::env::temp_dir(), 3));
     let empty = Region {
@@ -249,4 +256,27 @@ async fn reference_package() {
     )
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn sales_come_by_day_and_item() {
+    let app = api(50, 50).await;
+    let (status, response) = get(&app, "/v1/eu/houses/114/sales?since=1970-01-01").await;
+    assert_eq!(status, StatusCode::OK);
+    let body: Value = serde_json::from_str(&text(response).await).unwrap();
+    assert_eq!(body["days"][0]["day"], "1970-01-01");
+    assert_eq!(body["days"][0]["items"][0]["item_id"], 768);
+    assert_eq!(body["days"][0]["items"][0]["sold_value"], 450);
+    // The default window is the last 7 days: the 1970 sales are out of it.
+    let (_, response) = get(&app, "/v1/eu/houses/114/sales").await;
+    let body: Value = serde_json::from_str(&text(response).await).unwrap();
+    assert_eq!(body["days"], json!([]));
+    assert_eq!(
+        get(&app, "/v1/eu/houses/114/sales?since=hier").await.0,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        get(&app, "/v1/xx/houses/114/sales").await.0,
+        StatusCode::NOT_FOUND
+    );
 }

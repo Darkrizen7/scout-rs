@@ -1,5 +1,5 @@
-//! Polls every listing of every house and keeps each new content once: raw file, index row and
-//! its prices.
+//! Polls every listing of every house and keeps each new content once: raw file, index row, its
+//! prices and its sales.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -12,6 +12,7 @@ use tokio::sync::Semaphore;
 use crate::aggregate;
 use crate::blizzard::{Client, Fetched, Kind};
 use crate::db::{Db, Last, NewSnapshot};
+use crate::sales;
 use crate::storage::{self, Storage};
 
 /// Below this, raw snapshots are no longer written (their index row still is).
@@ -62,6 +63,9 @@ impl Collector {
         tokio::time::sleep(self.delay).await;
         if let Err(e) = self.price_pending().await {
             eprintln!("prix des anciens instantanés : {e:#}");
+        }
+        if let Err(e) = self.sales_pending().await {
+            eprintln!("ventes des anciens instantanés : {e:#}");
         }
         let mut ticks = tokio::time::interval(self.interval);
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
@@ -194,6 +198,8 @@ impl Collector {
     }
 }
 
+mod catch_up;
+
 /// Keeps `bytes` unless it is the content of `last`, the listing's newest snapshot, again.
 pub async fn store(
     db: &Db,
@@ -215,16 +221,19 @@ pub async fn store(
         .await?
         .map_or(now, |t| now.max(t + 1));
     let relative = storage::relative_path(house, kind, ts);
+    let previous = db.previous_snapshot(house, kind.as_str(), ts).await?;
+    let previous = previous.and_then(|(at, path)| Some((at, storage.path(&path?))));
     let storage = storage.clone();
-    let (raw_bytes, (auctions, rows), written) =
+    let (raw_bytes, (auctions, rows), written, sales) =
         tokio::task::spawn_blocking(move || -> Result<_> {
             let prices = aggregate::aggregate(&bytes)?;
+            let sales = sales::since_previous(previous, ts, &bytes[..])?;
             let written = if storage.free_bytes()? < STOP_RAW_BYTES {
                 None
             } else {
                 Some((storage.write(&relative, &bytes)?, relative))
             };
-            Ok((bytes.len() as u64, prices, written))
+            Ok((bytes.len() as u64, prices, written, sales))
         })
         .await
         .context("compression")??;
@@ -242,6 +251,7 @@ pub async fn store(
             auctions,
         },
         &rows,
+        &sales,
     )
     .await?;
     Ok(if written.is_some() {
@@ -338,6 +348,36 @@ mod tests {
             dir.join(storage::relative_path(114, Kind::Auctions, t + 1800))
                 .exists()
         );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn sales_are_kept_with_the_snapshot_and_caught_up() {
+        let dir = std::env::temp_dir().join(format!("scout-server-sales-{}", std::process::id()));
+        let db = Db::memory().await.unwrap();
+        std::fs::create_dir_all(&dir).unwrap();
+        let storage = Arc::new(Storage::new(&dir, 3));
+        let auction = |id| {
+            format!(
+                r#"{{"id":{id},"item":{{"id":768}},"buyout":100,"quantity":1,"time_left":"LONG"}}"#
+            )
+        };
+        let t = 1_795_600_000;
+        let put = async |dt: i64, body: String| {
+            let last = db.last_snapshot(114, "auctions").await.unwrap();
+            let at = (114, Kind::Auctions, t + dt);
+            let bytes = format!(r#"{{"auctions":[{body}]}}"#).into_bytes();
+            store(&db, &storage, at, last.as_ref(), bytes, None)
+                .await
+                .unwrap();
+        };
+        put(0, format!("{},{}", auction(1), auction(2))).await;
+        put(600, auction(2)).await;
+        // Auction 2 vanishes 3 hours later: too far apart to compare.
+        put(600 + 3 * 3600_i64, auction(3)).await;
+        let sold = "SELECT sold_estimated FROM sales WHERE item_id = 768";
+        assert_eq!(db.count(sold).await, 1);
+        assert_eq!(db.count("SELECT COUNT(*) FROM sales").await, 1);
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
