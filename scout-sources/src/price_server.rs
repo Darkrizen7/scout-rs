@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use scout_core::reference::ReferenceManifest;
+use scout_core::sales::{SalesAnswer, SalesDay};
 use scout_core::scout_api::{AuctionHouse, PriceLine, ServerHouse};
 use scout_gamedata::{Manifest, Package};
 use serde::Deserialize;
@@ -114,6 +115,18 @@ pub fn latest(server: &str, house: &AuctionHouse) -> Result<Vec<PriceLine>> {
         house.id
     );
     read_csv(&url)
+}
+
+/// The daily sales totals of `house` from the UTC day `since` (`YYYY-MM-DD`) on.
+pub fn sales(server: &str, house: &AuctionHouse, since: &str) -> Result<Vec<SalesDay>> {
+    let url = format!(
+        "{}/v1/{}/houses/{}/sales?since={since}",
+        base(server),
+        house.region,
+        house.id
+    );
+    let answer: SalesAnswer = read_json(&url, "ventes du serveur illisibles")?;
+    Ok(answer.days)
 }
 
 /// Every price of one item at `house` after `since` (Unix seconds), oldest first.

@@ -26,6 +26,7 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   l'alpha, lignes de bas en haut), lus par `scout-sources/src/tga.rs` quand la carte s'ouvre. Ce sont des
   images de Blizzard : on les lit dans le dossier AddOns, on ne les copie jamais dans le dépôt. Sans OpenMap,
   zones en rectangles.
+- **Ventes du serveur de prix** : `GET /v1/{région}/houses/{id}/sales?since=AAAA-MM-JJ` (jours UTC, par objet `sold_proven`, `sold_estimated`, `sold_value`), lues par `price_server::sales` à chaque synchro des prix (7 derniers jours), stockées dans `sales` ; règle dans `scout_core::sales` / `pricing::loot_value`. Une erreur (vieux serveur) ne fait pas échouer la synchro.
 - **Données du jeu** : téléchargées **par le serveur de prix** (`scout-server/src/gamedata.rs`, crate partagée
   `scout-gamedata`), une seule fois par version de Forever, puis servies à chaque appli en un paquet versionné
   (`docs/serveur.md` §3.7) ; l'appli ne contacte plus ni wago.tools ni Wowhead. Tables du client Forever (DB2) en CSV,

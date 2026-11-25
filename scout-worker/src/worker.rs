@@ -20,6 +20,7 @@ use std::thread;
 
 use anyhow::{Context, Result};
 use scout_core::analysis;
+use scout_core::sales::Sales;
 use scout_core::scout_api::AuctionHouse;
 use scout_core::update::AddonInstall;
 use scout_db::Db;
@@ -333,7 +334,15 @@ async fn open_db() -> Result<Db> {
 /// The items of the house shown, and the favorites.
 async fn refresh(db: &Db, house: &AuctionHouse, send: &dyn Fn(Event)) -> Result<()> {
     send(Event::Items(db.items(house).await?));
+    send_sales(db, house, send).await?;
     send(Event::Favorites(db.favorites().await?));
     send(Event::ZoneFavorites(db.zone_favorites().await?));
+    Ok(())
+}
+
+/// What the house sells per day, from the sales stored.
+async fn send_sales(db: &Db, house: &AuctionHouse, send: &dyn Fn(Event)) -> Result<()> {
+    let sales = Sales::from_rows(&db.sales_rows(house).await?);
+    send(Event::Sales(Arc::new(sales)));
     Ok(())
 }

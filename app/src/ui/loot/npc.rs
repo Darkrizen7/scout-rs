@@ -109,7 +109,7 @@ fn price_cell(ui: &mut egui::Ui, value: Option<LootValue>) {
     };
     ui.horizontal(|ui| {
         coins::money(ui, value.copper.round() as i64, None);
-        let (Some(auction), Some(why)) = (value.discarded_auction, hint(value.pricing)) else {
+        let (Some(auction), Some(why)) = (value.discarded_auction, hint(&value)) else {
             return;
         };
         ui.weak("(HdV");
@@ -123,11 +123,15 @@ fn price_cell(ui: &mut egui::Ui, value: Option<LootValue>) {
     });
 }
 
-fn hint(pricing: LootPricing) -> Option<&'static str> {
-    match pricing {
-        LootPricing::Isolated => Some("Offre isolée, probablement invendable"),
-        LootPricing::Poor => Some("Objet gris : prix marchand"),
-        LootPricing::NotReagent => Some("Équipement ou divers : prix marchand"),
+fn hint(value: &LootValue) -> Option<String> {
+    match value.pricing {
+        LootPricing::Isolated => Some("Offre isolée, probablement invendable".into()),
+        LootPricing::Poor => Some("Objet gris : prix marchand".into()),
+        LootPricing::NotReagent => Some("Équipement ou divers : prix marchand".into()),
+        LootPricing::NoSales => Some(format!(
+            "Ne se vend pas (~{} / jour) : prix marchand",
+            format!("{:.1}", value.sales_per_day.unwrap_or(0.0)).replace('.', ",")
+        )),
         LootPricing::Auction | LootPricing::Merchant => None,
     }
 }

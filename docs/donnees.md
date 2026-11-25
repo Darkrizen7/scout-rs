@@ -18,6 +18,9 @@
     `scout-api` = notre serveur de prix (API Battle.net) : derniers prix gardés seulement quand ils changent (plus le
     premier de chaque jour), historique complet d'un objet à l'ouverture de sa fiche ; `scout_api_history (item_id,
     region, house, until, checked_at)` dit jusqu'où cet historique est téléchargé (redemandé après 1 h).
+    `sales (region, house, day, item_id, sold_proven, sold_estimated, sold_value)` : totaux de ventes par jour UTC
+    du serveur (`/sales`), les lignes d'un jour remplacées à chaque téléchargement (totaux cumulés), 30 jours gardés
+    au plus (agrégats du serveur, pas des données de l'utilisateur : purgés sans risque).
     Imports **idempotents** (`INSERT OR IGNORE`) : la base garde tout, même ce que Scout oublie après 21 jours.
   - `favorites (item_id)` : partagés par Market et Objets. `zone_favorites (zone)` : zones favorites du Butin.
   - `vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)` : complétée à chaque import Scout

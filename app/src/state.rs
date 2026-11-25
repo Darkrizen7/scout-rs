@@ -9,6 +9,7 @@ use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::{self, GameData};
 use scout_core::map::Mask;
 use scout_core::pricing::{self, Source};
+use scout_core::sales::Sales;
 use scout_core::scout_api::ServerChoice;
 use scout_core::update::{AddonInstall, Release};
 use scout_core::{ItemSummary, Snapshot, VendorData};
@@ -65,6 +66,8 @@ pub struct State {
     pub status: String,
     pub error: Option<String>,
     pub items: Vec<ItemSummary>,
+    /// What the house shown sells per day (unknown until the worker sends it).
+    pub sales: Arc<Sales>,
     /// item id → index in `items`.
     index: HashMap<i64, usize>,
     /// Bumped whenever `items` or `favorites` change, so panels can refresh their caches.
@@ -128,6 +131,7 @@ impl Default for State {
             status: String::new(),
             error: None,
             items: Vec::new(),
+            sales: Arc::default(),
             index: HashMap::new(),
             revision: 0,
             selected: None,

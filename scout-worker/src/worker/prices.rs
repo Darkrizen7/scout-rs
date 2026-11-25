@@ -5,6 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::{Result, bail};
+use scout_core::sales::WINDOW_DAYS;
 use scout_core::scout_api::{self, AuctionHouse, REFRESH_SECS, ServerChoice};
 use scout_db::HistoryCache;
 use scout_sources::price_server;
@@ -150,11 +151,29 @@ pub(super) fn sync_latest(runtime: &Runtime, shared: &Shared, force: bool) -> Re
     if added > 0 {
         runtime.block_on(refresh(db, &house, send))?;
     }
+    // A failure (old server without the route…) must not fail the prices that were just kept.
+    let sales = match sync_sales(runtime, shared, &house) {
+        Ok(()) => String::new(),
+        Err(e) => format!(" (ventes non lues : {e:#})"),
+    };
     send(Event::Status(format!(
-        "Scout API : {} prix lus, {added} changements enregistrés",
+        "Scout API : {} prix lus, {added} changements enregistrés{sales}",
         latest.len()
     )));
     Ok(())
+}
+
+/// Downloads the last days of sales, stores them, and tells the UI.
+fn sync_sales(runtime: &Runtime, shared: &Shared, house: &AuctionHouse) -> Result<()> {
+    let url = shared.config().price_server.url.clone();
+    let since = (chrono::Utc::now() - chrono::Duration::days(WINDOW_DAYS))
+        .format("%Y-%m-%d")
+        .to_string();
+    let days = price_server::sales(&url, house, &since)?;
+    runtime.block_on(async {
+        shared.db.replace_sales(house, &days).await?;
+        super::send_sales(&shared.db, house, &*shared.send).await
+    })
 }
 
 /// Completes one item's history from the server, unless it was asked less than an hour ago,
