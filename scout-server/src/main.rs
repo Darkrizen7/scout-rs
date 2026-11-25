@@ -6,7 +6,8 @@
 //! each region has its own database and raw folder, `data/` for eu, `data/<region>/` for the others),
 //! `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600),
 //! `SCOUT_ZSTD_LEVEL` (15), `SCOUT_GAMEDATA_SECS` (21600: how often to look for a new Forever build),
-//! `SCOUT_STAGGER_SECS` (5: delay between the first fetches of two regions).
+//! `SCOUT_STAGGER_SECS` (5: delay between the first fetches of two regions),
+//! `SCOUT_TRUSTED_IPS` (addresses never rate limited, comma separated; none by default).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -99,6 +100,7 @@ async fn main() -> Result<()> {
         gamedata,
         by_minute: Limiter::new(PER_MINUTE, PER_MINUTE * 60),
         by_hour: Limiter::new(PER_HOUR, PER_HOUR),
+        trusted: trusted_ips(&env_or("SCOUT_TRUSTED_IPS", "")),
     }));
     let listen = env_or("SCOUT_LISTEN", "0.0.0.0:3000");
     let listener = tokio::net::TcpListener::bind(&listen)
@@ -124,6 +126,15 @@ async fn shutdown() {
         _ = tokio::signal::ctrl_c() => {}
         _ = term.recv() => {}
     }
+}
+
+/// `a, b,c` → the addresses, without blanks.
+fn trusted_ips(list: &str) -> Vec<String> {
+    list.split(',')
+        .map(str::trim)
+        .filter(|ip| !ip.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 fn env_or(key: &str, default: &str) -> String {

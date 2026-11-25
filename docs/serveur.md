@@ -57,7 +57,8 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
 - Réglages par variables d'environnement : `BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `BLIZZARD_REGION` (eu),
   `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600), `SCOUT_ZSTD_LEVEL` (15),
   `SCOUT_GAMEDATA_SECS` (21600 : vérification d'une nouvelle version de Forever, §3.7),
-  `SCOUT_STAGGER_SECS` (5 : décalage entre les premiers relevés de deux régions).
+  `SCOUT_STAGGER_SECS` (5 : décalage entre les premiers relevés de deux régions),
+  `SCOUT_TRUSTED_IPS` (adresses jamais limitées, séparées par des virgules : celle de l'administrateur pour ses tests).
 - Mémoire : un seul travail lourd (téléchargement + agrégation + compression) à la fois, toutes régions
   confondues (sémaphore à 1 permis, `Collector::heavy`), après des OOM à 256 Mo. Mesure du pic :
   `SCOUT_PEAK_FILE=<relevé.json.zst> cargo test -p scout-server --release peak -- --ignored --nocapture`
@@ -131,7 +132,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
   `X-Scout-Key` : le serveur l'ignore, sans erreur.
 - **Limite de débit** (`api/access.rs`) : seaux à jetons en mémoire, par adresse IP, deux fenêtres : **10 requêtes
   par minute** (rafale de 10, recharge 10 / min) et **100 par heure** ; 429 au-delà. `/health`, `/privacy` et
-  `/thanks` ne sont pas limités. Une première synchronisation fait une dizaine de requêtes (régions, hôtels,
+  `/thanks` ne sont pas limités, ni les adresses de `SCOUT_TRUSTED_IPS`. Une première synchronisation fait une dizaine de requêtes (régions, hôtels,
   paquet du jeu : 2, `latest` : 1), puis une requête d'historique par objet ouvert (au plus une par heure et par
   objet). IP = dernière entrée de `X-Forwarded-For` (celle qu'ajoute Traefik).
 - Le service ne journalise pas les requêtes et n'écrit aucune IP ; **Traefik, lui, a ses journaux d'accès
