@@ -163,6 +163,13 @@ impl Db {
         .await?)
     }
 
+    /// Every item ever seen in the price listings.
+    pub async fn priced_items(&self) -> Result<Vec<i64>> {
+        Ok(sqlx::query_scalar("SELECT DISTINCT item_id FROM prices")
+            .fetch_all(&self.pool)
+            .await?)
+    }
+
     /// Items on sale in the version of `house`'s `kind` listing just before `ts`.
     pub async fn listed_before(&self, house: u32, kind: &str, ts: i64) -> Result<Vec<u32>> {
         Ok(sqlx::query_scalar(
@@ -261,6 +268,18 @@ mod tests {
         let second = db.latest(114).await.unwrap();
         assert!(!Arc::ptr_eq(&first, &second));
         assert_eq!(second.iter().map(|r| r.ts).collect::<Vec<_>>(), [300, 300]);
+    }
+
+    #[tokio::test]
+    async fn priced_items_lists_each_item_once() {
+        let db = Db::memory().await.unwrap();
+        let mut tx = db.pool.begin().await.unwrap();
+        insert(&mut tx, 114, 100, &[row(5), row(2)]).await.unwrap();
+        insert(&mut tx, 114, 200, &[row(5)]).await.unwrap();
+        tx.commit().await.unwrap();
+        let mut ids = db.priced_items().await.unwrap();
+        ids.sort_unstable();
+        assert_eq!(ids, [2, 5]);
     }
 
     #[tokio::test]

@@ -2895,6 +2895,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "axum",
+ "flate2",
  "rustix 1.1.6",
  "scout-core",
  "scout-gamedata",

@@ -22,7 +22,7 @@ use crate::gamedata::GameStore;
 use crate::storage::Storage;
 
 mod access;
-mod reference;
+pub(crate) mod reference;
 
 pub use access::Limiter;
 
