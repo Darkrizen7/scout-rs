@@ -53,6 +53,9 @@ impl Form {
                     ui.label("Région");
                     region_choice(ui, state, worker);
                     ui.end_row();
+                    ui.label("Mode de jeu");
+                    mode_choice(ui, state, worker);
+                    ui.end_row();
                     ui.label("Hôtel des ventes");
                     widgets::house_picker(ui, state, worker, 300.0);
                     ui.end_row();
@@ -132,5 +135,45 @@ fn region_choice(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
         .on_hover_text(
             "Régions Battle.net où le serveur a trouvé des hôtels des ventes WoW Forever. \
              En changer demande de choisir à nouveau l'hôtel des ventes.",
+        );
+}
+
+/// The game mode (realm type) of the chosen house; choosing another switches to a house of it.
+fn mode_choice(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
+    let Some(config) = &state.config else {
+        return;
+    };
+    let server = &config.price_server;
+    let choice = match &state.server_houses {
+        Some(Ok(choice)) if choice.region == server.region => Some(choice),
+        _ => None,
+    };
+    let modes = choice.map(|c| c.modes()).unwrap_or_default();
+    let current = server.house.and_then(scout_core::scout_api::realm_type);
+    egui::ComboBox::from_id_salt("server_mode")
+        .selected_text(current.unwrap_or("à choisir"))
+        .width(80.0)
+        .show_ui(ui, |ui| {
+            if modes.is_empty() {
+                ui.weak("Liste des HdV pas encore reçue");
+            }
+            for mode in modes {
+                if ui.selectable_label(current == Some(mode), mode).clicked()
+                    && current != Some(mode)
+                    && let Some(house) = choice.and_then(|c| c.house_for_mode(server.house, mode))
+                {
+                    worker.send(Command::SetPriceServer {
+                        url: server.url.clone(),
+                        key: server.key.clone(),
+                        region: server.region.clone(),
+                        house: Some(house),
+                    });
+                }
+            }
+        })
+        .response
+        .on_hover_text(
+            "Type de royaume (Normal, PvP, RP, RP-PvP) : les royaumes d'un même type partagent \
+             leurs hôtels des ventes. Changer de mode garde le même côté si possible.",
         );
 }

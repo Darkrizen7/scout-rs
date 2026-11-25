@@ -150,7 +150,9 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
   le cache a plus d'1 h ; gardé en entier (une ligne par version). Cache : table `scout_api_history`.
 - Fusion des graphiques (`merge`) : un jour avec un scan Scout, Scout jusqu’à son dernier scan puis les relevés Scout API qui suivent (point du jour = le plus récent, Scout à égalité) ; sinon Scout API seul.
 - Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), clé, région (parmi
-  `/v1/regions`), hôtel des ventes ; le même sélecteur d'HdV est dans l'en-tête (`ui/widgets/house.rs`).
+  `/v1/regions`), mode de jeu (type de royaume de l'HdV choisi, `ServerChoice::modes` / `house_for_mode` : pas de réglage
+  propre, changer de mode change d'HdV), hôtel des ventes ; le même sélecteur d'HdV est dans l'en-tête
+  (`ui/widgets/house.rs`) et ne propose que les HdV du mode courant (`ServerChoice::houses_to_offer`).
   `[price_server]` dans `config.toml`. Noms : « EU Normal · Horde (114) » (`ServerHouse::label`, `scout_api::realm_type`).
 - Crédits (`ui/credits.rs`) : API Battle.net de Blizzard Entertainment, non approuvé ni affilié.
 - Chaque ligne de `snapshots` a sa région et son HdV : changer d'HdV ne mêle rien, chaque HdV garde son cache.

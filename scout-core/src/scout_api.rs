@@ -8,6 +8,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+mod modes;
+
 use crate::Row;
 use crate::merge::SCOUT_API;
 use crate::time::local_day;
