@@ -68,7 +68,8 @@ Pas de parallèle : beaucoup de tickets touchent les mêmes fichiers (réglages)
   `--since` = fin du premier relevé.
 - Fusion par Claude (voir `CLAUDE.md`, « Commits ») : `gh pr view` pour vérifier qu'elle n'est pas déjà fusionnée,
   `git switch master && git pull`, `git merge --no-ff origin/<branche>` daté hors plage (`GIT_AUTHOR_DATE`,
-  `GIT_COMMITTER_DATE`, message `Fusion de la PR #N : <titre>`), clippy et tests, `git push origin master`.
+  `GIT_COMMITTER_DATE`, message `Fusion de la PR #N : <titre>`), clippy et tests, `git push origin master`,
+  puis suppression de la branche (`git push origin --delete <branche>`, `git branch -d <branche>`).
 - Ticket sans UI : « Done ». Ticket qui change l'interface : « In Review », assigné à l'utilisateur, qui teste et
   passe en « Done » (ses dépendants attendent).
 - Repartir de `master` à jour avant le ticket suivant.

@@ -116,7 +116,8 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
   pousse, ouvre la PR et la fusionne lui-même : fusion par Claude : `git merge --no-ff` de la branche dans `master` en local (commit de fusion daté hors
   plage, `GIT_AUTHOR_DATE` et `GIT_COMMITTER_DATE`), clippy et tests sur le résultat, puis `git push origin master` (le seul
   push sur `master` ; vérifier avant, avec `gh pr view`, qu'elle n'est pas déjà fusionnée). Une fusion par GitHub
-  daterait le commit de maintenant. Jamais de `--force`, jamais de commit direct sur `master`.
+  daterait le commit de maintenant. Après le push, supprimer la branche du ticket
+  (`git push origin --delete <branche>`, `git branch -d <branche>`). Jamais de `--force`, jamais de commit direct sur `master`.
   Dates des commits : jamais en semaine 9h–12h ni 14h–18h (heure de Paris) ; sinon `--date` et
   `GIT_COMMITTER_DATE` juste après la plage.
 - Quand un changement modifie ce que décrit `docs/`, mettre à jour le fichier concerné.
