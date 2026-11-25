@@ -6,9 +6,10 @@ use std::path::Path;
 
 use anyhow::{Context, Result, ensure};
 use scout_core::GAME_FORMAT;
+use sqlx::sqlite::SqliteConnectOptions;
 use sqlx::{Connection, SqliteConnection};
 
-use super::Db;
+use super::{Db, drops, vendor};
 
 /// Game tables, replaced as a whole (with `game_meta`: build, date, format).
 const COPY_GAME: &str = "
@@ -64,6 +65,20 @@ INSERT OR IGNORE INTO main.vendor_prices (item_id, source, npc_id, price, npc, z
     SELECT item_id, source, npc_id, price, npc, zone, x, y, limited FROM seed.vendor_prices;
 ";
 
+/// The package served to every app: loot and merchants only, same schema as in the local database.
+const COPY_LOOT_VENDORS: &str = "
+INSERT INTO main.drop_sources (item_id, kind, source_id, chance, quest_only, more)
+    SELECT item_id, kind, source_id, chance, quest_only, more FROM seed.drop_sources;
+INSERT INTO main.drop_npcs (npc_id, name, min_level, max_level, rank, zone, x, y, dungeon, ui_map)
+    SELECT npc_id, name, min_level, max_level, rank, zone, x, y, dungeon, ui_map FROM seed.drop_npcs;
+INSERT INTO main.drop_names (kind, id, name) SELECT kind, id, name FROM seed.drop_names;
+INSERT INTO main.drop_meta (key, value) SELECT key, value FROM seed.drop_meta;
+INSERT INTO main.vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)
+    SELECT item_id, source, npc_id, price, npc, zone, x, y, limited FROM seed.vendor_prices;
+INSERT OR IGNORE INTO main.drop_meta (key, value)
+    SELECT 'updated', CAST(unixepoch() AS TEXT) WHERE EXISTS (SELECT 1 FROM main.drop_sources);
+";
+
 const LOCAL_GAME: &str = "SELECT key, value FROM main.game_meta WHERE key IN ('updated', 'format')";
 const SEED_GAME: &str = "SELECT key, value FROM seed.game_meta WHERE key IN ('updated', 'format')";
 const LOCAL_DROPS: &str = "SELECT key, value FROM main.drop_meta WHERE key = 'updated'";
@@ -97,11 +112,11 @@ async fn stamp(conn: &mut SqliteConnection, sql: &'static str) -> Result<Stamp> 
 }
 
 /// Runs `job` with the database at `path` attached as `seed`, detached afterwards even on failure.
-async fn with_seed(
+async fn with_seed<T>(
     conn: &mut SqliteConnection,
     path: &Path,
-    job: impl AsyncFnOnce(&mut SqliteConnection) -> Result<ReferenceUpdate>,
-) -> Result<ReferenceUpdate> {
+    job: impl AsyncFnOnce(&mut SqliteConnection) -> Result<T>,
+) -> Result<T> {
     let path = path.to_str().context("chemin de la base de référence")?;
     sqlx::query("ATTACH DATABASE ? AS seed")
         .bind(path)
@@ -192,6 +207,38 @@ impl Db {
         }
         .await;
         db.pool.close().await;
+        result
+    }
+
+    /// Makes a new database at `dest` with only the loot (`drop_*`) and the merchants of the database at
+    /// `source`, which is only read: the package the server serves. No price, favorite or recorded loot.
+    pub async fn export_loot_vendors(source: &Path, dest: &Path) -> Result<()> {
+        ensure!(!dest.exists(), "{} existe déjà", dest.display());
+        let options = SqliteConnectOptions::new()
+            .filename(dest)
+            .create_if_missing(true);
+        let mut conn = SqliteConnection::connect_with(&options).await?;
+        let result = async {
+            sqlx::raw_sql(drops::REFERENCE_SCHEMA)
+                .execute(&mut conn)
+                .await?;
+            sqlx::raw_sql(vendor::SCHEMA).execute(&mut conn).await?;
+            with_seed(&mut conn, source, async |conn| {
+                let mut tx = conn.begin().await?;
+                sqlx::raw_sql(COPY_LOOT_VENDORS).execute(&mut *tx).await?;
+                tx.commit().await?;
+                Ok(())
+            })
+            .await?;
+            let (loot,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM drop_sources")
+                .fetch_one(&mut conn)
+                .await?;
+            ensure!(loot > 0, "pas de butin dans {}", source.display());
+            sqlx::raw_sql("VACUUM").execute(&mut conn).await?;
+            Ok(())
+        }
+        .await;
+        conn.close().await?;
         result
     }
 

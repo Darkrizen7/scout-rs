@@ -8,7 +8,8 @@ use anyhow::Result;
 use super::Db;
 use scout_core::drops::{BaseRow, ItemDrops, ObservedLoot, ObservedRow};
 
-pub(super) const SCHEMA: &str = "
+/// The reference loot tables (also the schema of the package the server serves, see `reference`).
+pub(super) const REFERENCE_SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS drop_sources (
     item_id    INTEGER NOT NULL,
     kind       TEXT    NOT NULL,  -- npc, skinning, pickpocket, object, container, quest, quest_choice
@@ -40,6 +41,11 @@ CREATE TABLE IF NOT EXISTS drop_meta (
     key   TEXT PRIMARY KEY,  -- fingerprint: version of the reference loot (frozen); updated: Unix seconds
     value TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS drop_sources_source ON drop_sources (source_id);
+";
+
+/// What Scout recorded in game (personal: never in a reference package).
+pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS loot_npcs (
     npc_id INTEGER PRIMARY KEY,
     name   TEXT,
@@ -56,7 +62,6 @@ CREATE TABLE IF NOT EXISTS loot_observed (
     PRIMARY KEY (npc_id, kind, item_id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS loot_observed_item ON loot_observed (item_id);
-CREATE INDEX IF NOT EXISTS drop_sources_source ON drop_sources (source_id);
 ";
 
 const BASE_QUERY: &str = "

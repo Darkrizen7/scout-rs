@@ -74,6 +74,9 @@ impl Db {
             .await?;
         sqlx::raw_sql(SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(game::SCHEMA).execute(&pool).await?;
+        sqlx::raw_sql(drops::REFERENCE_SCHEMA)
+            .execute(&pool)
+            .await?;
         sqlx::raw_sql(drops::SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(game::maps::SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(game::wowhead::SCHEMA).execute(&pool).await?;
