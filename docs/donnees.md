@@ -3,7 +3,7 @@
 - Base `~/.local/share/scout-rs/prix.db`, réglages `~/.config/scout-rs/config.toml` (`wow_dir` = dossier
   `_forever_`, détecté dans les préfixes Wine usuels ; `theme` = `light` / `dark` ; `hide_obsolete`,
   vrai par défaut : masque les objets inutilisables : « Deprecated / Unused / [INUTILISÉ] / périmé / [PH] / OLD /
-  Monster - / DNT », `gamedata::is_obsolete` ;
+  Monster - / DNT » et les objets de test (mot entier « Test » / « Testing »), `gamedata::is_obsolete` ;
   `last_import` = date du dernier import Scout réussi ; `[price_server]` : `url` du serveur de prix (défaut
   `scout_api::DEFAULT_SERVER`), `region` (eu, us, kr, tw) et `house` = hôtel des ventes affiché partout, `last_sync` = date
   des derniers prix téléchargés). Chemins via `directories`.
