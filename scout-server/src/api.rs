@@ -22,6 +22,7 @@ use crate::gamedata::GameStore;
 use crate::storage::Storage;
 
 mod access;
+mod reference;
 
 pub use access::Limiter;
 
@@ -52,6 +53,8 @@ pub fn router(api: Arc<Api>) -> Router {
         .route("/regions", get(regions))
         .route("/gamedata/latest", get(gamedata_latest))
         .route("/gamedata/{format}/{updated}", get(gamedata_package))
+        .route("/reference/latest", get(reference::latest))
+        .route("/reference/{format}/{updated}", get(reference::package))
         .route("/{region}/houses", get(houses))
         .route("/{region}/houses/{id}/prices", get(prices))
         .route("/{region}/houses/{id}/latest", get(latest))

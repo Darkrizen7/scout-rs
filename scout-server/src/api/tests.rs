@@ -221,3 +221,27 @@ async fn game_data_package() {
     let (status, _) = get(&app, &format!("/v1/gamedata/{format}/999")).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn reference_package() {
+    let app = api(10, 10).await;
+    let format = scout_core::reference::REFERENCE_FORMAT;
+    let (status, response) = get(&app, &format!("/v1/reference/latest?format={format}")).await;
+    assert_eq!(status, StatusCode::OK);
+    let manifest: scout_core::reference::ReferenceManifest =
+        serde_json::from_str(&text(response).await).unwrap();
+    let (status, _) = get(&app, &format!("/v1/reference/latest?format={}", format + 1)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let uri = format!("/v1/reference/{format}/{}", manifest.updated);
+    let (status, response) = get(&app, &uri).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(response.headers()["content-type"], "application/gzip");
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(bytes.len() as u64, manifest.bytes);
+    let (status, _) = get(
+        &app,
+        &format!("/v1/reference/{format}/{}", manifest.updated - 1),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

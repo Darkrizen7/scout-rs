@@ -2940,6 +2940,7 @@ dependencies = [
  "scout-sources",
  "self-replace",
  "serde",
+ "serde_json",
  "tokio",
  "toml",
 ]

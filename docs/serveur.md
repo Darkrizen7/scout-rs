@@ -118,6 +118,8 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 | GET | `/v1/{region}/houses/{id}/prices?since=<unix>` | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
 | GET | `/v1/gamedata/latest?format=<GAME_FORMAT>` | JSON `Manifest` : `format`, `build`, `updated` (= version), `complete`, `bytes` ; 404 si aucun paquet de ce format |
 | GET | `/v1/gamedata/{format}/{updated}` | le paquet (`application/gzip`, pas recompressé) ; 404 s'il n'est plus le dernier |
+| GET | `/v1/reference/latest?format=<REFERENCE_FORMAT>` | JSON `ReferenceManifest` : `format`, `updated` (= version), `bytes` ; 404 si le format diffère |
+| GET | `/v1/reference/{format}/{updated}` | le paquet butin + marchands (`application/gzip`) ; 404 si ce n'est pas la version servie |
 
 - **Pages** (`api.rs`, `db/prices.rs`) : ~200 000 lignes au plus (environ un jour d'une grosse maison), toujours
   des instantanés entiers. En-têtes `X-Scout-Until` (le `since` de la page suivante) et `X-Scout-More: 1` s'il
@@ -169,6 +171,16 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
   démarrage demandent `/v1/gamedata/latest` pour le `GAME_FORMAT` de l'appli ; le paquet est téléchargé s'il diffère
   (autre build, autre format) ou est plus récent (`Manifest::newer_than` contre `game_meta`), puis remplace les
   `game_*`. Sans clé : la base de référence intégrée seulement.
+
+### 3.6 bis Paquet de référence (butin et marchands)
+- SQLite gzippé avec seulement `drop_sources`, `drop_npcs`, `drop_names`, `drop_meta` et `vendor_prices` (même schéma
+  que `prix.db` ; rien de personnel). Le paquet et son manifeste (`scout-server/data/reference.db.gz`, `reference.json`)
+  sont commités et inclus dans le binaire (`include_bytes!`, `api/reference.rs`) : le serveur ne les ouvre pas.
+- Nouvelle version : `cargo run -p scout-worker --example server_reference [base]` (par défaut `prix.db`, lue
+  seulement ; préférer une copie), commiter les deux fichiers, redéployer le serveur. Changer les colonnes de ces
+  tables : augmenter `REFERENCE_FORMAT` (`scout-core/src/reference.rs`).
+- Licence : GPL-3.0-or-later, comme la base intégrée à l'appli (butin dérivé de Forever Guide, cmangos, QuestieDB).
+- Le téléchargement côté appli : ticket APP-14.
 
 ### 3.7 Données du jeu (`gamedata.rs`, crate `scout-gamedata`)
 

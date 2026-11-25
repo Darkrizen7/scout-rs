@@ -16,6 +16,7 @@ scout-sources = { path = "../scout-sources" }
 self-replace = "1.5.1"
 serde = { version = "1.0.229", features = ["derive"] }
 tokio = { version = "1.54.1", features = ["rt-multi-thread"] }
+serde_json = "1.0.154"
 toml = "1.2.2"
 
 [dev-dependencies]
