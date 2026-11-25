@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(~/.local/share/scout-rs/**)",
+      "Write(~/.local/share/scout-rs/**)",
+      "Edit(~/.config/scout-rs/**)",
+      "Write(~/.config/scout-rs/**)"
+    ]
+  }
+}

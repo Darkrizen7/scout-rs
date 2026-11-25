@@ -19,7 +19,30 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - Si Claude se trompe, il le dit franchement. Rien de bannissable : l'outil ne touche jamais au jeu (il lit des
   fichiers sur disque et télécharge des données publiques) ; voir aussi le `CLAUDE.md` de Scout.
 - Économie de tokens : lire seulement les fichiers / passages utiles (`grep -n` puis lecture ciblée), garder
-  la sortie des commandes courte (voir ci-dessous), ne pas lancer de sous-agents sans demande.
+  la sortie des commandes courte (voir ci-dessous), ne pas lancer de sous-agents sans demande
+  (sauf via `/roadmap`, voir « Tickets (Plane) »).
+
+## Tickets (Plane)
+- Source de vérité des tâches : **Plane** (http://localhost:8080, workspace `wow-scout`, via le MCP `plane`),
+  projets `APP` (crate `app`), `SERVER` (`scout-server`), `ADDON` (dépôt `../scout-addon`). `TODO.md` n'est plus tenu.
+- États : Backlog → Todo → In Progress → In Review → Done (ou Cancelled). « Done » est posé par l'utilisateur
+  après son test, jamais par Claude.
+- Choix du travail : le ticket « Todo » de plus haute priorité dont tous les « blocked by » sont « Done ».
+  Jamais un ticket déjà « In Progress » ou assigné à quelqu'un d'autre.
+- Avant de coder : passer le ticket en « In Progress », l'assigner à l'utilisateur, lire description,
+  commentaires et relations.
+- Une branche par ticket depuis `master`, nommée avec l'identifiant (`APP-42-description-courte`), et
+  l'identifiant en tête du sujet des commits (`APP-42 : …`). Un ticket à la fois (pas de parallèle).
+- À la fin, sans attendre de demande : commit(s) sur la branche du ticket, `git push -u origin <branche>`,
+  PR vers `master` (`gh pr create`, titre `APP-42 : …`), puis commentaire de synthèse sur le ticket (fait,
+  comment tester, limites, lien de la PR) et passage en « In Review ». La fusion reste à l'utilisateur.
+- Travail découvert en route : nouveau ticket (avec relation si pertinent), pas d'élargissement du périmètre.
+- Blocage ou ambiguïté : commenter le ticket avec la question précise et passer au ticket suivant.
+- `/roadmap` (`.claude/skills/roadmap/`) : tri des tickets, délégation du code à l'agent `dev`
+  (`.claude/agents/dev.md`, Haiku ou Sonnet), relecture du diff par Claude. Seuls Claude et l'utilisateur
+  touchent à Plane, jamais le sous-agent.
+- MCP : `plane-mcp-server` 0.3.7 installé par `uv tool` et **patché** pour la CE (relations via `/relations`,
+  pas `/dependencies`) ; ne pas le mettre à jour (`uv tool upgrade`) sans refaire le patch.
 
 ## Commandes (sortie silencieuse : n'afficher que les erreurs)
 - Vérifier : `cargo clippy -q --workspace --all-targets --message-format short` : **zéro avertissement** avant
@@ -82,8 +105,12 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 - OpenMap : images de Blizzard, lues dans le dossier AddOns, jamais copiées dans le dépôt.
 
 ## Commits
-- Sujet en français, phrase courte avec majuscule, corps qui explique le pourquoi. Branche `master`.
-  Commit et push **seulement à la demande**.
+- Sujet en français, phrase courte avec majuscule, corps qui explique le pourquoi. Branche `master`,
+  ou la branche du ticket Plane (voir « Tickets (Plane) »).
+  Hors tickets Plane, commit et push **seulement à la demande** ; sur une branche de ticket, Claude commite,
+  pousse et ouvre la PR lui-même. Jamais de push sur `master`, jamais de fusion ni de `--force`.
+  Dates des commits : jamais en semaine 9h–12h ni 14h–18h (heure de Paris) ; sinon `--date` et
+  `GIT_COMMITTER_DATE` juste après la plage.
 - Quand un changement modifie ce que décrit `docs/`, mettre à jour le fichier concerné.
 
 ## Versions et releases
