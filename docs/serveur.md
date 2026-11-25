@@ -105,6 +105,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 |---|---|---|---|
 | GET | `/health` | non | JSON : par région `last_success` / `seconds_since`, puis `free_gb`, `low_disk`, `raw_stopped` |
 | GET | `/privacy` | non | politique de confidentialité (HTML, `api/privacy.html`) + mention Blizzard |
+| GET | `/thanks` | non | remerciements : sources des données (HTML généré une fois depuis `scout_core::credits`, `api/thanks.rs`) |
 | GET | `/v1/regions` | oui | JSON : les régions où Forever a des hôtels des ventes |
 | GET | `/v1/{region}/houses` | oui | JSON : `id`, `name`, `last_update` (dernier `ts` de prix), `last_check` |
 | GET | `/v1/{region}/houses/{id}/latest` | oui | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir |
