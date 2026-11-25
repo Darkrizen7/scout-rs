@@ -87,6 +87,9 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 ## Versions et releases
 - Une version = un tag `vX.Y.Z` posé **par l'utilisateur** (jamais de tag sans demande). Le push du tag lance
   `.github/workflows/release.yml` : tests, compilation, Release GitHub avec les binaires Linux et Windows et leurs `.sha256`.
+- Avant chaque version, **demander à l'utilisateur** s'il faut régénérer la base de référence
+  (`cargo run -p scout-worker --example reference`, après un import Scout récent avec Forever Guide à jour et les
+  données du jeu à jour) et la commiter avec le reste : c'est elle qui donne aux autres ses nouveaux marchands et le butin.
 - Avant le tag : augmenter `version` dans `[workspace.package]` du `Cargo.toml` racine (commit à part,
   `Cargo.lock` compris). Le tag doit être identique à cette version (`v` + version), sinon l'Action échoue :
   la mise à jour automatique (`worker/update`, bouton « Mettre à jour » en haut) compare `CARGO_PKG_VERSION` à
