@@ -1,40 +1,33 @@
 //! scout-server: polls WoW: Forever's auction houses on Battle.net and keeps every snapshot
-//! (docs/serveur.md): the collector, the prices of every new snapshot and `/health`; their API
-//! comes next.
+//! (docs/serveur.md): the collector, the prices of every new snapshot, and the API that serves them.
 //!
 //! Settings (environment): `BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET` (required),
-//! `BLIZZARD_REGION` (eu), `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000),
-//! `SCOUT_INTERVAL_SECS` (600), `SCOUT_ZSTD_LEVEL` (15).
+//! `SCOUT_KEYS` (access keys, `name=key,…`; none = `/v1` refuses everyone), `BLIZZARD_REGION` (eu),
+//! `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600),
+//! `SCOUT_ZSTD_LEVEL` (15).
 
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use axum::extract::State;
-use axum::routing::get;
-use axum::{Json, Router};
-use serde_json::{Value, json};
-
 mod aggregate;
+mod api;
 mod blizzard;
 mod collector;
 mod db;
 mod storage;
 
+use api::{Api, Keys, Limiter};
 use blizzard::{Client, Credentials};
 use collector::Collector;
 use db::Db;
 use storage::Storage;
 
-/// `/health` warns below this much free space.
-const WARN_FREE_BYTES: u64 = 10_000_000_000;
-
-#[derive(Clone)]
-struct AppState {
-    db: Db,
-    storage: Arc<Storage>,
-}
+/// Requests per hour for one key (and at once): a first sync pages through the whole history.
+const KEY_RATE: u32 = 600;
+/// Requests per hour from one address without a valid key.
+const GUESS_RATE: u32 = 20;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -64,9 +57,17 @@ async fn main() -> Result<()> {
         .run(),
     );
 
-    let app = Router::new()
-        .route("/health", get(health))
-        .with_state(AppState { db, storage });
+    let keys = Keys::parse(&env_or("SCOUT_KEYS", ""));
+    if keys.len() == 0 {
+        eprintln!("aucune clé d'accès (SCOUT_KEYS) : /v1 refuse toutes les requêtes");
+    }
+    let app = api::router(Arc::new(Api {
+        db,
+        storage,
+        keys,
+        by_key: Limiter::new(KEY_RATE, KEY_RATE),
+        by_ip: Limiter::new(GUESS_RATE, GUESS_RATE),
+    }));
     let listen = env_or("SCOUT_LISTEN", "0.0.0.0:3000");
     let listener = tokio::net::TcpListener::bind(&listen)
         .await
@@ -80,19 +81,6 @@ async fn main() -> Result<()> {
         .with_graceful_shutdown(shutdown())
         .await?;
     Ok(())
-}
-
-/// Answers as long as the process runs (the homelab checks 2xx); the body says how the collector is doing.
-async fn health(State(state): State<AppState>) -> Json<Value> {
-    let last = state.db.last_success().await.ok().flatten();
-    let free = state.storage.free_bytes().ok();
-    Json(json!({
-        "last_success": last,
-        "seconds_since": last.map(|t| collector::unix_now() - t),
-        "free_gb": free.map(|b| b / 1_000_000_000),
-        "low_disk": free.is_some_and(|b| b < WARN_FREE_BYTES),
-        "raw_stopped": free.is_some_and(|b| b < collector::STOP_RAW_BYTES),
-    }))
 }
 
 /// Ctrl-C or SIGTERM (`docker stop`). A raw file is renamed into place only once complete,

@@ -94,18 +94,27 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
 Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "scout"` du module ; ni « wow » ni
 « blizzard » dans l'URL, CGU §2(m)).
 
-| Méthode | Chemin | Réponse |
-|---|---|---|
-| GET | `/health` | `ok` + date du dernier relevé |
-| GET | `/v1/houses` | maisons, faction, groupe, dernier relevé |
-| GET | `/v1/houses/{id}/prices?since=<unix>` | CSV gzip `item_id,ts,min_unit,median_unit,quantity,auctions`, au plus ~7 jours par réponse (l'appli boucle) |
-| GET | `/privacy` | politique de confidentialité + mention Blizzard |
+| Méthode | Chemin | Clé | Réponse |
+|---|---|---|---|
+| GET | `/health` | non | JSON : `last_success`, `seconds_since`, `free_gb`, `low_disk`, `raw_stopped` |
+| GET | `/privacy` | non | politique de confidentialité (HTML, `api/privacy.html`) + mention Blizzard |
+| GET | `/v1/houses` | oui | JSON : `id`, `name`, `last_update` (dernier `ts` de prix), `last_check` |
+| GET | `/v1/houses/{id}/prices?since=<unix>` | oui | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
 
+- **Pages** (`api.rs`, `db/prices.rs`) : ~200 000 lignes au plus (environ un jour d'une grosse maison), toujours
+  des instantanés entiers. En-têtes `X-Scout-Until` (le `since` de la page suivante) et `X-Scout-More: 1` s'il
+  en reste : l'appli boucle jusqu'à `X-Scout-More: 0`.
+- Réponses compressées en gzip si le client le demande (`tower-http`, ureq le fait de lui-même). Mesuré sur une
+  version de la 114 : 6 847 lignes, 270 Ko de CSV, **66 Ko en gzip**, 14 ms.
 - Pas d'accès aux bruts par l'API (gros, et inutiles à l'appli).
-- **Clé d'accès** : en-tête `X-Scout-Key`, liste de clés dans un réglage secret du module (une par personne,
-  révocable). Pas de comptes.
-- **Limite de débit** : seau à jetons en mémoire par clé (et par IP pour les requêtes sans clé valide),
-  ex. 60 requêtes / h ; 429 au-delà. Les IP ne sont jamais écrites sur disque (à dire dans `/privacy`).
+- **Clé d'accès** (`api/access.rs`) : en-tête `X-Scout-Key`, réglage secret `SCOUT_KEYS` du module
+  (`nom=clé,…`, une par personne, révocable, ≥ 16 caractères, comparaison en temps constant). Aucune clé =
+  `/v1` refuse tout. Pas de comptes.
+- **Limite de débit** : seaux à jetons en mémoire, **600 requêtes / h par clé** (un premier téléchargement
+  parcourt tout l'historique) et **20 / h par adresse IP pour les requêtes sans clé valide** (contre qui devine
+  des clés) ; 429 au-delà. IP = dernière entrée de `X-Forwarded-For` (celle qu'ajoute Traefik).
+- Le service ne journalise pas les requêtes et n'écrit aucune IP ; **Traefik, lui, a ses journaux d'accès
+  activés** (`--accesslog=true` dans `homelab-core`) : `/privacy` le dit.
 
 ### 3.5 Module homelab (`~/dev/vps/modules/scout/`)
 
@@ -129,7 +138,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 
 1. **Collecteur seul** (bruts + index + `fetch_log`), déployé le 2026-11-25 ; une semaine d'observation : cadence réelle de
    Blizzard, volume disque, erreurs.
-2. Agrégation (**faite**), puis API + clé + limite de débit + `/privacy`.
+2. Agrégation, API, clé, limite de débit, `/privacy` (**faits** le 2026-11-25).
 3. Source `blizzard` dans l'appli et ses réglages.
 4. Plus tard : choisir quoi garder des bruts (différences entre instantanés, sous-échantillonnage).
 

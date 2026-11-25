@@ -30,6 +30,29 @@ pub struct Pending {
     pub path: String,
 }
 
+/// One row as served to the app.
+#[derive(Debug, PartialEq, Eq, sqlx::FromRow)]
+pub struct PriceRow {
+    pub ts: i64,
+    pub item_id: i64,
+    pub min_unit: Option<i64>,
+    pub p25_unit: Option<i64>,
+    pub median_unit: Option<i64>,
+    pub quantity: i64,
+    pub auctions: i64,
+    pub buyout_less: i64,
+}
+
+/// A page of prices: whole snapshots only, so that the next page starts after `until`.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Page {
+    pub rows: Vec<PriceRow>,
+    /// Newest `ts` of the page (`since` when it is empty).
+    pub until: i64,
+    /// Newer snapshots remain.
+    pub more: bool,
+}
+
 /// Inserts the prices of one snapshot (inside the caller's transaction).
 pub(super) async fn insert(
     conn: &mut SqliteConnection,
@@ -59,6 +82,43 @@ pub(super) async fn insert(
 }
 
 impl Db {
+    /// The prices of `house` after `since`, at most about `max_rows` (but always one whole snapshot).
+    pub async fn prices_after(&self, house: u32, since: i64, max_rows: i64) -> Result<Page> {
+        let until: Option<i64> = sqlx::query_scalar(
+            "SELECT COALESCE(MAX(CASE WHEN total <= ? THEN ts END), MIN(ts)) FROM (
+                 SELECT ts, SUM(COUNT(*)) OVER (ORDER BY ts) AS total
+                 FROM prices WHERE house = ? AND ts > ? GROUP BY ts)",
+        )
+        .bind(max_rows)
+        .bind(house)
+        .bind(since)
+        .fetch_one(&self.pool)
+        .await?;
+        let Some(until) = until else {
+            return Ok(Page {
+                rows: Vec::new(),
+                until: since,
+                more: false,
+            });
+        };
+        let rows = sqlx::query_as(
+            "SELECT ts, item_id, min_unit, p25_unit, median_unit, quantity, auctions, buyout_less
+             FROM prices WHERE house = ? AND ts > ? AND ts <= ? ORDER BY ts, item_id",
+        )
+        .bind(house)
+        .bind(since)
+        .bind(until)
+        .fetch_all(&self.pool)
+        .await?;
+        let more: bool =
+            sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM prices WHERE house = ? AND ts > ?)")
+                .bind(house)
+                .bind(until)
+                .fetch_one(&self.pool)
+                .await?;
+        Ok(Page { rows, until, more })
+    }
+
     /// Raw snapshots on disk whose prices are not in `prices` yet.
     pub async fn pending_prices(&self) -> Result<Vec<Pending>> {
         Ok(sqlx::query_as(
@@ -83,5 +143,48 @@ impl Db {
         .await?;
         tx.commit().await?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(item_id: u32) -> ItemPrices {
+        ItemPrices {
+            item_id,
+            min_unit: Some(10),
+            p25_unit: Some(11),
+            median_unit: None,
+            quantity: 3,
+            auctions: 2,
+            buyout_less: 1,
+        }
+    }
+
+    #[tokio::test]
+    async fn pages_hold_whole_snapshots() {
+        let db = Db::memory().await.unwrap();
+        let mut tx = db.pool.begin().await.unwrap();
+        insert(&mut tx, 114, 100, &[row(1), row(2)]).await.unwrap();
+        insert(&mut tx, 114, 200, &[row(1), row(2), row(3)])
+            .await
+            .unwrap();
+        insert(&mut tx, 114, 300, &[row(1)]).await.unwrap();
+        insert(&mut tx, 113, 150, &[row(9)]).await.unwrap();
+        tx.commit().await.unwrap();
+
+        // 4 rows allowed: the first snapshot (2) fits, the second (5 in all) does not.
+        let page = db.prices_after(114, 0, 4).await.unwrap();
+        assert_eq!((page.rows.len(), page.until, page.more), (2, 100, true));
+        assert_eq!(page.rows[0].median_unit, None);
+        assert_eq!(page.rows[1].item_id, 2);
+        // A snapshot bigger than the page still comes whole.
+        let page = db.prices_after(114, 100, 1).await.unwrap();
+        assert_eq!((page.rows.len(), page.until, page.more), (3, 200, true));
+        let page = db.prices_after(114, 200, 1000).await.unwrap();
+        assert_eq!((page.rows.len(), page.until, page.more), (1, 300, false));
+        let page = db.prices_after(114, 300, 1000).await.unwrap();
+        assert_eq!((page.rows.len(), page.until, page.more), (0, 300, false));
     }
 }

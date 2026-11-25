@@ -56,6 +56,17 @@ pub struct Last {
     pub sha256: Vec<u8>,
 }
 
+/// A house as listed by `/v1/houses`.
+#[derive(Debug, sqlx::FromRow, serde::Serialize)]
+pub struct HouseSummary {
+    pub id: i64,
+    pub name: String,
+    /// Newest content of either listing (Unix seconds): the `ts` of its prices.
+    pub last_update: Option<i64>,
+    /// Last time Battle.net answered for it.
+    pub last_check: Option<i64>,
+}
+
 pub struct NewSnapshot<'a> {
     pub house: u32,
     pub kind: &'a str,
@@ -118,6 +129,16 @@ impl Db {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    pub async fn houses(&self) -> Result<Vec<HouseSummary>> {
+        Ok(sqlx::query_as(
+            "SELECT h.id, h.name, MAX(r.fetched_at) AS last_update, MAX(r.last_seen) AS last_check
+             FROM houses h LEFT JOIN raw_snapshots r ON r.house = h.id
+             GROUP BY h.id ORDER BY h.id",
+        )
+        .fetch_all(&self.pool)
+        .await?)
     }
 
     pub async fn last_snapshot(&self, house: u32, kind: &str) -> Result<Option<Last>> {
