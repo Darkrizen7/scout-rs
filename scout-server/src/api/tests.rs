@@ -93,7 +93,13 @@ async fn health_and_privacy_are_open() {
     assert_eq!(get(&app, "/health").await.0, StatusCode::OK);
     let (status, response) = get(&app, "/privacy").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(text(response).await.contains("Blizzard Entertainment"));
+    let page = text(response).await;
+    assert!(page.contains("Blizzard Entertainment"));
+    assert!(
+        !page.contains("clé"),
+        "the privacy page still mentions keys"
+    );
+    assert!(page.contains("scout-addon/issues"));
 }
 
 #[tokio::test]

@@ -176,7 +176,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
   est affichée tout de suite, puis complétée depuis le serveur (tout la première fois, ensuite ce qui suit `until`) si
   le cache a plus d'1 h ; gardé en entier (une ligne par version). Cache : table `scout_api_history`.
 - Fusion des graphiques (`merge`) : un jour avec un scan Scout, Scout jusqu’à son dernier scan puis les relevés Scout API qui suivent (point du jour = le plus récent, Scout à égalité) ; sinon Scout API seul.
-- Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), clé, région (parmi
+- Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), région (parmi
   `/v1/regions`), mode de jeu (type de royaume de l'HdV choisi, `ServerChoice::modes` / `house_for_mode` : pas de réglage
   propre, changer de mode change d'HdV), hôtel des ventes ; le même sélecteur d'HdV est dans l'en-tête
   (`ui/widgets/house.rs`) et ne propose que les HdV du mode courant (`ServerChoice::houses_to_offer`).
@@ -188,7 +188,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - **Données du jeu** : « Mettre à jour » (Réglages, ou les boutons des onglets Objets / Recettes) et la vérification au
   démarrage demandent `/v1/gamedata/latest` pour le `GAME_FORMAT` de l'appli ; le paquet est téléchargé s'il diffère
   (autre build, autre format) ou est plus récent (`Manifest::newer_than` contre `game_meta`), puis remplace les
-  `game_*`. Sans clé : pas de données du jeu (l'appli les demande au premier lancement).
+  `game_*`. Sans données du jeu locales, l'appli les demande au premier lancement.
 
 ### 3.6 bis Paquet de référence (butin, marchands et noms d'objets)
 - SQLite gzippé avec seulement `drop_sources`, `drop_npcs`, `drop_names`, `drop_meta`, `vendor_prices` et `items` (noms et catégories des objets vus par Scout, lignes

@@ -13,8 +13,7 @@
 <body>
 <h1>Scout — politique de confidentialité</h1>
 <p>Ce service relève les hôtels des ventes de WoW: Forever et fournit leurs prix à l'outil de bureau
-scout-rs. Il est gratuit, sans publicité, et réservé aux personnes à qui son administrateur a donné une
-clé d'accès.</p>
+scout-rs. Il est gratuit, sans publicité, ouvert à tous, sans compte.</p>
 
 <h2>Données des joueurs</h2>
 <p>Aucune. Le service ne lit que les hôtels des ventes, par l'API Battle.net : les enchères n'y indiquent
@@ -26,10 +25,9 @@ calculés à partir d'elles, par hôtel des ventes et par objet.</p>
 
 <h2>Personnes qui utilisent le service</h2>
 <ul>
-  <li>Chaque clé d'accès porte un nom choisi par l'administrateur.</li>
-  <li>Pour limiter le nombre de requêtes, le service compte en mémoire les requêtes de chaque clé, et
-      celles de chaque adresse IP qui n'envoie pas de clé valide. Ces compteurs ne sont jamais écrits sur
-      disque et sont oubliés au redémarrage.</li>
+  <li>Pour limiter le nombre de requêtes, le service compte en mémoire les requêtes de chaque adresse IP :
+      50 par minute et 150 par heure au plus. Ces compteurs ne sont jamais écrits sur disque et sont
+      oubliés au redémarrage.</li>
   <li>Le service ne journalise pas les requêtes. Le serveur web qui le précède (Traefik) écrit en revanche
       un journal technique de chaque requête (date, adresse IP, adresse demandée, code de réponse) pour le
       fonctionnement et la sécurité du serveur ; il n'est ni partagé ni utilisé à d'autres fins.</li>
@@ -43,7 +41,7 @@ sont des marques de Blizzard Entertainment, Inc. Voir aussi la
 <a href="https://www.blizzard.com/legal/privacy">politique de confidentialité de Blizzard</a>.</p>
 
 <h2>Contact</h2>
-<p>Pour toute question, ou pour qu'on supprime ce qui te concerne : l'administrateur du service, la
-personne qui t'a donné ta clé.</p>
+<p>Pour toute question, ou pour qu'on supprime ce qui te concerne, ouvre une issue sur le dépôt public de
+l'addon : <a href="https://github.com/Darkrizen7/scout-addon/issues">https://github.com/Darkrizen7/scout-addon/issues</a>.</p>
 </body>
 </html>
