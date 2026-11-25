@@ -2845,7 +2845,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scout-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "serde",
@@ -2854,7 +2854,7 @@ dependencies = [
 
 [[package]]
 name = "scout-db"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "scout-core",
@@ -2864,7 +2864,7 @@ dependencies = [
 
 [[package]]
 name = "scout-gamedata"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "csv",
@@ -2877,7 +2877,7 @@ dependencies = [
 
 [[package]]
 name = "scout-rs"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "eframe",
@@ -2891,7 +2891,7 @@ dependencies = [
 
 [[package]]
 name = "scout-server"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2912,7 +2912,7 @@ dependencies = [
 
 [[package]]
 name = "scout-sources"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "csv",
@@ -2929,7 +2929,7 @@ dependencies = [
 
 [[package]]
 name = "scout-worker"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "chrono",
