@@ -147,6 +147,8 @@ mod tests {
         db.set_api_history(765, &eu, cache).await.unwrap();
         assert_eq!(db.api_history(765, &eu).await.unwrap(), Some(cache));
         assert_eq!(db.api_history(765, &us).await.unwrap(), None);
+        // Windows cannot delete a file that is still open.
+        db.pool.close().await;
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

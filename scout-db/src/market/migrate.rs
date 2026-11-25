@@ -106,7 +106,8 @@ mod tests {
         };
         assert_eq!(db.claim_unassigned(&eu).await.unwrap(), 2);
         assert_eq!(db.items(&eu).await.unwrap()[0].price, Some(27));
-        drop(db);
+        // Windows cannot delete a file that is still open.
+        db.pool.close().await;
         std::fs::remove_dir_all(dir).unwrap();
     }
 }
