@@ -51,23 +51,24 @@ impl ServerHouse {
         }
     }
 
-    /// Short name: « 114 · Horde (groupe 2) ».
+    /// Short name: « Normal · Horde (114) ».
     pub fn label(&self) -> String {
-        match house_group(self.id) {
-            Some(group) => format!("{} · {} (groupe {group})", self.id, self.side()),
-            None => format!("{} · {}", self.id, self.side()),
+        match realm_type(self.id) {
+            Some(realm) => format!("{realm} · {} ({})", self.side(), self.id),
+            None => format!("{} ({})", self.side(), self.id),
         }
     }
 }
 
-/// The houses come in five groups of three (Alliance, Horde, Flots noirs), seen in Europe on
-/// 2026-11-25: 110-113-116, 111-114-117, 112-115-118 (empty), 119-120-121, 123-124-125. Probably one
-/// per realm type (Normal, PvP, RP, RP-PvP…), which ones is not known yet.
-pub fn house_group(id: u32) -> Option<u8> {
+/// The realm type whose characters share a house: the houses come in groups of three (Alliance,
+/// Horde, Flots noirs), the same ids in every region (2026-11-25); 112-115-118 belong to none of
+/// them and are empty everywhere. KR and TW only have Normal and PvP realms.
+pub fn realm_type(id: u32) -> Option<&'static str> {
     match id {
-        110..=118 => Some(((id - 110) % 3) as u8 + 1),
-        119..=121 => Some(4),
-        123..=125 => Some(5),
+        110 | 113 | 116 => Some("PvP"),
+        111 | 114 | 117 => Some("Normal"),
+        119..=121 => Some("RP"),
+        123..=125 => Some("RP-PvP"),
         _ => None,
     }
 }
@@ -254,17 +255,21 @@ mod tests {
         };
         assert_eq!(
             house(114, "Hôtel des ventes de la Horde").label(),
-            "114 · Horde (groupe 2)"
+            "Normal · Horde (114)"
         );
         assert_eq!(
             house(116, "Hôtel des ventes des Flots noirs").label(),
-            "116 · Flots noirs (groupe 1)"
+            "PvP · Flots noirs (116)"
         );
         assert_eq!(
             house(124, "Hôtel des ventes de la Horde").label(),
-            "124 · Horde (groupe 5)"
+            "RP-PvP · Horde (124)"
         );
-        assert_eq!(house(200, "Auction House").label(), "200 · Auction House");
+        assert_eq!(house(200, "Auction House").label(), "Auction House (200)");
+        assert_eq!(
+            house(115, "Hôtel des ventes de la Horde").label(),
+            "Horde (115)"
+        );
     }
 
     #[test]

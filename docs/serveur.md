@@ -19,8 +19,10 @@ affiche à côté des scans Scout. Les identifiants Battle.net ne quittent jamai
   relevé a trouvé des maisons (une région sans HdV Forever répond 404, dit une seule fois dans le journal).
 - `GET /data/wow/ruleset/2/auctions/` : les 15 maisons (le ruleset doit exister mais ne filtre rien).
 - `GET /data/wow/ruleset/2/auctions/{house}` (objets) et `…/{house}/commodities` (empilables).
-- 15 maisons = 5 groupes de trois (Alliance / Horde / Flots noirs) : 110-113-116, **111-114-117 (celui de
-  l'utilisateur, Horde = 114)**, 112-115-118 (vides), 119-120-121, 123-124-125.
+- 15 maisons par région, **les mêmes n° partout**, par type de royaume et côté (Alliance / Horde / Flots noirs,
+  ce dernier commun aux deux factions) : PvP 110-113-116, **Normal 111-114-117 (l'utilisateur : Horde = 114,
+  Orgrimmar / Pitons-du-Tonnerre)**, RP 119-120-121, RP-PvP 123-124-125 ; 112-115-118 vides partout (2026-11-25). KR et TW
+  n'ont que Normal et PvP ; EU et US les quatre.
   Comparaison avec un scan Scout pris 2 min avant : 71 % de prix minimum identiques, 86 % à ±5 % sur la 114,
   ≤ 5 % ailleurs.
 - Taille d'un relevé complet (30 réponses) : 83 Mo de JSON, **7,2 Mo en zstd -19**, ~6 s.
@@ -146,8 +148,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - Fusion des graphiques (`merge`) : Scout, sinon Scout API, sinon moyenne Auctionator / Forever Guide.
 - Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), clé, région (parmi
   `/v1/regions`), hôtel des ventes ; le même sélecteur d'HdV est dans l'en-tête (`ui/widgets/house.rs`).
-  `[price_server]` dans `config.toml`. Noms : « EU 114 · Horde (groupe 2) » (`ServerHouse::label` : côté déduit du
-  n°, groupe = les 5 groupes de trois vus en Europe ; à quel type de royaume correspond chaque groupe : inconnu).
+  `[price_server]` dans `config.toml`. Noms : « EU Normal · Horde (114) » (`ServerHouse::label`, `scout_api::realm_type`).
 - Crédits (`ui/credits.rs`) : API Battle.net de Blizzard Entertainment, non approuvé ni affilié.
 - Chaque ligne de `snapshots` a sa région et son HdV : changer d'HdV ne mêle rien, chaque HdV garde son cache.
 - **TODO** : compresser à un point par jour les relevés `scout-api` de plus de 3 mois (`prix.db` grossit d'environ
@@ -186,10 +187,9 @@ Mesuré sur une version complète (15 maisons, 2026-11-25) : **8 Mo de bruts** (
 | 2026-11-25 | `prices` : min, p25 et médiane pondérés par la quantité, quantité, enchères, sans prix immédiat ; pas de max ; variantes fusionnées par `item_id` (à séparer plus tard). |
 | 2026-11-25 | Cadence de Blizzard : une version par heure, vers HH:21 UTC. |
 | 2026-11-25 | Toutes les régions où Forever a une API d'HdV (eu, us, kr, tw vérifiées par le relevé) ; `prix.db` a une région et un HdV par ligne, les relevés existants rattachés à EU 114. |
+| 2026-11-25 | Noms des HdV par type de royaume et côté. |
 | 2026-11-25 | Plus tard : estimer les ventes (une enchère qui disparaît avant expiration, `id` stable d'un relevé à l'autre). |
 
 ## Questions ouvertes
 
-- Quel groupe de maisons = quel type de royaume (Normal, PvP, RP, RP-PvP ; le 3ᵉ groupe est vide en Europe).
-  Goldwright (addon) nomme ses HdV ainsi (région + type de royaume + côté) mais ne publie pas les n° Blizzard.
 - Séparer les variantes (`bonus_lists` → suffixes) ; estimation des ventes.
