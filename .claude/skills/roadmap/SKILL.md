@@ -56,8 +56,8 @@ Pas de parallèle : beaucoup de tickets touchent les mêmes fichiers (réglages)
   comment tester, `Plane : APP-42`). Jamais de `--force`.
 - Commentaire de synthèse sur le ticket : ce qui a été fait, comment tester, limites, lien de la PR.
 - Tokens : lancer `python3 -I .claude/skills/roadmap/tokens.py --since <passage en « In Progress »>`
-  (horodatage dans `updated_at` du `workitem update` qui a posé l'état, ou dans l'activité Plane) et coller la
-  ligne dans le commentaire de synthèse. Si Claude corrige après la relecture : relevé complémentaire avec
+  (horodatage dans `updated_at` du `workitem update` qui a posé l'état, ou dans l'activité Plane) et coller les
+  deux lignes (tokens, puis « Plan : +x % sur 5 h, +y % sur 7 j ») dans le commentaire de synthèse. Si Claude corrige après la relecture : relevé complémentaire avec
   `--since` = fin du premier relevé.
 - Fusion par Claude (voir `CLAUDE.md`, « Commits ») : `gh pr view` pour vérifier qu'elle n'est pas déjà fusionnée,
   `git switch master && git pull`, `git merge --no-ff origin/<branche>` daté hors plage (`GIT_AUTHOR_DATE`,
