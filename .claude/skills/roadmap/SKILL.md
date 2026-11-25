@@ -55,6 +55,10 @@ Pas de parallèle : beaucoup de tickets touchent les mêmes fichiers (réglages)
 - `git push -u origin <branche>`, puis `gh pr create --base master` (titre = sujet du commit, corps : résumé,
   comment tester, `Plane : APP-42`). Jamais de push sur `master`, ni de fusion, ni de `--force`.
 - Commentaire de synthèse sur le ticket : ce qui a été fait, comment tester, limites, lien de la PR.
+- Tokens : lancer `python3 -I .claude/skills/roadmap/tokens.py --since <passage en « In Progress »>`
+  (horodatage dans `updated_at` du `workitem update` qui a posé l'état, ou dans l'activité Plane) et coller la
+  ligne dans le commentaire de synthèse. Si Claude corrige après la relecture : relevé complémentaire avec
+  `--since` = fin du premier relevé.
 - Passage en « In Review ». L'utilisateur teste, fusionne la PR et passe le ticket en « Done ».
 - Revenir sur `master` (`git switch master && git pull`) avant le ticket suivant ; si un ticket dépend d'une
   PR pas encore fusionnée, partir de sa branche et le dire dans la PR.
