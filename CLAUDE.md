@@ -99,6 +99,8 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
   `monochrome_emoji_fonts` requise.
 - GNOME/Wayland ne dessine pas les barres de titre : la feature winit `wayland-csd-adwaita` (dépendance directe
   `winit` dans `app/Cargo.toml`, non utilisée dans le code) donne des boutons fermer / réduire au style GNOME.
+- Liens (`hyperlink`, `ctx.open_url`) : feature eframe `links` requise (navigateur via `webbrowser`) ; sans elle,
+  rien ne s'ouvre et aucune erreur ne s'affiche.
 - `style.interaction.selectable_labels = false` : sinon le texte des cellules capte les clics des lignes.
 - Axes egui_plot : texte seulement (`1g 20s`), sauf l'axe des prix de `ui/chart`, dessiné à la main avec des pièces
   (`chart/money_axis.rs`) ; bulles au survol et pièces ailleurs : dessinées.
