@@ -14,13 +14,14 @@ pub fn house_picker(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, wid
     };
     let server = &config.price_server;
     let region = server.region.to_uppercase();
-    let houses = match &state.server_houses {
-        Some(Ok(choice)) if choice.region == server.region => &choice.houses[..],
-        _ => &[],
+    let (all, offered) = match &state.server_houses {
+        Some(Ok(choice)) if choice.region == server.region => {
+            (&choice.houses[..], choice.houses_to_offer(server.house))
+        }
+        _ => (&[][..], Vec::new()),
     };
     let current = server.house.map(|id| {
-        houses
-            .iter()
+        all.iter()
             .find(|h| h.id == id)
             .map_or_else(|| id.to_string(), |h| h.label())
     });
@@ -32,10 +33,10 @@ pub fn house_picker(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, wid
         .selected_text(selected)
         .width(width)
         .show_ui(ui, |ui| {
-            if houses.is_empty() {
+            if offered.is_empty() {
                 ui.weak("Serveur de prix à régler (Réglages) ou injoignable");
             }
-            for house in houses {
+            for house in offered {
                 let when = house
                     .last_update
                     .map_or_else(|| "vide".to_owned(), format_datetime);
@@ -55,8 +56,9 @@ pub fn house_picker(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, wid
             }
         });
     combo.response.on_hover_text(
-        "Hôtel des ventes dont toutes les pages montrent les prix (Scout, Scout API) : un par type de royaume (Normal, PvP, RP, RP-PvP) et par côté (Alliance, \
-         Horde, Flots noirs, ce dernier commun aux deux factions). Les royaumes d'un même type \
+        "Hôtel des ventes dont toutes les pages montrent les prix (Scout, Scout API) : \
+         ceux du mode de jeu choisi (à changer dans les Réglages), un par côté (Alliance, Horde, \
+         Flots noirs, ce dernier commun aux deux factions). Les royaumes d'un même type \
          partagent leurs hôtels des ventes.",
     );
 }
