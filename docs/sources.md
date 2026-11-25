@@ -50,3 +50,9 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   et le serveur recommence au tour suivant (son cache `data/gamedata/wowhead.json` garde ce qui a été lu).
 - Les sources sont citées dans Réglages → bouton « ℹ Sources des données » qui ouvre la page `/thanks`
   du serveur de prix (`scout_core::credits::SOURCES` : à compléter si on en ajoute une).
+
+## Butin et marchands de référence du serveur
+`GET /v1/reference/latest?format=N` (manifeste `ReferenceManifest`) puis `/v1/reference/{format}/{updated}` (SQLite gzippé :
+`drop_*` et `vendor_prices`). Le worker ne télécharge que si le manifeste est plus récent que `meta.server_reference`
+(au démarrage, sans bruit si le serveur ne répond pas, et après « Mettre à jour les données du jeu »). Le butin est
+remplacé en bloc, les marchands sont ajoutés (ceux déjà présents, vus par Scout, gagnent). Un paquet sans butin est refusé.

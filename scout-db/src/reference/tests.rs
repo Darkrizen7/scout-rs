@@ -6,8 +6,9 @@ use scout_core::GAME_FORMAT;
 use super::super::Db;
 use super::ReferenceUpdate;
 
-fn temp_dir() -> Result<PathBuf> {
-    let dir = std::env::temp_dir().join(format!("scout-rs-reference-{}", std::process::id()));
+fn temp_dir(name: &str) -> Result<PathBuf> {
+    let dir =
+        std::env::temp_dir().join(format!("scout-rs-reference-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir)?;
     Ok(dir)
@@ -61,7 +62,7 @@ async fn item_name(db: &Db) -> Result<String> {
 
 #[tokio::test]
 async fn exports_reference_data_only_and_applies_what_is_newer() -> Result<()> {
-    let dir = temp_dir()?;
+    let dir = temp_dir("export")?;
     let source = filled(&dir.join("source.db"), 200, "Lin").await?;
     source.close().await;
     let seed = dir.join("reference.db");
@@ -114,6 +115,69 @@ async fn exports_reference_data_only_and_applies_what_is_newer() -> Result<()> {
 
     fresh.close().await;
     newer.close().await;
+    std::fs::remove_dir_all(&dir)?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn applies_server_package_keeping_local_merchants() -> Result<()> {
+    let dir = temp_dir("server")?;
+    let source = filled(&dir.join("source.db"), 200, "Lin").await?;
+    // The package's merchant is another one, plus a competing row for the merchant Scout saw.
+    sqlx::raw_sql(
+        "DELETE FROM drop_sources;
+         INSERT INTO drop_sources (item_id, kind, source_id, chance) VALUES (2, 'npc', 5, 1.0);
+         DELETE FROM vendor_prices;
+         INSERT INTO vendor_prices (item_id, source, npc_id, price) VALUES (1, 'scout', 7, 99), (3, 'guide', 8, 10);",
+    )
+    .execute(&source.pool)
+    .await?;
+    source.close().await;
+    let package = dir.join("package.db");
+    Db::export_loot_vendors(&dir.join("source.db"), &package).await?;
+
+    let local = filled(&dir.join("local.db"), 100, "Lin").await?;
+    assert_eq!(local.server_reference().await?, None);
+    local.apply_loot_vendors(&package).await?;
+    assert_eq!(
+        count(
+            &local,
+            "SELECT COUNT(*) FROM drop_sources WHERE item_id = 2"
+        )
+        .await?,
+        1
+    );
+    assert_eq!(count(&local, "SELECT COUNT(*) FROM drop_sources").await?, 1);
+    assert_eq!(
+        count(
+            &local,
+            "SELECT CAST(price AS INTEGER) FROM vendor_prices WHERE item_id = 1"
+        )
+        .await?,
+        40
+    );
+    assert_eq!(
+        count(&local, "SELECT COUNT(*) FROM vendor_prices").await?,
+        2
+    );
+    // Personal data untouched.
+    assert_eq!(count(&local, "SELECT COUNT(*) FROM favorites").await?, 1);
+
+    local.set_server_reference(1, 1234).await?;
+    assert_eq!(local.server_reference().await?, Some((1, 1234)));
+
+    // A package without loot is refused and the local loot stays.
+    let empty = Db::open(&dir.join("empty.db")).await?;
+    empty.close().await;
+    assert!(
+        local
+            .apply_loot_vendors(&dir.join("empty.db"))
+            .await
+            .is_err()
+    );
+    assert_eq!(count(&local, "SELECT COUNT(*) FROM drop_sources").await?, 1);
+
+    local.close().await;
     std::fs::remove_dir_all(&dir)?;
     Ok(())
 }

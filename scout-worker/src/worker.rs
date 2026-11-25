@@ -103,7 +103,7 @@ fn runtime() -> Result<tokio::runtime::Runtime> {
 
 pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     let runtime = match runtime() {
-        Ok(runtime) => runtime,
+        Ok(runtime) => Arc::new(runtime),
         Err(e) => return send(Event::Error(format!("runtime tokio : {e}"))),
     };
     // The old folders are moved, never recreated empty: on failure, stop rather than start a new database.
@@ -128,6 +128,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         Ok(prices) => send(Event::Vendor(Arc::new(prices))),
         Err(e) => send(Event::Error(format!("prix marchands : {e:#}"))),
     }
+    let shared_runtime = runtime.clone();
     let house = config.price_server.auction_house();
     if let Err(e) = runtime.block_on(async {
         if house.id != 0 {
@@ -152,6 +153,21 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     {
         send(Event::LatestGameData(Err(e.to_string())));
     }
+    // Newer loot and merchants on the server? (network: on its own; silent when it fails)
+    let (reference_db, reference_send) = (db.clone(), send.clone());
+    let reference_server = config.price_server.clone();
+    let reference_runtime = shared_runtime.clone();
+    let _ = thread::Builder::new()
+        .name("server-reference".into())
+        .spawn(move || {
+            tasks::update_server_reference(
+                &reference_runtime,
+                &reference_db,
+                &reference_server,
+                true,
+                &*reference_send,
+            )
+        });
     // A newer version of the tool? (network too; silent when offline)
     let updates = send.clone();
     let _ = thread::Builder::new()
@@ -166,7 +182,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         });
 
     let shared = Shared {
-        runtime: Arc::new(runtime),
+        runtime: shared_runtime,
         db,
         config: Arc::new(Mutex::new(config)),
         running: Arc::default(),
@@ -200,7 +216,7 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             config.save()
         }),
         Command::UpdateGameData => shared.spawn(Task::GameData, |runtime, shared| {
-            tasks::update_game_data(
+            tasks::update_all(
                 runtime,
                 &shared.db,
                 &shared.config().price_server,

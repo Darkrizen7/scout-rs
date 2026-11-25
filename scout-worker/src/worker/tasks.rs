@@ -10,8 +10,9 @@ use scout_sources as sources;
 use scout_sources::{price_server, wow};
 
 use super::refresh;
-use crate::config::{Config, PriceServer};
+use crate::config::{self, Config, PriceServer};
 use crate::message::Event;
+use crate::reference::{self, ServerSync};
 
 pub(super) async fn import(db: &Db, config: &Config, send: &dyn Fn(Event)) -> Result<()> {
     let saved_variables = wow::saved_variables(config.wow_dir()?)?;
@@ -82,6 +83,60 @@ pub(super) fn update_game_data(
     )));
     send(Event::GameData(Arc::new(game)));
     Ok(())
+}
+
+/// The "update game data" button: the game data, then the reference loot, which never fails the first.
+pub(super) fn update_all(
+    runtime: &tokio::runtime::Runtime,
+    db: &Db,
+    server: &PriceServer,
+    send: &dyn Fn(Event),
+) -> Result<()> {
+    let game = update_game_data(runtime, db, server, send);
+    update_server_reference(runtime, db, server, false, send);
+    game
+}
+
+/// Loot and merchants of the price server, when newer; tells the UI to reload what they feed. A failure is
+/// only reported when `quiet` is false (at start, the tool just keeps its database).
+pub(super) fn update_server_reference(
+    runtime: &tokio::runtime::Runtime,
+    db: &Db,
+    server: &PriceServer,
+    quiet: bool,
+    send: &dyn Fn(Event),
+) {
+    let unpacked = config::database_path().map(|p| p.with_extension("server-reference.tmp"));
+    let synced = unpacked
+        .and_then(|path| runtime.block_on(reference::sync_server(db, &server.url, &path, send)));
+    let message = match synced {
+        Ok(ServerSync::Installed) => {
+            if let Err(e) = runtime.block_on(reload(db, server, send)) {
+                send(Event::Error(format!("butin de référence : {e:#}")));
+            }
+            "Butin et marchands de référence installés."
+        }
+        Ok(ServerSync::UpToDate) => "Butin et marchands de référence déjà à jour.",
+        Ok(ServerSync::Unavailable) if quiet => return,
+        Ok(ServerSync::Unavailable) => {
+            "Le serveur n'a pas encore de butin de référence pour cette version."
+        }
+        Err(_) if quiet => return,
+        Err(e) => {
+            return send(Event::Status(format!(
+                "Butin et marchands de référence non vérifiés : {e:#}"
+            )));
+        }
+    };
+    if !quiet || message.ends_with("installés.") {
+        send(Event::Status(message.into()));
+    }
+}
+
+/// Merchants and the items (which clears the zones, loot and sheets the UI holds) after new loot.
+async fn reload(db: &Db, server: &PriceServer, send: &dyn Fn(Event)) -> Result<()> {
+    send(Event::Vendor(Arc::new(db.vendor_data().await?)));
+    refresh(db, &server.auction_house(), send).await
 }
 
 /// What the price server offers for this tool's `GAME_FORMAT` (None: nothing built yet).

@@ -55,12 +55,16 @@ INSERT INTO main.drop_names (kind, id, name) SELECT kind, id, name FROM seed.dro
 INSERT INTO main.drop_meta (key, value) SELECT key, value FROM seed.drop_meta;
 ";
 
-/// Added to what is there, which wins: items Wowhead named, merchants.
+/// Added to what is there, which wins: items Wowhead named.
 const MERGE: &str = "
 INSERT OR IGNORE INTO main.wowhead_items (item_id, name, quality, item_level, required_level, class_id,
                                           subclass_id, buy_price, vendor_stack, sell_price)
     SELECT item_id, name, quality, item_level, required_level, class_id, subclass_id,
            buy_price, vendor_stack, sell_price FROM seed.wowhead_items;
+";
+
+/// Merchants, added to what is there, which wins (those Scout saw).
+const MERGE_VENDORS: &str = "
 INSERT OR IGNORE INTO main.vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)
     SELECT item_id, source, npc_id, price, npc, zone, x, y, limited FROM seed.vendor_prices;
 ";
@@ -154,6 +158,7 @@ async fn copy(conn: &mut SqliteConnection, force: bool) -> Result<ReferenceUpdat
         sqlx::raw_sql(COPY_DROPS).execute(&mut *tx).await?;
     }
     sqlx::raw_sql(MERGE).execute(&mut *tx).await?;
+    sqlx::raw_sql(MERGE_VENDORS).execute(&mut *tx).await?;
     tx.commit().await?;
     Ok(ReferenceUpdate { game, drops })
 }
@@ -164,6 +169,44 @@ impl Db {
     pub async fn apply_reference(&self, path: &Path) -> Result<ReferenceUpdate> {
         let mut conn = self.pool.acquire().await?;
         with_seed(&mut conn, path, async |conn| copy(conn, false).await).await
+    }
+
+    /// Replaces the loot (`drop_*`) by that of the server package at `path` and adds its merchants (those
+    /// already there win). A package without loot is refused: the local loot is never emptied.
+    pub async fn apply_loot_vendors(&self, path: &Path) -> Result<()> {
+        let mut conn = self.pool.acquire().await?;
+        with_seed(&mut conn, path, async |conn| {
+            let (loot,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM seed.drop_sources")
+                .fetch_one(&mut *conn)
+                .await?;
+            ensure!(loot > 0, "le paquet de butin du serveur est vide");
+            let mut tx = conn.begin().await?;
+            sqlx::raw_sql(COPY_DROPS).execute(&mut *tx).await?;
+            sqlx::raw_sql(MERGE_VENDORS).execute(&mut *tx).await?;
+            tx.commit().await?;
+            Ok(())
+        })
+        .await
+    }
+
+    /// Version (format, updated) of the server package last applied (see `set_server_reference`).
+    pub async fn server_reference(&self) -> Result<Option<(i64, i64)>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT value FROM meta WHERE key = 'server_reference'")
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.and_then(|(v,)| {
+            let (format, updated) = v.split_once(':')?;
+            Some((format.parse().ok()?, updated.parse().ok()?))
+        }))
+    }
+
+    pub async fn set_server_reference(&self, format: i64, updated: i64) -> Result<()> {
+        sqlx::query("INSERT OR REPLACE INTO meta (key, value) VALUES ('server_reference', ?)")
+            .bind(format!("{format}:{updated}"))
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     /// Id of the reference database last applied (see `set_reference_id`).

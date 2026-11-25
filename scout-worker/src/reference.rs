@@ -10,7 +10,11 @@ use anyhow::{Context, Result};
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
+use scout_core::reference::REFERENCE_FORMAT;
 use scout_db::{Db, ReferenceUpdate};
+use scout_sources::price_server;
+
+use crate::message::Event;
 
 const EMBEDDED: &[u8] = include_bytes!("../data/reference.db.gz");
 
@@ -42,6 +46,46 @@ pub(crate) async fn apply(db: &Db, unpacked: &Path) -> Result<Option<ReferenceUp
     let update = update?;
     db.set_reference_id(&id).await?;
     Ok(Some(update))
+}
+
+/// What `sync_server` did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServerSync {
+    /// The server has no package for this format.
+    Unavailable,
+    UpToDate,
+    Installed,
+}
+
+/// Downloads the loot and merchants package of `server` when it is newer than the one applied, and applies
+/// it (unpacked meanwhile at `unpacked`, removed afterwards). Blocks on the network.
+pub async fn sync_server(
+    db: &Db,
+    server: &str,
+    unpacked: &Path,
+    send: &dyn Fn(Event),
+) -> Result<ServerSync> {
+    let Some(manifest) = price_server::reference_latest(server, REFERENCE_FORMAT)? else {
+        return Ok(ServerSync::Unavailable);
+    };
+    if !manifest.newer_than(db.server_reference().await?) {
+        return Ok(ServerSync::UpToDate);
+    }
+    send(Event::Status(format!(
+        "Téléchargement du butin et des marchands de référence ({} Ko)…",
+        manifest.bytes / 1000
+    )));
+    let gzip = price_server::reference_package(server, &manifest)?;
+    let result = async {
+        unpack(&gzip, unpacked).context("décompression du butin de référence")?;
+        db.apply_loot_vendors(unpacked).await
+    }
+    .await;
+    let _ = fs::remove_file(unpacked);
+    result?;
+    db.set_server_reference(manifest.format, manifest.updated)
+        .await?;
+    Ok(ServerSync::Installed)
 }
 
 /// Writes a new reference database, compressed, at `dest` from the database at `source`.
