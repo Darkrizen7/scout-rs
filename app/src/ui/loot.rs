@@ -45,10 +45,17 @@ pub struct Loot {
     built_for: Option<npcs::BuiltFor>,
 }
 
-/// What one unit of an item brings once looted (copper): auction price after the cut, or the merchant's.
-pub fn unit_value(state: &State, game: &GameData, item_id: i64) -> Option<f64> {
-    let sell = game.items.get(&item_id).map_or(0, |i| i.sell_price);
-    pricing::sale_value(state.auction_price(item_id), sell)
+/// What one unit of an item brings once looted (copper), and why (see `pricing::loot_value`).
+pub fn unit_value(state: &State, game: &GameData, item_id: i64) -> Option<pricing::LootValue> {
+    let info = game.items.get(&item_id);
+    pricing::loot_value(pricing::LootItem {
+        auction: state.auction_price(item_id),
+        quantity: state.item(item_id).and_then(|i| i.quantity),
+        merchant_sell: info.map_or(0, |i| i.sell_price),
+        quality: info.map_or(1, |i| i.quality),
+        class_id: info.and_then(|i| i.class_id),
+        is_reagent: game.used_in.contains_key(&item_id),
+    })
 }
 
 impl Loot {
@@ -163,7 +170,8 @@ impl Loot {
 
 /// Explains the value per kill (sort button and monster sheet).
 pub const VALUE_HINT: &str = "Estimation par corps fouillé : chance (réelle à partir de 20 corps, sinon \
-Forever Guide) × quantité moyenne × prix (HdV après commission, ou marchand si plus cher). \
+Forever Guide) × quantité moyenne × prix (HdV après commission, ou marchand si plus cher ; marchand seul pour les objets \
+gris, l'équipement et les divers hors recettes, et les offres isolées). \
 Sans l'argent ramassé, le dépeçage ni le butin de quête.";
 
 fn zone_hint(z: &Zone, faction: Option<scout_core::map::Faction>) -> String {

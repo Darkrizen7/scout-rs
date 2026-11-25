@@ -9,6 +9,7 @@ use crate::ui::{coins, fonts, widgets};
 use scout_core::drops::{DropKind, ZoneNpc};
 use scout_core::gamedata::GameData;
 use scout_core::map;
+use scout_core::pricing::{LootPricing, LootValue};
 
 const KINDS: [(DropKind, &str); 3] = [
     (DropKind::Npc, "Butin"),
@@ -37,7 +38,7 @@ pub fn show(
             k => format!("· {k} corps fouillés (Scout)"),
         });
     });
-    if let Some(value) = npc.value_per_kill(|id| unit_value(state, game, id)) {
+    if let Some(value) = npc.value_per_kill(|id| unit_value(state, game, id).map(|v| v.copper)) {
         ui.horizontal(|ui| {
             ui.label("Valeur estimée par kill :");
             coins::money(ui, value.round() as i64, None);
@@ -90,14 +91,7 @@ pub fn show(
                             if observed {
                                 widgets::observed_label(ui, d.observed, palette);
                             }
-                            match unit_value(state, game, d.item_id) {
-                                Some(v) => {
-                                    coins::money(ui, v.round() as i64, None);
-                                }
-                                None => {
-                                    ui.weak("—");
-                                }
-                            }
+                            price_cell(ui, unit_value(state, game, d.item_id));
                             ui.end_row();
                         }
                     });
@@ -105,4 +99,35 @@ pub fn show(
             }
         });
     clicked
+}
+
+/// Unit price; when the auction price was set aside, the merchant's, then the auction price in grey.
+fn price_cell(ui: &mut egui::Ui, value: Option<LootValue>) {
+    let Some(value) = value else {
+        ui.weak("—");
+        return;
+    };
+    ui.horizontal(|ui| {
+        coins::money(ui, value.copper.round() as i64, None);
+        let (Some(auction), Some(why)) = (value.discarded_auction, hint(value.pricing)) else {
+            return;
+        };
+        ui.weak("(HdV");
+        ui.scope(|ui| {
+            ui.disable();
+            coins::money(ui, auction, None);
+        })
+        .response
+        .on_hover_text(why);
+        ui.weak(")");
+    });
+}
+
+fn hint(pricing: LootPricing) -> Option<&'static str> {
+    match pricing {
+        LootPricing::Isolated => Some("Offre isolée, probablement invendable"),
+        LootPricing::Poor => Some("Objet gris : prix marchand"),
+        LootPricing::NotReagent => Some("Équipement ou divers : prix marchand"),
+        LootPricing::Auction | LootPricing::Merchant => None,
+    }
 }
