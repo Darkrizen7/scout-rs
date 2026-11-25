@@ -13,7 +13,6 @@ pub fn house_picker(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, wid
         return;
     };
     let server = &config.price_server;
-    let region = server.region.to_uppercase();
     let (all, offered) = match &state.server_houses {
         Some(Ok(choice)) if choice.region == server.region => {
             (&choice.houses[..], choice.houses_to_offer(server.house))
@@ -25,10 +24,7 @@ pub fn house_picker(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, wid
             .find(|h| h.id == id)
             .map_or_else(|| id.to_string(), |h| h.label())
     });
-    let selected = match &current {
-        Some(label) => format!("{region} {label}"),
-        None => "Hôtel des ventes : à choisir".to_owned(),
-    };
+    let selected = current.unwrap_or_else(|| "Hôtel des ventes : à choisir".to_owned());
     let combo = egui::ComboBox::from_id_salt(("house_picker", width as u32))
         .selected_text(selected)
         .width(width)
@@ -40,7 +36,7 @@ pub fn house_picker(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, wid
                 let when = house
                     .last_update
                     .map_or_else(|| "vide".to_owned(), format_datetime);
-                let text = format!("{region} {} — {when}", house.label());
+                let text = format!("{} — {when}", house.label());
                 if ui
                     .selectable_label(server.house == Some(house.id), text)
                     .clicked()

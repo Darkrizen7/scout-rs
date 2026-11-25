@@ -53,12 +53,9 @@ impl ServerHouse {
         }
     }
 
-    /// Short name: « Normal · Horde (114) ».
+    /// Short name: « Horde (114) ». Region and game mode are chosen (and shown) in the settings.
     pub fn label(&self) -> String {
-        match realm_type(self.id) {
-            Some(realm) => format!("{realm} · {} ({})", self.side(), self.id),
-            None => format!("{} ({})", self.side(), self.id),
-        }
+        format!("{} ({})", self.side(), self.id)
     }
 }
 
@@ -257,15 +254,15 @@ mod tests {
         };
         assert_eq!(
             house(114, "Hôtel des ventes de la Horde").label(),
-            "Normal · Horde (114)"
+            "Horde (114)"
         );
         assert_eq!(
             house(116, "Hôtel des ventes des Flots noirs").label(),
-            "PvP · Flots noirs (116)"
+            "Flots noirs (116)"
         );
         assert_eq!(
             house(124, "Hôtel des ventes de la Horde").label(),
-            "RP-PvP · Horde (124)"
+            "Horde (124)"
         );
         assert_eq!(house(200, "Auction House").label(), "Auction House (200)");
         assert_eq!(
