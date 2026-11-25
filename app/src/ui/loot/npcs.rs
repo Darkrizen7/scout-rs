@@ -170,7 +170,7 @@ impl Loot {
                         .find(|d| query.matches(&game.item_name(d.item_id)))?;
                     Some((game.item_name(drop.item_id), drop.best_chance()))
                 };
-                let price = |id| unit_value(state, game, id);
+                let price = |id| unit_value(state, game, id).map(|v| v.copper);
                 let value = match self.sort.map(|(sort, _)| sort) {
                     Some(Sort::ValuePerLevel) => npc.value_per_level(price),
                     _ => npc.value_per_kill(price),

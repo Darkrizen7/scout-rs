@@ -17,7 +17,7 @@
   recherche par nom **ou par objet lâché**, masquer élites / rares / boss, tri par niveau, valeur estimée par kill
   ou **valeur ÷ niveau** (clic : un sens, l'autre, puis ordre d'origine). Une ligne = nom, niveau avec icône
   élite / rare, icône dépeçable, prix. Butin du monstre choisi (butin, dépeçage, vol à la tire : chance Forever Guide, chance
-  réelle, prix). Zone d'un monstre = son donjon, sinon sa zone Forever Guide ; un monstre que seul Scout connaît va
+  réelle, prix : HdV après commission, ou prix marchand seul pour les objets gris, l'équipement et les divers hors recettes et les offres isolées (moins de 5 en vente et plus de 20 × le marchand), le prix HdV écarté restant affiché en gris). Zone d'un monstre = son donjon, sinon sa zone Forever Guide ; un monstre que seul Scout connaît va
   dans la zone où il a été fouillé. L'île de Zéphras (Forever) n'est ni dans Forever Guide ni sur un continent :
   rien sur la carte, son butin ne viendra que de Scout.
 - **Positions cliquables** (fiche objet : Butin et PNJ ; module Butin) : copient `/way #<UiMap> x y Nom` (syntaxe
