@@ -35,7 +35,8 @@
     l'outil ; plus lue ni écrite par l'appli (le serveur les met dans son paquet), gardée parce que la base de
     référence la contient encore.
   - `meta (key, value)` : `reference` = identifiant (fin du gzip : CRC-32 et taille) de la base de référence
-    déjà appliquée.
+    déjà appliquée ; `server_reference` = `format:updated` du paquet butin + marchands du serveur déjà appliqué
+    (`Db::server_reference`).
 - **Base de référence** (`scout-worker/data/reference.db.gz`, intégrée par `include_bytes!`, GPL-3.0-or-later) :
   données du jeu `game_*`, `wowhead_items`, butin `drop_*`, `vendor_prices`. Jamais `items`, `snapshots`,
   favoris ni `loot_*`. Au premier lancement de chaque nouvelle version (identifiant différent de `meta`),

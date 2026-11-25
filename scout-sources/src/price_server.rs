@@ -4,6 +4,7 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
+use scout_core::reference::ReferenceManifest;
 use scout_core::scout_api::{AuctionHouse, PriceLine, ServerHouse};
 use scout_gamedata::{Manifest, Package};
 use serde::Deserialize;
@@ -61,6 +62,33 @@ pub fn gamedata_package(server: &str, manifest: &Manifest) -> Result<Package> {
         .read_to_vec()
         .context("téléchargement des données du jeu")?;
     Package::decode(&bytes)
+}
+
+/// The newest loot and merchants package of the server for this tool's `format`, None while it has none.
+pub fn reference_latest(server: &str, format: i64) -> Result<Option<ReferenceManifest>> {
+    let url = format!("{}/v1/reference/latest?format={format}", base(server));
+    let mut response = match agent().get(&url).call() {
+        Err(ureq::Error::StatusCode(404)) => return Ok(None),
+        result => checked(result)?,
+    };
+    let body = response.body_mut().with_config().limit(MAX_BYTES).reader();
+    serde_json::from_reader(body).context("version du butin de référence illisible")
+}
+
+/// The gzipped SQLite package `manifest` describes (loot and merchants only).
+pub fn reference_package(server: &str, manifest: &ReferenceManifest) -> Result<Vec<u8>> {
+    let url = format!(
+        "{}/v1/reference/{}/{}",
+        base(server),
+        manifest.format,
+        manifest.updated
+    );
+    get(&url)?
+        .body_mut()
+        .with_config()
+        .limit(MAX_BYTES)
+        .read_to_vec()
+        .context("téléchargement du butin de référence")
 }
 
 /// The regions where the server found Forever auction houses (eu, us, kr, tw).

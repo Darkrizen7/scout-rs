@@ -245,3 +245,36 @@ fn wowhead_names_items_missing_from_the_tables() -> Result<()> {
     assert!(scout_gamedata::wowhead::item(999_999)?.is_none());
     Ok(())
 }
+
+/// Downloads the loot and merchants package of the real server into a throwaway database, then checks that
+/// a second pass downloads nothing (3 requests).
+#[tokio::test]
+#[ignore = "downloads the reference package from the price server"]
+async fn syncs_server_reference_once() -> Result<()> {
+    use scout_worker::{Event, ServerSync, sync_server};
+
+    let path = throwaway_db("server-reference");
+    let unpacked = path.with_extension("tmp");
+    let db = Db::open(&path).await?;
+    let server = scout_core::scout_api::DEFAULT_SERVER;
+    let log = |event: Event| {
+        if let Event::Status(text) = event {
+            println!("status : {text}");
+        }
+    };
+    let first = sync_server(&db, server, &unpacked, &log).await?;
+    println!(
+        "first pass : {first:?}, version {:?}",
+        db.server_reference().await?
+    );
+    let second = sync_server(&db, server, &unpacked, &log).await?;
+    println!("second pass : {second:?}");
+    println!("drops : {} zones", db.zones().await?.len());
+    let leftover = unpacked.exists();
+    db.close().await;
+    std::fs::remove_file(&path)?;
+    assert_eq!(first, ServerSync::Installed);
+    assert_eq!(second, ServerSync::UpToDate);
+    assert!(!leftover, "temporary file left behind");
+    Ok(())
+}
