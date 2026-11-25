@@ -14,11 +14,13 @@ CREATE TABLE IF NOT EXISTS prices (
     min_unit    INTEGER,           -- copper; NULL when every auction is bid-only
     p25_unit    INTEGER,           -- percentiles weighted by quantity
     median_unit INTEGER,
-    quantity    INTEGER NOT NULL,  -- units on sale, bid-only auctions included
+    quantity    INTEGER NOT NULL,  -- units on sale, bid-only auctions included; 0 = no longer listed
     auctions    INTEGER NOT NULL,
     buyout_less INTEGER NOT NULL,  -- bid-only auctions, left out of the prices
     PRIMARY KEY (house, ts, item_id)
 ) WITHOUT ROWID;
+-- One item's history (the app's market sheet).
+CREATE INDEX IF NOT EXISTS prices_item ON prices (house, item_id, ts);
 ";
 
 /// A raw snapshot written before its prices were (written by an older version, or interrupted).
@@ -117,6 +119,65 @@ impl Db {
                 .fetch_one(&self.pool)
                 .await?;
         Ok(Page { rows, until, more })
+    }
+
+    /// The newest version of both listings of `house`: every item on sale, plus those that just left.
+    pub async fn latest(&self, house: u32) -> Result<Vec<PriceRow>> {
+        Ok(sqlx::query_as(
+            "SELECT ts, item_id, min_unit, p25_unit, median_unit, quantity, auctions, buyout_less
+             FROM prices WHERE house = ? AND ts IN (
+                 SELECT MAX(fetched_at) FROM raw_snapshots
+                 WHERE house = ? AND aggregated = 1 GROUP BY kind)
+             ORDER BY item_id",
+        )
+        .bind(house)
+        .bind(house)
+        .fetch_all(&self.pool)
+        .await?)
+    }
+
+    /// Every row of one item after `since`, oldest first.
+    pub async fn item_history(
+        &self,
+        house: u32,
+        item_id: u32,
+        since: i64,
+    ) -> Result<Vec<PriceRow>> {
+        Ok(sqlx::query_as(
+            "SELECT ts, item_id, min_unit, p25_unit, median_unit, quantity, auctions, buyout_less
+             FROM prices WHERE house = ? AND item_id = ? AND ts > ? ORDER BY ts",
+        )
+        .bind(house)
+        .bind(item_id)
+        .bind(since)
+        .fetch_all(&self.pool)
+        .await?)
+    }
+
+    /// Items on sale in the version of `house`'s `kind` listing just before `ts`.
+    pub async fn listed_before(&self, house: u32, kind: &str, ts: i64) -> Result<Vec<u32>> {
+        Ok(sqlx::query_scalar(
+            "SELECT item_id FROM prices WHERE house = ? AND quantity > 0 AND ts = (
+                 SELECT MAX(fetched_at) FROM raw_snapshots
+                 WHERE house = ? AND kind = ? AND fetched_at < ?)",
+        )
+        .bind(house)
+        .bind(house)
+        .bind(kind)
+        .bind(ts)
+        .fetch_all(&self.pool)
+        .await?)
+    }
+
+    /// Newest snapshot time of `house`, any listing: a new one must come after it, so that `ts`
+    /// tells the two listings apart.
+    pub async fn newest_fetch(&self, house: u32) -> Result<Option<i64>> {
+        Ok(
+            sqlx::query_scalar("SELECT MAX(fetched_at) FROM raw_snapshots WHERE house = ?")
+                .bind(house)
+                .fetch_one(&self.pool)
+                .await?,
+        )
     }
 
     /// Raw snapshots on disk whose prices are not in `prices` yet.

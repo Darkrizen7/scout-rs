@@ -10,6 +10,8 @@ use crate::aggregate::ItemPrices;
 
 mod prices;
 
+pub use prices::PriceRow;
+
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS houses (
     id         INTEGER PRIMARY KEY,

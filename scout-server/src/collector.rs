@@ -1,6 +1,7 @@
 //! Polls every listing of every house and keeps each new content once: raw file, index row and
 //! its prices.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -102,6 +103,7 @@ impl Collector {
                 Ok(aggregate::aggregate(&bytes)?.1)
             })
             .await??;
+            let rows = with_absences(&self.db, (p.house, &p.kind, p.fetched_at), rows).await?;
             self.db.add_prices(p, &rows).await?;
         }
         eprintln!(
@@ -185,7 +187,12 @@ pub async fn store(
             .await?;
         return Ok(Outcome::Same);
     }
-    let relative = storage::relative_path(house, kind, now);
+    // Never the same second as the house's other listing: `ts` tells their prices apart.
+    let ts = db
+        .newest_fetch(house)
+        .await?
+        .map_or(now, |t| now.max(t + 1));
+    let relative = storage::relative_path(house, kind, ts);
     let storage = storage.clone();
     let (raw_bytes, (auctions, rows), written) =
         tokio::task::spawn_blocking(move || -> Result<_> {
@@ -199,11 +206,12 @@ pub async fn store(
         })
         .await
         .context("compression")??;
+    let rows = with_absences(db, (house, kind.as_str(), ts), rows).await?;
     db.insert_snapshot(
         &NewSnapshot {
             house,
             kind: kind.as_str(),
-            fetched_at: now,
+            fetched_at: ts,
             last_modified,
             sha256: &sha256,
             path: written.as_ref().map(|(_, p)| p.as_str()),
@@ -219,6 +227,24 @@ pub async fn store(
     } else {
         Outcome::Skipped
     })
+}
+
+/// Adds a `quantity = 0` row for every item of the listing's previous version that is gone,
+/// so that the app knows it is no longer on sale.
+async fn with_absences(
+    db: &Db,
+    (house, kind, ts): (u32, &str, i64),
+    mut rows: Vec<aggregate::ItemPrices>,
+) -> Result<Vec<aggregate::ItemPrices>> {
+    let present: HashSet<u32> = rows.iter().map(|r| r.item_id).collect();
+    let before = db.listed_before(house, kind, ts).await?;
+    rows.extend(
+        before
+            .into_iter()
+            .filter(|id| !present.contains(id))
+            .map(aggregate::ItemPrices::gone),
+    );
+    Ok(rows)
 }
 
 pub fn unix_now() -> i64 {
@@ -259,8 +285,20 @@ mod tests {
         );
         assert_eq!(put(600, 1, None).await, Outcome::Same);
         assert_eq!(put(1200, 2, None).await, Outcome::New);
+        // Item 769 replaces 768: 768 gets a row saying it is gone.
+        let other = r#"{"auctions":[{"id":3,"item":{"id":769},"buyout":90,"quantity":1}]}"#;
+        let last = db.last_snapshot(114, "auctions").await.unwrap();
+        let at = (114, Kind::Auctions, t + 1800);
+        let bytes = other.as_bytes().to_vec();
+        let stored = store(&db, &storage, at, last.as_ref(), bytes, None)
+            .await
+            .unwrap();
+        assert_eq!(stored, Outcome::New);
+        let gone =
+            "SELECT COUNT(*) FROM prices WHERE item_id = 768 AND quantity = 0 AND min_unit IS NULL";
+        assert_eq!(db.count(gone).await, 1);
 
-        assert_eq!(db.count("SELECT COUNT(*) FROM raw_snapshots").await, 2);
+        assert_eq!(db.count("SELECT COUNT(*) FROM raw_snapshots").await, 3);
         // One item per content, its price with it; nothing is left to price at start-up.
         assert_eq!(
             db.count("SELECT COUNT(*) FROM prices WHERE min_unit = 147")
@@ -273,9 +311,9 @@ mod tests {
             .await;
         assert_eq!(first, t + 600);
         let last = db.last_snapshot(114, "auctions").await.unwrap().unwrap();
-        assert_eq!(last.fetched_at, t + 1200);
+        assert_eq!(last.fetched_at, t + 1800);
         assert!(
-            dir.join(storage::relative_path(114, Kind::Auctions, t + 1200))
+            dir.join(storage::relative_path(114, Kind::Auctions, t + 1800))
                 .exists()
         );
         std::fs::remove_dir_all(dir).unwrap();

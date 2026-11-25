@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 use tower_http::compression::CompressionLayer;
 
 use crate::collector::{self, STOP_RAW_BYTES};
-use crate::db::Db;
+use crate::db::{Db, PriceRow};
 use crate::storage::Storage;
 
 mod access;
@@ -41,6 +41,8 @@ pub fn router(api: Arc<Api>) -> Router {
     let v1 = Router::new()
         .route("/houses", get(houses))
         .route("/houses/{id}/prices", get(prices))
+        .route("/houses/{id}/latest", get(latest))
+        .route("/houses/{id}/items/{item}/history", get(item_history))
         .layer(middleware::from_fn_with_state(api.clone(), guard));
     Router::new()
         .route("/health", get(health))
@@ -114,23 +116,7 @@ async fn prices(
         Ok(page) => page,
         Err(e) => return internal(&e),
     };
-    let mut csv = String::with_capacity(40 * page.rows.len() + 100);
-    csv.push_str("ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less\n");
-    let opt = |v: Option<i64>| v.map(|v| v.to_string()).unwrap_or_default();
-    for r in &page.rows {
-        let _ = writeln!(
-            csv,
-            "{},{},{},{},{},{},{},{}",
-            r.ts,
-            r.item_id,
-            opt(r.min_unit),
-            opt(r.p25_unit),
-            opt(r.median_unit),
-            r.quantity,
-            r.auctions,
-            r.buyout_less
-        );
-    }
+    let csv = to_csv(&page.rows);
     (
         [
             (header::CONTENT_TYPE, "text/csv; charset=utf-8".to_owned()),
@@ -146,6 +132,56 @@ async fn prices(
         csv,
     )
         .into_response()
+}
+
+/// The newest version of the house's listings, one line per item (`quantity = 0`: just left).
+async fn latest(State(api): State<Arc<Api>>, Path(house): Path<u32>) -> Response {
+    match api.db.latest(house).await {
+        Ok(rows) => (
+            [(header::CONTENT_TYPE, "text/csv; charset=utf-8")],
+            to_csv(&rows),
+        )
+            .into_response(),
+        Err(e) => internal(&e),
+    }
+}
+
+/// Every line of one item after `since`, oldest first.
+async fn item_history(
+    State(api): State<Arc<Api>>,
+    Path((house, item_id)): Path<(u32, u32)>,
+    Query(Since { since }): Query<Since>,
+) -> Response {
+    match api.db.item_history(house, item_id, since).await {
+        Ok(rows) => (
+            [(header::CONTENT_TYPE, "text/csv; charset=utf-8")],
+            to_csv(&rows),
+        )
+            .into_response(),
+        Err(e) => internal(&e),
+    }
+}
+
+/// `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less`, empty for `NULL`.
+fn to_csv(rows: &[PriceRow]) -> String {
+    let mut csv = String::with_capacity(40 * rows.len() + 100);
+    csv.push_str("ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less\n");
+    let opt = |v: Option<i64>| v.map(|v| v.to_string()).unwrap_or_default();
+    for r in rows {
+        let _ = writeln!(
+            csv,
+            "{},{},{},{},{},{},{},{}",
+            r.ts,
+            r.item_id,
+            opt(r.min_unit),
+            opt(r.p25_unit),
+            opt(r.median_unit),
+            r.quantity,
+            r.auctions,
+            r.buyout_less
+        );
+    }
+    csv
 }
 
 async fn privacy() -> Html<&'static str> {

@@ -132,6 +132,34 @@ async fn prices_come_as_csv_pages() {
 }
 
 #[tokio::test]
+async fn latest_prices_and_one_item_history() {
+    let app = api(5, 5).await;
+    let (status, response) = get(&app, "/v1/houses/114/latest", Some(KEY)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        text(response).await,
+        "ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less\n200,768,150,150,150,4,2,0\n"
+    );
+    let (_, response) = get(&app, "/v1/houses/114/items/768/history", Some(KEY)).await;
+    let csv = text(response).await;
+    assert_eq!(
+        csv.lines().skip(1).collect::<Vec<_>>(),
+        ["100,768,147,147,147,4,2,0", "200,768,150,150,150,4,2,0"]
+    );
+    let (_, response) = get(
+        &app,
+        "/v1/houses/114/items/768/history?since=100",
+        Some(KEY),
+    )
+    .await;
+    assert_eq!(text(response).await.lines().count(), 2);
+    assert_eq!(
+        get(&app, "/v1/houses/114/latest", None).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[tokio::test]
 async fn answers_are_gzipped_on_request() {
     let app = api(5, 5).await;
     let request = HttpRequest::get("/privacy")

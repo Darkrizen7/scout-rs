@@ -23,6 +23,21 @@ pub struct ItemPrices {
     pub buyout_less: u32,
 }
 
+impl ItemPrices {
+    /// An item of the previous version of the listing that is no longer on sale.
+    pub fn gone(item_id: u32) -> Self {
+        Self {
+            item_id,
+            min_unit: None,
+            p25_unit: None,
+            median_unit: None,
+            quantity: 0,
+            auctions: 0,
+            buyout_less: 0,
+        }
+    }
+}
+
 /// One item's auctions while a listing is read.
 #[derive(Default)]
 struct Acc {
