@@ -67,6 +67,7 @@ impl State {
             Event::UpdateAvailable(release) => self.update = Some(release),
             Event::UpdateInstalled(version) => self.update_installed = Some(version),
             Event::Quit => self.quit = true,
+            Event::ServerHouses(houses) => self.server_houses = Some(houses),
             Event::ZoneFavorites(zones) => self.zone_favorites = zones.into_iter().collect(),
             Event::Favorites(favorites) => {
                 let favorites: HashSet<i64> = favorites.into_iter().collect();

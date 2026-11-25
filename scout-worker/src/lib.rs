@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-pub use config::{Config, database_path};
+pub use config::{Config, PriceServer, database_path};
 pub use message::{Command, Event, Task};
 pub use reference::export as export_reference;
 

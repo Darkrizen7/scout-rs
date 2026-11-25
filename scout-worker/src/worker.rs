@@ -8,6 +8,7 @@
 //! runtime per thread (only driven inside `block_on`) a thread could wait for a connection that the
 //! idle thread holding it never returned.
 
+mod prices;
 mod tasks;
 mod update;
 
@@ -163,6 +164,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         send,
         exe: std::env::current_exe().ok(),
     };
+    prices::start(&shared);
     for command in commands {
         if let Err(e) = handle(command, &shared) {
             (shared.send)(Event::Error(format!("{e:#}")));
@@ -209,7 +211,10 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             let observations = runtime.block_on(db.observations())?;
             send(Event::Analysis(Box::new(analysis::analyze(&observations))));
         }
-        Command::LoadHistory(id) => send(Event::History(id, runtime.block_on(db.history(id))?)),
+        Command::LoadHistory(id) => {
+            send(Event::History(id, runtime.block_on(db.history(id))?));
+            prices::history_in_background(shared, id);
+        }
         Command::LoadDrops(id) => {
             let drops = runtime.block_on(db.item_drops(id))?;
             send(Event::Drops(id, Box::new(drops)));
@@ -258,6 +263,11 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
         Command::InstallAddon(release) => shared.spawn(Task::Addon, move |_, shared| {
             let wow_dir = shared.config().wow_dir()?.to_path_buf();
             update::install_addon(&release, &wow_dir, &*shared.send)
+        }),
+        Command::SetPriceServer { url, key, house } => prices::set_server(shared, url, key, house)?,
+        Command::LoadServerHouses => prices::load_houses(shared),
+        Command::SyncPrices => shared.spawn(Task::Prices, |runtime, shared| {
+            prices::sync_latest(runtime, shared, true)
         }),
         Command::Restart => {
             let exe = shared

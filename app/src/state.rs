@@ -9,6 +9,7 @@ use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::{self, GameData};
 use scout_core::map::Mask;
 use scout_core::pricing::{self, Source};
+use scout_core::scout_api::ServerHouse;
 use scout_core::update::{AddonInstall, Release};
 use scout_core::{ItemSummary, Snapshot, VendorData};
 use scout_worker::Config;
@@ -98,6 +99,8 @@ pub struct State {
     pub open_recipe: Option<usize>,
     /// Newest Forever build on wago.tools (checked at start), or the error.
     pub latest_build: Option<Result<String, String>>,
+    /// The price server's auction houses (Settings), or why they could not be read.
+    pub server_houses: Option<Result<Vec<ServerHouse>, String>>,
     /// The Scout addon in the WoW folder (None until the worker has looked).
     pub scout_addon: Option<AddonInstall>,
     /// Newest release of the Scout addon on GitHub (checked at start).
@@ -147,6 +150,7 @@ impl Default for State {
             update_installed: None,
             quit: false,
             latest_build: None,
+            server_houses: None,
             scout_addon: None,
             addon_release: None,
             open_item: None,

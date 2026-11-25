@@ -4,6 +4,7 @@
 mod addon;
 pub mod github;
 mod import;
+pub mod price_server;
 mod tga;
 mod wago;
 pub mod wow;

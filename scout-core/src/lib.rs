@@ -8,6 +8,7 @@ pub mod map;
 pub mod merge;
 pub mod money;
 pub mod pricing;
+pub mod scout_api;
 pub mod search;
 pub mod time;
 pub mod update;

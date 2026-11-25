@@ -4,7 +4,7 @@
 use eframe::egui;
 
 /// (name, link, what the tool takes from it).
-const SOURCES: [(&str, Option<&str>, &str); 7] = [
+const SOURCES: [(&str, Option<&str>, &str); 8] = [
     (
         "wago.tools",
         Some("https://wago.tools"),
@@ -26,6 +26,13 @@ const SOURCES: [(&str, Option<&str>, &str); 7] = [
         "cmangos classic-db et QuestieDB",
         Some("https://github.com/cmangos/classic-db"),
         "Bases d'où Forever Guide tire l'essentiel de son butin (chances, PNJ, noms français).",
+    ),
+    (
+        "API Battle.net de Blizzard Entertainment",
+        Some("https://develop.battle.net"),
+        "Prix de l'hôtel des ventes (source « Scout API »), relevés par notre serveur de prix. \
+         Données fournies « en l'état » ; outil non approuvé par Blizzard Entertainment et non \
+         affilié à Blizzard Entertainment.",
     ),
     (
         "Auctionator",

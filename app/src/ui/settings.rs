@@ -1,8 +1,10 @@
-//! Settings dialog: appearance, imports, game data, WoW folder; button to the data credits. Explanations live in hover texts.
+//! Settings dialog: appearance, imports, price server, game data, WoW folder; button to the data credits. Explanations live in hover texts.
 
 use std::path::PathBuf;
 
 use eframe::egui;
+
+mod price_server;
 
 use crate::state::State;
 use crate::ui::{credits, theme, widgets};
@@ -19,12 +21,14 @@ pub struct Settings {
     credits: bool,
     /// Ask the worker again whether the Scout addon is installed (it may have been since the start).
     check_addon: bool,
+    price_server: price_server::Form,
 }
 
 impl Settings {
     pub fn open(&mut self, state: &State) {
         self.open = true;
         self.check_addon = true;
+        self.price_server.open(state);
         self.wow_dir = state
             .config
             .as_ref()
@@ -48,6 +52,8 @@ impl Settings {
                 appearance(ui, state, worker);
                 section(ui, "Import", false);
                 import(ui, state, worker);
+                section(ui, "Serveur de prix (Scout API)", false);
+                self.price_server.ui(ui, state, worker);
                 section(ui, "Données du jeu", false);
                 game_data(ui, state, worker);
                 section(ui, "WoW", false);

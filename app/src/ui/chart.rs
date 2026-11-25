@@ -173,6 +173,7 @@ enum Unit {
 fn origin_label(origin: Origin) -> &'static str {
     match origin {
         Origin::Scout => "Scout",
+        Origin::ScoutApi => "Scout API (Blizzard)",
         Origin::Auctionator => "Auctionator",
         Origin::ForeverGuide => "Forever Guide",
         Origin::Average => "Moyenne Auctionator + Forever Guide",

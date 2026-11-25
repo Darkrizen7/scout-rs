@@ -76,8 +76,9 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
 ### 3.3 Agrégation (`aggregate.rs`, `db/prices.rs`)
 
 - À chaque **nouvel** instantané (contenu différent du précédent), dans la même transaction que sa ligne
-  `raw_snapshots` : une ligne `prices` par objet de la liste. Un objet absent d'une version n'a pas de ligne :
-  l'appli sait à quelles dates il y a eu un instantané.
+  `raw_snapshots` : une ligne `prices` par objet de la liste, plus une ligne `quantity = 0` (sans prix) pour chaque
+  objet de la version précédente **de la même liste** qui n'y est plus. Les deux listes d'une maison n'ont jamais le
+  même `ts` (au besoin une seconde de plus), ce qui permet de retrouver la version précédente de chacune.
 - Par `item_id` seul : les variantes (suffixes aléatoires, `bonus_lists`) sont fusionnées pour l'instant.
 - Prix unitaire = `unit_price` (empilables), ou `buyout / quantity` ; les enchères sans `buyout` (`buyout_less`)
   comptent dans `quantity` et `auctions` mais pas dans les prix (`NULL` si toutes le sont).
@@ -99,6 +100,8 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 | GET | `/health` | non | JSON : `last_success`, `seconds_since`, `free_gb`, `low_disk`, `raw_stopped` |
 | GET | `/privacy` | non | politique de confidentialité (HTML, `api/privacy.html`) + mention Blizzard |
 | GET | `/v1/houses` | oui | JSON : `id`, `name`, `last_update` (dernier `ts` de prix), `last_check` |
+| GET | `/v1/houses/{id}/latest` | oui | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir |
+| GET | `/v1/houses/{id}/items/{item}/history?since=<unix>` | oui | CSV : toutes les lignes d'un objet après `since` (index `prices_item`) |
 | GET | `/v1/houses/{id}/prices?since=<unix>` | oui | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
 
 - **Pages** (`api.rs`, `db/prices.rs`) : ~200 000 lignes au plus (environ un jour d'une grosse maison), toujours
@@ -127,19 +130,29 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 
 ### 3.6 Appli
 
-- Nouvelle source `blizzard` dans `snapshots` (`price` = `min_unit`, `quantity`) ; même schéma, donc le Market
-  la montre sans changement. La suppression de cette source se fait en une requête.
-- Réglages : adresse du serveur, clé, maison (liste venant de `/v1/houses`, 114 par défaut pour l'utilisateur).
-- Worker : synchro au démarrage puis toutes les heures, incrémentale (`since` = dernier `ts` reçu).
-- Crédits (`ui/credits.rs`) : « Données d'hôtel des ventes : API Blizzard Battle.net. Outil non affilié à
-  Blizzard Entertainment. »
+- Source **`scout-api`** dans `snapshots` (`price` = `min_unit`, `NULL` si l'objet est parti ; `quantity`), à côté de
+  `scout`, `auctionator`, `foreverguide`. Supprimer cette source = une requête.
+- **Derniers prix** (`/v1/houses/{id}/latest`, tous les objets) : vérifiés au démarrage puis toutes les 10 min,
+  téléchargés quand ils ont plus d'**1 h** (ou par « ⟳ Mettre à jour » dans les Réglages). Une ligne n'est écrite que
+  si le prix a changé, plus la première de chaque jour local (chaque jour garde son prix) ; un objet qui n'y est plus
+  reçoit une ligne `NULL` (`scout_core::scout_api::latest_rows`).
+- **Historique d'un objet** (`/v1/houses/{id}/items/{item}/history?since=`) : à l'ouverture de sa fiche Market, la base
+  est affichée tout de suite, puis complétée depuis le serveur (tout la première fois, ensuite ce qui suit `until`) si
+  le cache a plus d'1 h ; gardé en entier (une ligne par version). Cache : table `scout_api_history`.
+- Fusion des graphiques (`merge`) : Scout, sinon Scout API, sinon moyenne Auctionator / Forever Guide.
+- Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), clé, hôtel des
+  ventes choisi dans la liste du serveur. `[price_server]` dans `config.toml`.
+- Crédits (`ui/credits.rs`) : API Battle.net de Blizzard Entertainment, non approuvé ni affilié.
+- Changer d'hôtel des ventes mêle pour l'instant les prix des deux dans la source `scout-api`.
+- **TODO** : compresser à un point par jour les relevés `scout-api` de plus de 3 mois (`prix.db` grossit d'environ
+  2 400 lignes par version téléchargée).
 
 ## 4. Étapes
 
 1. **Collecteur seul** (bruts + index + `fetch_log`), déployé le 2026-11-25 ; une semaine d'observation : cadence réelle de
    Blizzard, volume disque, erreurs.
 2. Agrégation, API, clé, limite de débit, `/privacy` (**faits** le 2026-11-25).
-3. Source `blizzard` dans l'appli et ses réglages.
+3. Source `scout-api` dans l'appli et ses réglages (**faits** le 2026-11-25).
 4. Plus tard : choisir quoi garder des bruts (différences entre instantanés, sous-échantillonnage).
 
 ## 5. Volume disque

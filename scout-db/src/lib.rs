@@ -11,6 +11,7 @@ mod market;
 mod reference;
 mod vendor;
 
+pub use market::scout_api::HistoryCache;
 pub use reference::ReferenceUpdate;
 
 const SCHEMA: &str = "
@@ -74,6 +75,9 @@ impl Db {
         sqlx::raw_sql(drops::SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(game::maps::SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(game::wowhead::SCHEMA).execute(&pool).await?;
+        sqlx::raw_sql(market::scout_api::SCHEMA)
+            .execute(&pool)
+            .await?;
         Self::migrate_game(&pool).await?;
         Self::migrate_vendor(&pool).await?;
         Self::migrate_drops(&pool).await?;

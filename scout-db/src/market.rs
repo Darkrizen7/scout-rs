@@ -6,6 +6,8 @@ use scout_core::{ItemName, ItemSummary, Row, Snapshot};
 
 use super::Db;
 
+pub(crate) mod scout_api;
+
 impl Db {
     pub async fn favorites(&self) -> Result<Vec<i64>> {
         let rows: Vec<(i64,)> = sqlx::query_as("SELECT item_id FROM favorites")

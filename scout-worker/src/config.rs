@@ -25,6 +25,48 @@ pub struct Config {
     /// When the last import from Scout succeeded (Unix seconds).
     #[serde(default)]
     pub last_import: Option<i64>,
+    /// Our price server (Battle.net auction API).
+    #[serde(default)]
+    pub price_server: PriceServer,
+}
+
+/// Where the Blizzard prices come from; nothing is synced without a key and a house.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PriceServer {
+    #[serde(default = "default_server")]
+    pub url: String,
+    /// Personal access key, given by the server's administrator.
+    #[serde(default)]
+    pub key: Option<String>,
+    /// Auction house whose prices are kept (`/v1/houses`).
+    #[serde(default)]
+    pub house: Option<u32>,
+    /// When the last sync succeeded (Unix seconds).
+    #[serde(default)]
+    pub last_sync: Option<i64>,
+}
+
+impl Default for PriceServer {
+    fn default() -> Self {
+        Self {
+            url: default_server(),
+            key: None,
+            house: None,
+            last_sync: None,
+        }
+    }
+}
+
+impl PriceServer {
+    /// Url, key and house, when all are set.
+    pub fn ready(&self) -> Option<(&str, &str, u32)> {
+        let key = self.key.as_deref().filter(|k| !k.is_empty())?;
+        Some((self.url.as_str(), key, self.house?))
+    }
+}
+
+fn default_server() -> String {
+    scout_core::scout_api::DEFAULT_SERVER.to_owned()
 }
 
 impl Default for Config {
@@ -34,6 +76,7 @@ impl Default for Config {
             theme: Theme::default(),
             hide_obsolete: true,
             last_import: None,
+            price_server: PriceServer::default(),
         }
     }
 }

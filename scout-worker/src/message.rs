@@ -8,6 +8,7 @@ use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::map::Mask;
+use scout_core::scout_api::ServerHouse;
 use scout_core::update::{AddonInstall, Release};
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
 
@@ -17,6 +18,8 @@ pub enum Command {
     Import,
     /// One-off import of the prices Auctionator and Forever Guide kept.
     ImportLegacy,
+    /// An item's price history: what the database has at once, then (`Event::History` again) the
+    /// rest of it from the price server when the cache is an hour old.
     LoadHistory(i64),
     /// Where an item comes from (item sheet, Drops tab).
     LoadDrops(i64),
@@ -42,6 +45,16 @@ pub enum Command {
     Restart,
     /// Installs (or updates) the Scout addon from this release.
     InstallAddon(Release),
+    /// Price server address, access key and auction house (saved, then the houses and prices follow).
+    SetPriceServer {
+        url: String,
+        key: Option<String>,
+        house: Option<u32>,
+    },
+    /// The auction houses of the price server (answered by `Event::ServerHouses`).
+    LoadServerHouses,
+    /// Latest prices of every item from the price server now, however old they are.
+    SyncPrices,
 }
 
 /// Long tasks, each on its own thread: several can run at once, but not the same one twice.
@@ -57,6 +70,8 @@ pub enum Task {
     Update,
     /// Scout addon download and install.
     Addon,
+    /// Latest prices from the price server.
+    Prices,
 }
 
 pub enum Event {
@@ -91,4 +106,6 @@ pub enum Event {
     UpdateInstalled(String),
     /// The new executable is running: the UI closes.
     Quit,
+    /// The price server's auction houses, or why they could not be read.
+    ServerHouses(Result<Vec<ServerHouse>, String>),
 }
