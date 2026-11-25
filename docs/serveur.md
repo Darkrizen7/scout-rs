@@ -148,7 +148,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - **Historique d'un objet** (`/v1/{region}/houses/{id}/items/{item}/history?since=`) : à l'ouverture de sa fiche Market, la base
   est affichée tout de suite, puis complétée depuis le serveur (tout la première fois, ensuite ce qui suit `until`) si
   le cache a plus d'1 h ; gardé en entier (une ligne par version). Cache : table `scout_api_history`.
-- Fusion des graphiques (`merge`) : Scout, sinon Scout API.
+- Fusion des graphiques (`merge`) : un jour avec un scan Scout, Scout jusqu’à son dernier scan puis les relevés Scout API qui suivent (point du jour = le plus récent, Scout à égalité) ; sinon Scout API seul.
 - Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), clé, région (parmi
   `/v1/regions`), hôtel des ventes ; le même sélecteur d'HdV est dans l'en-tête (`ui/widgets/house.rs`).
   `[price_server]` dans `config.toml`. Noms : « EU Normal · Horde (114) » (`ServerHouse::label`, `scout_api::realm_type`).

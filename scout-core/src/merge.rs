@@ -1,5 +1,6 @@
-//! One point per day for the market charts: Scout wins, then Scout API (our price server, from the
-//! Battle.net auction API).
+//! Market chart points from Scout scans and Scout API (our price server, from the Battle.net
+//! auction API): on a day with a Scout scan, Scout until its last scan, then the Scout API readings
+//! that follow it; on other days, Scout API alone.
 
 use std::collections::BTreeMap;
 
@@ -39,8 +40,8 @@ fn keep_latest(slot: &mut Reading, ts: i64, value: f64) {
     }
 }
 
-/// Merge the sources day by day (local days), in chronological order: Scout if it has readings that
-/// day, else Scout API.
+/// Merge the sources day by day (local days), in chronological order: the day's latest reading,
+/// Scout on a tie.
 pub fn merge(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> Vec<Point> {
     let mut days: BTreeMap<NaiveDate, [Reading; 2]> = BTreeMap::new();
     for s in history {
@@ -57,7 +58,11 @@ pub fn merge(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> 
     days.into_values()
         .filter_map(|[scout, api]| {
             let point = |r: Reading, origin| r.map(|(ts, value)| Point { ts, value, origin });
-            point(scout, Origin::Scout).or_else(|| point(api, Origin::ScoutApi))
+            match (scout, api) {
+                (Some((s, _)), Some((a, _))) if a > s => point(api, Origin::ScoutApi),
+                (Some(_), _) => point(scout, Origin::Scout),
+                _ => point(api, Origin::ScoutApi),
+            }
         })
         .collect()
 }
@@ -76,8 +81,8 @@ pub fn series(
     }
 }
 
-/// Every reading, with the same choice of source as `merge`, day by day: Scout alone on the days
-/// it has readings, else Scout API alone.
+/// Every reading, with the same choice of source as `merge`, day by day: on the days Scout has
+/// readings, those and the Scout API readings after its last one; else Scout API alone.
 fn detailed(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> Vec<Point> {
     let mut days: BTreeMap<NaiveDate, Vec<Point>> = BTreeMap::new();
     for s in history {
@@ -97,8 +102,13 @@ fn detailed(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> V
     }
     let mut out = Vec::new();
     for mut points in days.into_values() {
-        if points.iter().any(|p| p.origin == Origin::Scout) {
-            points.retain(|p| p.origin == Origin::Scout);
+        let last_scan = points
+            .iter()
+            .filter(|p| p.origin == Origin::Scout)
+            .map(|p| p.ts)
+            .max();
+        if let Some(last) = last_scan {
+            points.retain(|p| p.origin == Origin::Scout || p.ts > last);
         }
         points.sort_by_key(|p| p.ts);
         out.extend(points);
@@ -127,11 +137,16 @@ mod tests {
     }
 
     #[test]
-    fn scout_hides_the_others_on_the_same_day() {
+    fn the_latest_reading_of_the_day_wins() {
         let h = [
             snap(SCOUT_API, 1_000_000_000, 10),
             snap(SCOUT, 1_000_000_100, 30),
             snap(SCOUT_API, 1_000_000_200, 20),
+        ];
+        assert_eq!(merged(&h), [(Origin::ScoutApi, 20.0)]);
+        let h = [
+            snap(SCOUT_API, 1_000_000_100, 10),
+            snap(SCOUT, 1_000_000_100, 30),
         ];
         assert_eq!(merged(&h), [(Origin::Scout, 30.0)]);
     }
@@ -141,7 +156,7 @@ mod tests {
         let day = 86_400 * 3;
         let h = [
             snap(SCOUT, 1_000_000_000, 30),
-            snap(SCOUT_API, 1_000_000_100, 29),
+            snap(SCOUT_API, 999_999_900, 29),
             snap(SCOUT_API, 1_000_000_100 + day, 12),
             snap(SCOUT_API, 1_000_000_200 + day, 13),
         ];
@@ -164,17 +179,19 @@ mod tests {
     }
 
     #[test]
-    fn detail_keeps_every_reading_of_the_chosen_source() {
+    fn detail_keeps_scout_then_the_api_after_the_last_scan() {
         let h = [
             snap(SCOUT_API, 1_000_000_000, 10),
             snap(SCOUT_API, 1_000_000_100, 12),
             snap(SCOUT, 1_000_000_200, 30),
+            snap(SCOUT_API, 1_000_000_250, 14),
             snap(SCOUT, 1_000_000_300, 31),
+            snap(SCOUT_API, 1_000_000_400, 15),
         ];
         let values: Vec<f64> = series(&h, Period::Detail, |s| Some(s.price? as f64))
             .iter()
             .map(|p| p.value)
             .collect();
-        assert_eq!(values, [30.0, 31.0]);
+        assert_eq!(values, [30.0, 31.0, 15.0]);
     }
 }
