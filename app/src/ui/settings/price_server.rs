@@ -1,4 +1,4 @@
-//! Settings section of the price server (source « Scout API »): address, access key, region and
+//! Settings section of the price server (source « Scout API »): address (dev builds only), access key, region and
 //! auction house.
 
 use eframe::egui;
@@ -37,10 +37,14 @@ impl Form {
             .num_columns(2)
             .spacing([8.0, 4.0])
             .show(ui, |ui| {
-                ui.label("Adresse")
-                    .on_hover_text("Serveur qui relève l'hôtel des ventes par l'API Battle.net.");
-                ui.add(egui::TextEdit::singleline(&mut self.url).desired_width(300.0));
-                ui.end_row();
+                // Users keep the default server: the address is only editable in dev builds.
+                if cfg!(debug_assertions) {
+                    ui.label("Adresse").on_hover_text(
+                        "Serveur qui relève l'hôtel des ventes par l'API Battle.net.",
+                    );
+                    ui.add(egui::TextEdit::singleline(&mut self.url).desired_width(300.0));
+                    ui.end_row();
+                }
                 ui.label("Clé d'accès")
                     .on_hover_text("Clé personnelle donnée par l'administrateur du serveur.");
                 ui.add(
