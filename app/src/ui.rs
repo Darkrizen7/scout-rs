@@ -5,7 +5,6 @@ pub mod analysis_view;
 pub mod calculator;
 pub mod chart;
 pub mod coins;
-pub mod credits;
 pub mod fonts;
 pub mod header;
 pub mod item_list;

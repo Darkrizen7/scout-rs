@@ -48,5 +48,5 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   requêtes (sans pause, CloudFront bloque l'adresse en 403 après ~300) ; au premier refus (403…) on
   arrête de demander : le paquet est publié marqué incomplet (`complete: false`, « ⚠ Incomplètes » dans Réglages)
   et le serveur recommence au tour suivant (son cache `data/gamedata/wowhead.json` garde ce qui a été lu).
-- Les sources sont citées dans Réglages → bouton « ℹ Sources des données » (`ui/credits.rs`, `SOURCES` : à compléter
-  si on en ajoute une).
+- Les sources sont citées dans Réglages → bouton « ℹ Sources des données » qui ouvre la page `/thanks`
+  du serveur de prix (`scout_core::credits::SOURCES` : à compléter si on en ajoute une).

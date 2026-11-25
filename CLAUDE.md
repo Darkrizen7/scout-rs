@@ -67,7 +67,7 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
   Le format du butin est figé (Forever Guide n'est plus importé) : constante de test dans `scout-worker/src/reference.rs`.
 - La base de référence (`scout-worker/data/reference.db.gz`) n'a **jamais** de données personnelles : ni prix,
   ni favoris, ni butin enregistré (liste des tables dans `scout-db/src/reference.rs`).
-- Une nouvelle source de données se cite dans `scout-core/src/credits.rs` (`SOURCES`, affichée par l'appli et la page `/thanks` du serveur).
+- Une nouvelle source de données se cite dans `scout-core/src/credits.rs` (`SOURCES`, affichée par la page `/thanks` du serveur, ouverte depuis les réglages).
 
 ## Architecture
 Workspace Cargo (`resolver = "3"`). Les dépendances ne vont que dans un sens :
