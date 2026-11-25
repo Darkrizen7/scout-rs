@@ -1,10 +1,14 @@
-//! The server's SQLite database: the index of the raw snapshots and the fetch log
-//! (the aggregates served to the app come in step 2, docs/serveur.md).
+//! The server's SQLite database: the index of the raw snapshots, the fetch log and the prices
+//! served to the app (`db/prices`).
 
 use std::path::Path;
 
 use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
+
+use crate::aggregate::ItemPrices;
+
+mod prices;
 
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS houses (
@@ -24,6 +28,7 @@ CREATE TABLE IF NOT EXISTS raw_snapshots (
     raw_bytes     INTEGER NOT NULL,
     bytes         INTEGER NOT NULL,  -- compressed size, 0 when not written
     auctions      INTEGER NOT NULL,
+    aggregated    INTEGER NOT NULL DEFAULT 0,  -- 1 once its rows are in prices
     PRIMARY KEY (house, kind, fetched_at)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS fetch_log (
@@ -84,6 +89,20 @@ impl Db {
             .connect_with(options)
             .await?;
         sqlx::raw_sql(SCHEMA).execute(&pool).await?;
+        sqlx::raw_sql(prices::SCHEMA).execute(&pool).await?;
+        // Databases made before `prices` (2026-11-25): their snapshots get priced at start-up.
+        let aggregated: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM pragma_table_info('raw_snapshots') WHERE name = 'aggregated'",
+        )
+        .fetch_one(&pool)
+        .await?;
+        if aggregated == 0 {
+            sqlx::raw_sql(
+                "ALTER TABLE raw_snapshots ADD COLUMN aggregated INTEGER NOT NULL DEFAULT 0",
+            )
+            .execute(&pool)
+            .await?;
+        }
         Ok(Self { pool })
     }
 
@@ -132,11 +151,13 @@ impl Db {
         Ok(())
     }
 
-    pub async fn insert_snapshot(&self, s: &NewSnapshot<'_>) -> Result<()> {
+    /// A new snapshot and its prices, together.
+    pub async fn insert_snapshot(&self, s: &NewSnapshot<'_>, rows: &[ItemPrices]) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO raw_snapshots (house, kind, fetched_at, last_seen, last_modified, sha256,
-                                        path, raw_bytes, bytes, auctions)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                        path, raw_bytes, bytes, auctions, aggregated)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
         )
         .bind(s.house)
         .bind(s.kind)
@@ -148,8 +169,10 @@ impl Db {
         .bind(s.raw_bytes as i64)
         .bind(s.bytes as i64)
         .bind(s.auctions as i64)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        prices::insert(&mut tx, s.house, s.fetched_at, rows).await?;
+        tx.commit().await?;
         Ok(())
     }
 

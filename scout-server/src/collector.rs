@@ -1,4 +1,5 @@
-//! Polls every listing of every house and keeps each new content once (raw file + index row).
+//! Polls every listing of every house and keeps each new content once: raw file, index row and
+//! its prices.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -6,6 +7,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 use sha2::{Digest, Sha256};
 
+use crate::aggregate;
 use crate::blizzard::{Client, Fetched, Kind};
 use crate::db::{Db, Last, NewSnapshot};
 use crate::storage::{self, Storage};
@@ -48,6 +50,9 @@ impl Outcome {
 
 impl Collector {
     pub async fn run(self) {
+        if let Err(e) = self.price_pending().await {
+            eprintln!("prix des anciens instantanés : {e:#}");
+        }
         let mut ticks = tokio::time::interval(self.interval);
         ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -76,6 +81,32 @@ impl Collector {
         eprintln!(
             "relevé : {} maisons, {new} nouveaux instantanés, {:.1} s",
             houses.len(),
+            start.elapsed().as_secs_f32()
+        );
+        Ok(())
+    }
+
+    /// Prices the raw snapshots indexed without them (before `prices` existed, or interrupted).
+    async fn price_pending(&self) -> Result<()> {
+        let pending = self.db.pending_prices().await?;
+        if pending.is_empty() {
+            return Ok(());
+        }
+        let start = Instant::now();
+        for p in &pending {
+            let path = self.storage.path(&p.path);
+            let rows = tokio::task::spawn_blocking(move || -> Result<_> {
+                let compressed = std::fs::read(&path)
+                    .with_context(|| format!("lecture de {}", path.display()))?;
+                let bytes = zstd::decode_all(&compressed[..]).context("décompression")?;
+                Ok(aggregate::aggregate(&bytes)?.1)
+            })
+            .await??;
+            self.db.add_prices(p, &rows).await?;
+        }
+        eprintln!(
+            "prix calculés pour {} anciens instantanés en {:.1} s",
+            pending.len(),
             start.elapsed().as_secs_f32()
         );
         Ok(())
@@ -156,28 +187,32 @@ pub async fn store(
     }
     let relative = storage::relative_path(house, kind, now);
     let storage = storage.clone();
-    let (raw_bytes, auctions, written) = tokio::task::spawn_blocking(move || -> Result<_> {
-        let auctions = crate::blizzard::count_auctions(&bytes)?;
-        let written = if storage.free_bytes()? < STOP_RAW_BYTES {
-            None
-        } else {
-            Some((storage.write(&relative, &bytes)?, relative))
-        };
-        Ok((bytes.len() as u64, auctions, written))
-    })
-    .await
-    .context("compression")??;
-    db.insert_snapshot(&NewSnapshot {
-        house,
-        kind: kind.as_str(),
-        fetched_at: now,
-        last_modified,
-        sha256: &sha256,
-        path: written.as_ref().map(|(_, p)| p.as_str()),
-        raw_bytes,
-        bytes: written.as_ref().map_or(0, |(size, _)| *size),
-        auctions,
-    })
+    let (raw_bytes, (auctions, rows), written) =
+        tokio::task::spawn_blocking(move || -> Result<_> {
+            let prices = aggregate::aggregate(&bytes)?;
+            let written = if storage.free_bytes()? < STOP_RAW_BYTES {
+                None
+            } else {
+                Some((storage.write(&relative, &bytes)?, relative))
+            };
+            Ok((bytes.len() as u64, prices, written))
+        })
+        .await
+        .context("compression")??;
+    db.insert_snapshot(
+        &NewSnapshot {
+            house,
+            kind: kind.as_str(),
+            fetched_at: now,
+            last_modified,
+            sha256: &sha256,
+            path: written.as_ref().map(|(_, p)| p.as_str()),
+            raw_bytes,
+            bytes: written.as_ref().map_or(0, |(size, _)| *size),
+            auctions,
+        },
+        &rows,
+    )
     .await?;
     Ok(if written.is_some() {
         Outcome::New
@@ -226,6 +261,13 @@ mod tests {
         assert_eq!(put(1200, 2, None).await, Outcome::New);
 
         assert_eq!(db.count("SELECT COUNT(*) FROM raw_snapshots").await, 2);
+        // One item per content, its price with it; nothing is left to price at start-up.
+        assert_eq!(
+            db.count("SELECT COUNT(*) FROM prices WHERE min_unit = 147")
+                .await,
+            2
+        );
+        assert!(db.pending_prices().await.unwrap().is_empty());
         let first = db
             .count("SELECT last_seen FROM raw_snapshots ORDER BY fetched_at LIMIT 1")
             .await;

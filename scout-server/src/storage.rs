@@ -21,6 +21,11 @@ impl Storage {
         }
     }
 
+    /// Absolute path of a raw snapshot from its path relative to the data folder.
+    pub fn path(&self, relative: &str) -> PathBuf {
+        self.data_dir.join(relative)
+    }
+
     /// Compresses `bytes` to `relative` (atomically: a crash never leaves half a file); returns its size.
     pub fn write(&self, relative: &str, bytes: &[u8]) -> Result<u64> {
         let path = self.data_dir.join(relative);

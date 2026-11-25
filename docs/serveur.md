@@ -65,24 +65,29 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
 
   | Table | Colonnes |
   |---|---|
-  | `houses` | `id`, `name`, `faction` (alliance / horde / neutral), `group_id`, `first_seen`, `last_seen` |
-  | `raw_snapshots` | `house`, `kind`, `fetched_at`, `last_modified`, `sha256`, `path`, `bytes`, `auctions`, `last_seen` |
-  | `prices` | `house`, `item_id`, `ts` (heure du relevé), `min_unit`, `median_unit`, `quantity`, `auctions` — PK (`house`, `item_id`, `ts`) |
-  | `fetch_log` | `ts`, `house`, `kind`, `status`, `ms`, `error` (supervision, purgé après quelques jours) |
+  | `houses` | `id`, `name`, `first_seen`, `last_seen` |
+  | `raw_snapshots` | `house`, `kind`, `fetched_at`, `last_seen`, `last_modified`, `sha256`, `path`, `raw_bytes`, `bytes`, `auctions`, `aggregated` |
+  | `prices` | `house`, `ts` (= `fetched_at` de l'instantané), `item_id`, `min_unit`, `p25_unit`, `median_unit`, `quantity`, `auctions`, `buyout_less` — PK (`house`, `ts`, `item_id`) : l'appli lit par maison et par date |
+  | `fetch_log` | `ts`, `house`, `kind`, `status`, `ms`, `error` (supervision, purgé après 7 jours) |
 
 - Erreurs : 401 → nouveau jeton puis un seul nouvel essai ; 429 / 5xx → on saute ce tour pour cette maison ;
   le jeton est gardé en mémoire et renouvelé avant `expires_in`.
 
-### 3.3 Agrégation
+### 3.3 Agrégation (`aggregate.rs`, `db/prices.rs`)
 
-- Après chaque nouvel instantané : une ligne `prices` par objet **dont une valeur a changé** depuis le relevé
-  précédent de cette maison (un objet absent devient une ligne `quantity = 0`) ; la lecture prend la dernière
-  ligne connue. Beaucoup d'objets ne bougent pas d'une heure à l'autre : c'est le principal gain de place.
-- Prix unitaire = `unit_price`, ou `buyout / quantity` ; enchères sans `buyout` ignorées pour le prix mais
-  comptées dans la quantité.
-- Les bruts restent la référence : `scout-server reaggregate` recalcule `prices` depuis les fichiers quand on
-  change de statistiques (d'où l'intérêt de les garder pour l'instant).
-- Le calcul vit dans `scout-core` (pur, testé), partagé avec l'appli si besoin.
+- À chaque **nouvel** instantané (contenu différent du précédent), dans la même transaction que sa ligne
+  `raw_snapshots` : une ligne `prices` par objet de la liste. Un objet absent d'une version n'a pas de ligne :
+  l'appli sait à quelles dates il y a eu un instantané.
+- Par `item_id` seul : les variantes (suffixes aléatoires, `bonus_lists`) sont fusionnées pour l'instant.
+- Prix unitaire = `unit_price` (empilables), ou `buyout / quantity` ; les enchères sans `buyout` (`buyout_less`)
+  comptent dans `quantity` et `auctions` mais pas dans les prix (`NULL` si toutes le sont).
+- `p25_unit` et `median_unit` sont **pondérés par la quantité** : le prix auquel on achète un quart / la moitié
+  des unités en vente. Pas de prix max (trop bruité : annonces absurdes).
+- Au démarrage, les instantanés écrits sans leurs prix (`aggregated = 0` : avant cette table, ou interruption)
+  sont relus depuis leur fichier et agrégés (30 instantanés en 0,6 s).
+- Les bruts restent la référence : on pourra recalculer `prices` si l'on change de statistiques.
+- Vérifié le 2026-11-25 sur la 114 contre un scan Scout de 8 min plus ancien : 90 % de prix min identiques,
+  96 % à ±5 %.
 
 ### 3.4 API exposée
 
@@ -122,9 +127,9 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 
 ## 4. Étapes
 
-1. **Collecteur seul** (bruts + index + `fetch_log`), déployé ; une semaine d'observation : cadence réelle de
+1. **Collecteur seul** (bruts + index + `fetch_log`), déployé le 2026-11-25 ; une semaine d'observation : cadence réelle de
    Blizzard, volume disque, erreurs.
-2. Agrégation + API + clé + limite de débit + `/privacy`.
+2. Agrégation (**faite**), puis API + clé + limite de débit + `/privacy`.
 3. Source `blizzard` dans l'appli et ses réglages.
 4. Plus tard : choisir quoi garder des bruts (différences entre instantanés, sous-échantillonnage).
 
@@ -132,12 +137,11 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 
 Place libre sur `/mnt/games` : **82 Go** (2026-11-25).
 
-- Bruts, si chaque maison change à chaque heure : 7,2 Mo × 24 ≈ **170 Mo / jour, ~63 Go / an** ; moitié moins si
-  Blizzard régénère toutes les deux heures, et rien n'est écrit quand rien ne change.
-- `prices`, une ligne par objet et par relevé : ~53 000 objets (somme des 12 maisons non vides) × 24 ≈ 1,3 M
-  lignes / jour, **~460 M lignes, 12 à 16 Go / an**. Avec « seulement ce qui change » (§3.3), à mesurer à l'étape 1 ;
-  on peut aussi passer en journalier au-delà d'un certain âge.
-- Au pire, le disque est plein en ~1 an : `/health` signale « disque presque plein » sous **10 Go libres** et le
+Mesuré sur une version complète (15 maisons, 2026-11-25) : **8 Mo de bruts** (zstd 15, ~9 % du JSON) et
+**1,7 Mo dans `prices`** (52 778 lignes). Si Blizzard publie une version par heure : ~190 Mo + ~40 Mo par jour,
+**~70 Go + ~15 Go par an** ; rien n'est écrit quand rien ne change.
+
+- Le disque est donc plein en ~1 an : `/health` signale « disque presque plein » sous **10 Go libres** et le
   collecteur cesse d'écrire des bruts sous **3 Go** (les agrégats continuent). La décision sur les bruts (§4,
   étape 4) est à prendre dans les premiers mois.
 
@@ -151,7 +155,10 @@ Place libre sur `/mnt/games` : **82 Go** (2026-11-25).
 | 2026-11-25 | Service en Rust ; base SQLite (sqlx) qui garde les agrégats servis à l'appli. |
 | 2026-11-25 | Sous-domaine `scout.arthurdevtest.duckdns.org`. |
 | 2026-11-25 | Crate `scout-server` dans ce workspace, avec son propre client Battle.net (pas `scout-sources`). |
+| 2026-11-25 | `prices` : min, p25 et médiane pondérés par la quantité, quantité, enchères, sans prix immédiat ; pas de max ; variantes fusionnées par `item_id` (à séparer plus tard). |
+| 2026-11-25 | Plus tard : estimer les ventes (une enchère qui disparaît avant expiration, `id` stable d'un relevé à l'autre). |
 
 ## Questions ouvertes
 
-- Cadence réelle de Blizzard et gain du « seulement ce qui change » : mesurés à l'étape 1.
+- Cadence réelle de Blizzard (dates `Last-Modified` successives).
+- Séparer les variantes (`bonus_lists` → suffixes) ; estimation des ventes.

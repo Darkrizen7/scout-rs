@@ -1,5 +1,6 @@
 //! scout-server: polls WoW: Forever's auction houses on Battle.net and keeps every snapshot
-//! (docs/serveur.md). Step 1: the collector and `/health`; the aggregates and their API come next.
+//! (docs/serveur.md): the collector, the prices of every new snapshot and `/health`; their API
+//! comes next.
 //!
 //! Settings (environment): `BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET` (required),
 //! `BLIZZARD_REGION` (eu), `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000),
@@ -15,6 +16,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde_json::{Value, json};
 
+mod aggregate;
 mod blizzard;
 mod collector;
 mod db;

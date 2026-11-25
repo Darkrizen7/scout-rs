@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
-use serde::de::IgnoredAny;
 
 const RULESET: u32 = 2;
 /// The busiest house is about 10 MB; ureq's default limit is 10 MB.
@@ -201,16 +200,6 @@ pub fn parse_houses(bytes: &[u8]) -> Result<Vec<House>> {
     Ok(list.auctions)
 }
 
-/// Number of auctions in a listing (an empty house has no `auctions` field at all).
-pub fn count_auctions(bytes: &[u8]) -> Result<u64> {
-    #[derive(Deserialize)]
-    struct Listing {
-        auctions: Option<Vec<IgnoredAny>>,
-    }
-    let listing: Listing = serde_json::from_slice(bytes).context("enchères illisibles")?;
-    Ok(listing.auctions.map_or(0, |a| a.len() as u64))
-}
-
 fn base64(input: &str) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
@@ -253,15 +242,5 @@ mod tests {
         assert_eq!(houses.len(), 2);
         assert_eq!(houses[1].id, 114);
         assert_eq!(houses[1].name, "Hôtel des ventes de la Horde");
-    }
-
-    #[test]
-    fn counts_auctions_and_empty_houses() {
-        let full = r#"{"_links":{},"auctions":[
-            {"id":1,"item":{"id":9088},"quantity":1,"unit_price":4947,"time_left":"MEDIUM"},
-            {"id":2,"item":{"id":768},"buyout":147,"quantity":1,"time_left":"LONG"}]}"#;
-        assert_eq!(count_auctions(full.as_bytes()).unwrap(), 2);
-        let empty = r#"{"_links":{},"id":112,"name":"Hôtel","commodities":{"href":"x"}}"#;
-        assert_eq!(count_auctions(empty.as_bytes()).unwrap(), 0);
     }
 }
