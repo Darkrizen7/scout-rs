@@ -106,18 +106,18 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
 Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "scout"` du module ; ni « wow » ni
 « blizzard » dans l'URL, CGU §2(m)).
 
-| Méthode | Chemin | Clé | Réponse |
-|---|---|---|---|
-| GET | `/health` | non | JSON : par région `last_success` / `seconds_since`, puis `free_gb`, `low_disk`, `raw_stopped` |
-| GET | `/privacy` | non | politique de confidentialité (HTML, `api/privacy.html`) + mention Blizzard |
-| GET | `/thanks` | non | remerciements : sources des données (HTML généré une fois depuis `scout_core::credits`, `api/thanks.rs`) |
-| GET | `/v1/regions` | oui | JSON : les régions où Forever a des hôtels des ventes |
-| GET | `/v1/{region}/houses` | oui | JSON : `id`, `name`, `last_update` (dernier `ts` de prix), `last_check` |
-| GET | `/v1/{region}/houses/{id}/latest` | oui | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir ; mis en cache en mémoire, invalidé à chaque nouveau snapshot agrégé |
-| GET | `/v1/{region}/houses/{id}/items/{item}/history?since=<unix>` | oui | CSV : toutes les lignes d'un objet après `since` (index `prices_item`) |
-| GET | `/v1/{region}/houses/{id}/prices?since=<unix>` | oui | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
-| GET | `/v1/gamedata/latest?format=<GAME_FORMAT>` | oui | JSON `Manifest` : `format`, `build`, `updated` (= version), `complete`, `bytes` ; 404 si aucun paquet de ce format |
-| GET | `/v1/gamedata/{format}/{updated}` | oui | le paquet (`application/gzip`, pas recompressé) ; 404 s'il n'est plus le dernier |
+| Méthode | Chemin | Réponse |
+|---|---|---|
+| GET | `/health` | JSON : par région `last_success` / `seconds_since`, puis `free_gb`, `low_disk`, `raw_stopped` |
+| GET | `/privacy` | politique de confidentialité (HTML, `api/privacy.html`) + mention Blizzard |
+| GET | `/thanks` | remerciements : sources des données (HTML généré une fois depuis `scout_core::credits`, `api/thanks.rs`) |
+| GET | `/v1/regions` | JSON : les régions où Forever a des hôtels des ventes |
+| GET | `/v1/{region}/houses` | JSON : `id`, `name`, `last_update` (dernier `ts` de prix), `last_check` |
+| GET | `/v1/{region}/houses/{id}/latest` | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir ; mis en cache en mémoire, invalidé à chaque nouveau snapshot agrégé |
+| GET | `/v1/{region}/houses/{id}/items/{item}/history?since=<unix>` | CSV : toutes les lignes d'un objet après `since` (index `prices_item`) |
+| GET | `/v1/{region}/houses/{id}/prices?since=<unix>` | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
+| GET | `/v1/gamedata/latest?format=<GAME_FORMAT>` | JSON `Manifest` : `format`, `build`, `updated` (= version), `complete`, `bytes` ; 404 si aucun paquet de ce format |
+| GET | `/v1/gamedata/{format}/{updated}` | le paquet (`application/gzip`, pas recompressé) ; 404 s'il n'est plus le dernier |
 
 - **Pages** (`api.rs`, `db/prices.rs`) : ~200 000 lignes au plus (environ un jour d'une grosse maison), toujours
   des instantanés entiers. En-têtes `X-Scout-Until` (le `since` de la page suivante) et `X-Scout-More: 1` s'il
@@ -125,20 +125,21 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - Réponses compressées en gzip si le client le demande (`tower-http`, ureq le fait de lui-même). Mesuré sur une
   version de la 114 : 6 847 lignes, 270 Ko de CSV, **66 Ko en gzip**, 14 ms.
 - Pas d'accès aux bruts par l'API (gros, et inutiles à l'appli).
-- **Clé d'accès** (`api/access.rs`) : en-tête `X-Scout-Key`, réglage secret `SCOUT_KEYS` du module
-  (`nom=clé,…`, une par personne, révocable, ≥ 16 caractères, comparaison en temps constant). Aucune clé =
-  `/v1` refuse tout. Pas de comptes.
-- **Limite de débit** : seaux à jetons en mémoire, **600 requêtes / h par clé** (un premier téléchargement
-  parcourt tout l'historique) et **20 / h par adresse IP pour les requêtes sans clé valide** (contre qui devine
-  des clés) ; 429 au-delà. IP = dernière entrée de `X-Forwarded-For` (celle qu'ajoute Traefik).
+- **Pas de clé** : `/v1` est ouvert à tous (pas de comptes). Les anciennes versions de l'appli envoient encore
+  `X-Scout-Key` : le serveur l'ignore, sans erreur.
+- **Limite de débit** (`api/access.rs`) : seaux à jetons en mémoire, par adresse IP, deux fenêtres : **10 requêtes
+  par minute** (rafale de 10, recharge 10 / min) et **100 par heure** ; 429 au-delà. `/health`, `/privacy` et
+  `/thanks` ne sont pas limités. Une première synchronisation fait une dizaine de requêtes (régions, hôtels,
+  paquet du jeu : 2, `latest` : 1), puis une requête d'historique par objet ouvert (au plus une par heure et par
+  objet). IP = dernière entrée de `X-Forwarded-For` (celle qu'ajoute Traefik).
 - Le service ne journalise pas les requêtes et n'écrit aucune IP ; **Traefik, lui, a ses journaux d'accès
   activés** (`--accesslog=true` dans `homelab-core`) : `/privacy` le dit.
 
 ### 3.5 Module homelab (`~/dev/vps/modules/scout/`)
 
 - `module.toml` : `[runtime] autostart = true`, `[data] owner = "10001:10001"`, `[web]` (port 3000,
-  `auth = "public"`, la clé est vérifiée par l'app), `[health] http = "/health"`,
-  `[[settings]]` `type = "secret"` + `env` (déjà gérés par l'agent : `agent/src/settings.rs`) pour `BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `SCOUT_KEYS` saisis dans le panel,
+  `auth = "public"`), `[health] http = "/health"`,
+  `[[settings]]` `type = "secret"` + `env` (déjà gérés par l'agent : `agent/src/settings.rs`) pour `BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET` saisis dans le panel,
   `[resources] memory = "256m"` (une réponse de 9 Mo se parse en streaming), `[backup] paths = ["scout-server.db"]`
   (les bruts sont trop gros pour l'archive : on accepte de les perdre en cas de panne du disque).
 - `docker-compose.yml` : un service, `./data:/app/data`.
