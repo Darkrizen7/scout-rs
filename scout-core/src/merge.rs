@@ -1,6 +1,6 @@
 //! Market chart points from Scout scans and Scout API (our price server, from the Battle.net
-//! auction API): on a day with a Scout scan, Scout until its last scan, then the Scout API readings
-//! that follow it; on other days, Scout API alone.
+//! auction API): one point per day, the day's latest reading (Scout on a tie); the detail view keeps
+//! every reading of both sources.
 
 use std::collections::BTreeMap;
 
@@ -81,39 +81,26 @@ pub fn series(
     }
 }
 
-/// Every reading, with the same choice of source as `merge`, day by day: on the days Scout has
-/// readings, those and the Scout API readings after its last one; else Scout API alone.
+/// Every reading of both sources, in time order: the detail view hides nothing (the tooltip tells
+/// the source apart). Only the day / week / month views pick one source per day (`merge`).
 fn detailed(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> Vec<Point> {
-    let mut days: BTreeMap<NaiveDate, Vec<Point>> = BTreeMap::new();
-    for s in history {
-        let origin = match s.source.as_str() {
-            SCOUT => Origin::Scout,
-            SCOUT_API => Origin::ScoutApi,
-            _ => continue,
-        };
-        let (Some(day), Some(v)) = (local_day(s.ts), value(s)) else {
-            continue;
-        };
-        days.entry(day).or_default().push(Point {
-            ts: s.ts,
-            value: v,
-            origin,
-        });
-    }
-    let mut out = Vec::new();
-    for mut points in days.into_values() {
-        let last_scan = points
-            .iter()
-            .filter(|p| p.origin == Origin::Scout)
-            .map(|p| p.ts)
-            .max();
-        if let Some(last) = last_scan {
-            points.retain(|p| p.origin == Origin::Scout || p.ts > last);
-        }
-        points.sort_by_key(|p| p.ts);
-        out.extend(points);
-    }
-    out
+    let mut points: Vec<Point> = history
+        .iter()
+        .filter_map(|s| {
+            let origin = match s.source.as_str() {
+                SCOUT => Origin::Scout,
+                SCOUT_API => Origin::ScoutApi,
+                _ => return None,
+            };
+            Some(Point {
+                ts: s.ts,
+                value: value(s)?,
+                origin,
+            })
+        })
+        .collect();
+    points.sort_by_key(|p| p.ts);
+    points
 }
 
 #[cfg(test)]
@@ -171,6 +158,7 @@ mod tests {
         assert_eq!(
             detail,
             [
+                (Origin::ScoutApi, 29.0),
                 (Origin::Scout, 30.0),
                 (Origin::ScoutApi, 12.0),
                 (Origin::ScoutApi, 13.0)
@@ -179,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn detail_keeps_scout_then_the_api_after_the_last_scan() {
+    fn detail_keeps_every_reading_of_both_sources() {
         let h = [
             snap(SCOUT_API, 1_000_000_000, 10),
             snap(SCOUT_API, 1_000_000_100, 12),
@@ -192,6 +180,6 @@ mod tests {
             .iter()
             .map(|p| p.value)
             .collect();
-        assert_eq!(values, [30.0, 31.0, 15.0]);
+        assert_eq!(values, [10.0, 12.0, 30.0, 14.0, 31.0, 15.0]);
     }
 }
