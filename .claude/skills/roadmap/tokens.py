@@ -3,6 +3,7 @@
 import argparse
 import json
 import pathlib
+import time
 from datetime import datetime, timezone
 
 DEFAULT_DIR = "~/.claude/projects/-home-arthur-dev-outils-jeux-wow-scout-rs/"
@@ -17,6 +18,8 @@ PRICES = {
     "fable": (8, 40, 0.20),     # fable 5.2
 }
 SHOWN = ["opus", "sonnet", "haiku"]  # always displayed
+DEFAULT_USAGE_LOG = "~/.claude/usage-log.jsonl"
+WINDOWS = [("five_hour", "5 h"), ("seven_day", "7 j")]
 FIELDS = ["input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"]
 
 
@@ -96,16 +99,72 @@ def fmt_detail(totals):
     return "\n".join(lines)
 
 
+def read_usage(path):
+    """Return log records sorted by time; missing file or invalid lines give nothing."""
+    rows = []
+    try:
+        with open(pathlib.Path(path).expanduser(), encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        return []
+    return sorted((r for r in rows if isinstance(r, dict) and isinstance(r.get("ts"), (int, float))),
+                  key=lambda r: r["ts"])
+
+
+def window_delta(rows, key, since, until):
+    """Plan usage gain (points, reset flag) of one window between two instants, or None."""
+    pts = []
+    for r in rows:
+        w = r.get(key)
+        if isinstance(w, dict) and isinstance(w.get("pct"), (int, float)):
+            pts.append((r["ts"], w["pct"], w.get("resets_at")))
+    before = [p for p in pts if p[0] <= since]
+    inside = [p for p in pts if since < p[0] <= until]
+    # Baseline: last reading at or before `since`; else the first reading of the period.
+    chain = before[-1:] + inside
+    if len(chain) < 2:
+        return (0, False) if before else None
+    groups = []  # consecutive readings sharing the same reset time
+    for p in chain:
+        if groups and groups[-1][0][2] == p[2]:
+            groups[-1].append(p)
+        else:
+            groups.append([p])
+    total = 0
+    for i, g in enumerate(groups):
+        start = chain[0][1] if i == 0 else 0
+        top = g[-1][1] if i == len(groups) - 1 else max(p[1] for p in g)
+        total += top - start
+    return total, len(groups) > 1
+
+
+def fmt_plan(rows, since, until):
+    parts = []
+    for key, label in WINDOWS:
+        res = window_delta(rows, key, since.timestamp(), until.timestamp())
+        if res:
+            gain, reset = res
+            parts.append(f"{gain:+.0f} % sur {label}" + (" (remise à zéro)" if reset else ""))
+    return "Plan : " + (", ".join(parts) if parts else "pas de relevé")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--since", required=True)
     ap.add_argument("--until")
     ap.add_argument("--dir", default=DEFAULT_DIR)
+    ap.add_argument("--usage-log", default=DEFAULT_USAGE_LOG)
     ap.add_argument("--detail", action="store_true")
     args = ap.parse_args()
     until = parse_time(args.until) if args.until else None
     totals = aggregate(read_entries(args.dir), parse_time(args.since), until)
     print(fmt_line(totals))
+    now = datetime.fromtimestamp(time.time(), timezone.utc)
+    print(fmt_plan(read_usage(args.usage_log), parse_time(args.since), until or now))
     if args.detail:
         print(fmt_detail(totals))
 
