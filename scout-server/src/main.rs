@@ -24,6 +24,7 @@ mod db;
 mod gamedata;
 #[cfg(test)]
 mod peak;
+mod sales;
 mod storage;
 
 use api::{Api, Limiter, Region};

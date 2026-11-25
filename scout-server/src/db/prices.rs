@@ -254,7 +254,9 @@ mod tests {
             bytes: 0,
             auctions: 1,
         };
-        db.insert_snapshot(&snapshot(100), &[row(1)]).await.unwrap();
+        db.insert_snapshot(&snapshot(100), &[row(1)], &[])
+            .await
+            .unwrap();
         let first = db.latest(114).await.unwrap();
         assert_eq!(first.len(), 1);
         assert!(Arc::ptr_eq(&first, &db.latest(114).await.unwrap()));
@@ -262,7 +264,7 @@ mod tests {
         db.touch_snapshot(114, "auctions", 100, 200).await.unwrap();
         assert!(Arc::ptr_eq(&first, &db.latest(114).await.unwrap()));
 
-        db.insert_snapshot(&snapshot(300), &[row(1), row(2)])
+        db.insert_snapshot(&snapshot(300), &[row(1), row(2)], &[])
             .await
             .unwrap();
         let second = db.latest(114).await.unwrap();

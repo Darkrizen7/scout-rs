@@ -7,9 +7,11 @@ use anyhow::Result;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
 
 use crate::aggregate::ItemPrices;
+use crate::sales::ItemSales;
 
 mod cache;
 mod prices;
+mod sales;
 
 pub use prices::PriceRow;
 
@@ -32,6 +34,7 @@ CREATE TABLE IF NOT EXISTS raw_snapshots (
     bytes         INTEGER NOT NULL,  -- compressed size, 0 when not written
     auctions      INTEGER NOT NULL,
     aggregated    INTEGER NOT NULL DEFAULT 0,  -- 1 once its rows are in prices
+    sales_done    INTEGER NOT NULL DEFAULT 0,  -- 1 once compared with the version before (sales)
     PRIMARY KEY (house, kind, fetched_at)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS fetch_log (
@@ -84,6 +87,36 @@ pub struct NewSnapshot<'a> {
     pub auctions: u64,
 }
 
+/// Creates what is missing: tables, then columns that older databases lack.
+async fn migrate(pool: &SqlitePool) -> Result<()> {
+    sqlx::raw_sql(SCHEMA).execute(pool).await?;
+    sqlx::raw_sql(prices::SCHEMA).execute(pool).await?;
+    sqlx::raw_sql(sales::SCHEMA).execute(pool).await?;
+    // Databases made before `prices` (2026-11-25): their snapshots get priced at start-up;
+    // before `sales`: their sales are computed at start-up.
+    if !has_column(pool, "aggregated").await? {
+        sqlx::raw_sql("ALTER TABLE raw_snapshots ADD COLUMN aggregated INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await?;
+    }
+    if !has_column(pool, "sales_done").await? {
+        sqlx::raw_sql("ALTER TABLE raw_snapshots ADD COLUMN sales_done INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
+}
+
+async fn has_column(pool: &SqlitePool, column: &str) -> Result<bool> {
+    let found: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM pragma_table_info('raw_snapshots') WHERE name = ?",
+    )
+    .bind(column)
+    .fetch_one(pool)
+    .await?;
+    Ok(found > 0)
+}
+
 impl Db {
     pub async fn open(path: &Path) -> Result<Self> {
         let options = SqliteConnectOptions::new()
@@ -104,21 +137,7 @@ impl Db {
             .max_connections(1)
             .connect_with(options)
             .await?;
-        sqlx::raw_sql(SCHEMA).execute(&pool).await?;
-        sqlx::raw_sql(prices::SCHEMA).execute(&pool).await?;
-        // Databases made before `prices` (2026-11-25): their snapshots get priced at start-up.
-        let aggregated: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM pragma_table_info('raw_snapshots') WHERE name = 'aggregated'",
-        )
-        .fetch_one(&pool)
-        .await?;
-        if aggregated == 0 {
-            sqlx::raw_sql(
-                "ALTER TABLE raw_snapshots ADD COLUMN aggregated INTEGER NOT NULL DEFAULT 0",
-            )
-            .execute(&pool)
-            .await?;
-        }
+        migrate(&pool).await?;
         Ok(Self {
             pool,
             latest: cache::LatestCache::default(),
@@ -180,13 +199,18 @@ impl Db {
         Ok(())
     }
 
-    /// A new snapshot and its prices, together.
-    pub async fn insert_snapshot(&self, s: &NewSnapshot<'_>, rows: &[ItemPrices]) -> Result<()> {
+    /// A new snapshot, its prices and its sales, together.
+    pub async fn insert_snapshot(
+        &self,
+        s: &NewSnapshot<'_>,
+        rows: &[ItemPrices],
+        sales: &[ItemSales],
+    ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO raw_snapshots (house, kind, fetched_at, last_seen, last_modified, sha256,
-                                        path, raw_bytes, bytes, auctions, aggregated)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+                                        path, raw_bytes, bytes, auctions, aggregated, sales_done)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)",
         )
         .bind(s.house)
         .bind(s.kind)
@@ -201,6 +225,7 @@ impl Db {
         .execute(&mut *tx)
         .await?;
         prices::insert(&mut tx, s.house, s.fetched_at, rows).await?;
+        sales::add(&mut tx, s.house, s.fetched_at, sales).await?;
         tx.commit().await?;
         self.latest.invalidate(s.house);
         Ok(())

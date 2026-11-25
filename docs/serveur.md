@@ -78,8 +78,9 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
   | Table | Colonnes |
   |---|---|
   | `houses` | `id`, `name`, `first_seen`, `last_seen` |
-  | `raw_snapshots` | `house`, `kind`, `fetched_at`, `last_seen`, `last_modified`, `sha256`, `path`, `raw_bytes`, `bytes`, `auctions`, `aggregated` |
+  | `raw_snapshots` | `house`, `kind`, `fetched_at`, `last_seen`, `last_modified`, `sha256`, `path`, `raw_bytes`, `bytes`, `auctions`, `aggregated`, `sales_done` |
   | `prices` | `house`, `ts` (= `fetched_at` de l'instantané), `item_id`, `min_unit`, `p25_unit`, `median_unit`, `quantity`, `auctions`, `buyout_less` — PK (`house`, `ts`, `item_id`) : l'appli lit par maison et par date |
+  | `sales` | `house`, `day` (AAAA-MM-JJ, UTC), `item_id`, `sold_proven`, `sold_estimated`, `sold_value` (cuivre) — PK (`house`, `day`, `item_id`), cumulé par jour (§3.3 bis) |
   | `fetch_log` | `ts`, `house`, `kind`, `status`, `ms`, `error` (supervision, purgé après 7 jours) |
 
 - Erreurs : 401 → nouveau jeton puis un seul nouvel essai ; 429 / 5xx → on saute ce tour pour cette maison ;
@@ -102,6 +103,21 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
 - Vérifié le 2026-11-25 sur la 114 contre un scan Scout de 8 min plus ancien : 90 % de prix min identiques,
   96 % à ±5 %.
 
+### 3.3 bis Ventes par jour (`sales.rs`, `db/sales.rs`, `collector/catch_up.rs`)
+
+- À chaque nouvel instantané, il est comparé au **précédent de la même liste** (relu depuis son fichier zstd, en flux :
+  une table compacte `id → (objet, quantité, time_left, prix)` du vieux relevé, le nouveau est parcouru une fois ; rien
+  n'est gardé en mémoire d'un cycle à l'autre). Les enchères sont suivies par leur `id`.
+- Quantité qui baisse, enchère toujours là : vente **prouvée** = la baisse. Enchère disparue dont le `time_left` du
+  vieux relevé était `LONG` / `VERY_LONG` : vente **estimée** = sa quantité (achat **ou annulation**, indiscernables).
+  Disparue en `SHORT` / `MEDIUM` : expirée, ignorée. Prix = prix unitaire de l'enchère partie ; sans achat immédiat :
+  comptée sans prix (`sold_value` n'en tient pas compte, donc `sold_value / (prouvées + estimées)` sous-estime alors).
+- Écart entre les deux `fetched_at` > `MAX_GAP` (2 h) : pas de comparaison. Sans fichier précédent (disque plein,
+  supprimé) : rien non plus. Le jour est celui du nouvel instantané (UTC), cumulé par `ON CONFLICT DO UPDATE`.
+- Même transaction que `raw_snapshots`/`prices` ; les anciens instantanés (`sales_done = 0`) sont rattrapés au
+  démarrage, un à la fois sous le sémaphore `heavy`. Limites : une enchère qui change d'`id` (remise en vente) compte
+  comme une disparition ; un objet vendu et remis en vente entre deux relevés échappe au calcul.
+
 ### 3.4 API exposée
 
 Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "scout"` du module ; ni « wow » ni
@@ -117,6 +133,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 | GET | `/v1/{region}/houses/{id}/latest` | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir ; mis en cache en mémoire, invalidé à chaque nouveau snapshot agrégé |
 | GET | `/v1/{region}/houses/{id}/items/{item}/history?since=<unix>` | CSV : toutes les lignes d'un objet après `since` (index `prices_item`) |
 | GET | `/v1/{region}/houses/{id}/prices?since=<unix>` | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
+| GET | `/v1/{region}/houses/{id}/sales?since=AAAA-MM-JJ` | JSON `{since, days: [{day, items: [{item_id, sold_proven, sold_estimated, sold_value}]}]}`, du plus ancien jour au plus récent ; défaut : 7 derniers jours ; 400 si `since` est mal formé |
 | GET | `/v1/gamedata/latest?format=<GAME_FORMAT>` | JSON `Manifest` : `format`, `build`, `updated` (= version), `complete`, `bytes` ; 404 si aucun paquet de ce format |
 | GET | `/v1/gamedata/{format}/{updated}` | le paquet (`application/gzip`, pas recompressé) ; 404 s'il n'est plus le dernier |
 | GET | `/v1/reference/latest?format=<REFERENCE_FORMAT>` | JSON `ReferenceManifest` : `format`, `updated` (= version), `bytes` ; 404 si le format diffère |
