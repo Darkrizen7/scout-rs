@@ -25,8 +25,9 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 ## Tickets (Plane)
 - Source de vérité des tâches : **Plane** (http://localhost:8080, workspace `wow-scout`, via le MCP `plane`),
   projets `APP` (crate `app`), `SERVER` (`scout-server`), `ADDON` (dépôt `../scout-addon`). `TODO.md` n'est plus tenu.
-- États : Backlog → Todo → In Progress → In Review → Done (ou Cancelled). « Done » est posé par l'utilisateur
-  après son test, jamais par Claude.
+- États : Backlog → Todo → In Progress → In Review → Done (ou Cancelled). Après la fusion, Claude passe en « Done »
+  les tickets sans UI ; un ticket qui change l'interface reste en « In Review », assigné à l'utilisateur, qui le
+  passe en « Done » après son test (ses dépendants restent bloqués jusque-là).
 - Choix du travail : le ticket « Todo » de plus haute priorité dont tous les « blocked by » sont « Done ».
   Jamais un ticket déjà « In Progress » ou assigné à quelqu'un d'autre.
 - Avant de coder : passer le ticket en « In Progress », l'assigner à l'utilisateur, lire description,
@@ -35,7 +36,7 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
   l'identifiant en tête du sujet des commits (`APP-42 : …`). Un ticket à la fois (pas de parallèle).
 - À la fin, sans attendre de demande : commit(s) sur la branche du ticket, `git push -u origin <branche>`,
   PR vers `master` (`gh pr create`, titre `APP-42 : …`), puis commentaire de synthèse sur le ticket (fait,
-  comment tester, limites, lien de la PR) et passage en « In Review ». La fusion reste à l'utilisateur.
+  comment tester, limites, lien de la PR) et fusion de la PR par Claude (voir « Commits »), puis « Done » ou, s'il y a de l'UI à tester, « In Review ».
 - Travail découvert en route : nouveau ticket (avec relation si pertinent), pas d'élargissement du périmètre.
 - Blocage ou ambiguïté : commenter le ticket avec la question précise et passer au ticket suivant.
 - `/roadmap` (`.claude/skills/roadmap/`) : tri des tickets, délégation du code à l'agent `dev`
@@ -108,7 +109,10 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 - Sujet en français, phrase courte avec majuscule, corps qui explique le pourquoi. Branche `master`,
   ou la branche du ticket Plane (voir « Tickets (Plane) »).
   Hors tickets Plane, commit et push **seulement à la demande** ; sur une branche de ticket, Claude commite,
-  pousse et ouvre la PR lui-même. Jamais de push sur `master`, jamais de fusion ni de `--force`.
+  pousse, ouvre la PR et la fusionne lui-même : fusion par Claude : `git merge --no-ff` de la branche dans `master` en local (commit de fusion daté hors
+  plage, `GIT_AUTHOR_DATE` et `GIT_COMMITTER_DATE`), clippy et tests sur le résultat, puis `git push origin master` (le seul
+  push sur `master` ; vérifier avant, avec `gh pr view`, qu'elle n'est pas déjà fusionnée). Une fusion par GitHub
+  daterait le commit de maintenant. Jamais de `--force`, jamais de commit direct sur `master`.
   Dates des commits : jamais en semaine 9h–12h ni 14h–18h (heure de Paris) ; sinon `--date` et
   `GIT_COMMITTER_DATE` juste après la plage.
 - Quand un changement modifie ce que décrit `docs/`, mettre à jour le fichier concerné.
