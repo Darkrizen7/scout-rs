@@ -20,6 +20,7 @@ use std::thread;
 
 use anyhow::{Context, Result};
 use scout_core::analysis;
+use scout_core::scout_api::AuctionHouse;
 use scout_core::update::AddonInstall;
 use scout_db::Db;
 use scout_sources as sources;
@@ -127,7 +128,13 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         Ok(prices) => send(Event::Vendor(Arc::new(prices))),
         Err(e) => send(Event::Error(format!("prix marchands : {e:#}"))),
     }
-    if let Err(e) = runtime.block_on(refresh(&db, &*send)) {
+    let house = config.price_server.auction_house();
+    if let Err(e) = runtime.block_on(async {
+        if house.id != 0 {
+            db.claim_unassigned(&house).await?;
+        }
+        refresh(&db, &house, &*send).await
+    }) {
         send(Event::Error(format!("{e:#}")));
     }
 
@@ -208,11 +215,16 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             anyhow::Ok(())
         })?,
         Command::Analyze => {
-            let observations = runtime.block_on(db.observations())?;
+            let house = shared.config().price_server.auction_house();
+            let observations = runtime.block_on(db.observations(&house))?;
             send(Event::Analysis(Box::new(analysis::analyze(&observations))));
         }
         Command::LoadHistory(id) => {
-            send(Event::History(id, runtime.block_on(db.history(id))?));
+            let house = shared.config().price_server.auction_house();
+            send(Event::History(
+                id,
+                runtime.block_on(db.history(id, &house))?,
+            ));
             prices::history_in_background(shared, id);
         }
         Command::LoadDrops(id) => {
@@ -264,7 +276,12 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             let wow_dir = shared.config().wow_dir()?.to_path_buf();
             update::install_addon(&release, &wow_dir, &*shared.send)
         }),
-        Command::SetPriceServer { url, key, house } => prices::set_server(shared, url, key, house)?,
+        Command::SetPriceServer {
+            url,
+            key,
+            region,
+            house,
+        } => prices::set_server(shared, url, key, (region, house))?,
         Command::LoadServerHouses => prices::load_houses(shared),
         Command::SyncPrices => shared.spawn(Task::Prices, |runtime, shared| {
             prices::sync_latest(runtime, shared, true)
@@ -297,8 +314,9 @@ async fn open_db() -> Result<Db> {
     Db::open(&config::database_path()?).await
 }
 
-async fn refresh(db: &Db, send: &dyn Fn(Event)) -> Result<()> {
-    send(Event::Items(db.items().await?));
+/// The items of the house shown, and the favorites.
+async fn refresh(db: &Db, house: &AuctionHouse, send: &dyn Fn(Event)) -> Result<()> {
+    send(Event::Items(db.items(house).await?));
     send(Event::Favorites(db.favorites().await?));
     send(Event::ZoneFavorites(db.zone_favorites().await?));
     Ok(())

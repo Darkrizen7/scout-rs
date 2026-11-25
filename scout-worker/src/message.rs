@@ -8,7 +8,7 @@ use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::map::Mask;
-use scout_core::scout_api::ServerHouse;
+use scout_core::scout_api::ServerChoice;
 use scout_core::update::{AddonInstall, Release};
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
 
@@ -49,6 +49,7 @@ pub enum Command {
     SetPriceServer {
         url: String,
         key: Option<String>,
+        region: String,
         house: Option<u32>,
     },
     /// The auction houses of the price server (answered by `Event::ServerHouses`).
@@ -106,6 +107,6 @@ pub enum Event {
     UpdateInstalled(String),
     /// The new executable is running: the UI closes.
     Quit,
-    /// The price server's auction houses, or why they could not be read.
-    ServerHouses(Result<Vec<ServerHouse>, String>),
+    /// The price server's regions and the houses of the chosen region, or why they could not be read.
+    ServerHouses(Result<ServerChoice, String>),
 }

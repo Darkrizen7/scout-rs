@@ -17,6 +17,17 @@ pub const DEFAULT_SERVER: &str = "https://scout.arthurdevtest.duckdns.org";
 /// Latest prices and item histories are downloaded again once they are this old.
 pub const REFRESH_SECS: i64 = 3600;
 
+/// Battle.net regions the server may record (it lists those where Forever has auction houses).
+pub const REGIONS: [&str; 4] = ["eu", "us", "kr", "tw"];
+
+/// One auction house: Battle.net region and house id; `""` / 0 = not known yet (prices recorded
+/// before houses were told apart, or with none chosen).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct AuctionHouse {
+    pub region: String,
+    pub id: u32,
+}
+
 /// An auction house as the server lists it.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct ServerHouse {
@@ -25,6 +36,49 @@ pub struct ServerHouse {
     pub name: String,
     /// Newest prices of the house (Unix seconds).
     pub last_update: Option<i64>,
+}
+
+impl ServerHouse {
+    /// « Alliance », « Horde » or « Flots noirs »: each group lists them in that order (seen in
+    /// Europe); Blizzard's name of the house otherwise.
+    pub fn side(&self) -> &str {
+        const SIDES: [&str; 3] = ["Alliance", "Horde", "Flots noirs"];
+        match self.id {
+            110..=118 => SIDES[((self.id - 110) / 3) as usize],
+            119..=121 => SIDES[(self.id - 119) as usize],
+            123..=125 => SIDES[(self.id - 123) as usize],
+            _ => &self.name,
+        }
+    }
+
+    /// Short name: « 114 · Horde (groupe 2) ».
+    pub fn label(&self) -> String {
+        match house_group(self.id) {
+            Some(group) => format!("{} · {} (groupe {group})", self.id, self.side()),
+            None => format!("{} · {}", self.id, self.side()),
+        }
+    }
+}
+
+/// The houses come in five groups of three (Alliance, Horde, Flots noirs), seen in Europe on
+/// 2026-11-25: 110-113-116, 111-114-117, 112-115-118 (empty), 119-120-121, 123-124-125. Probably one
+/// per realm type (Normal, PvP, RP, RP-PvP…), which ones is not known yet.
+pub fn house_group(id: u32) -> Option<u8> {
+    match id {
+        110..=118 => Some(((id - 110) % 3) as u8 + 1),
+        119..=121 => Some(4),
+        123..=125 => Some(5),
+        _ => None,
+    }
+}
+
+/// What the settings offer: the server's regions and the houses of the chosen one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ServerChoice {
+    pub regions: Vec<String>,
+    /// The region `houses` belong to.
+    pub region: String,
+    pub houses: Vec<ServerHouse>,
 }
 
 /// One line of the server's CSV.
@@ -48,8 +102,10 @@ impl PriceLine {
         }
     }
 
-    fn row(&self) -> Row {
+    fn row(&self, house: &AuctionHouse) -> Row {
         Row {
+            region: house.region.clone(),
+            house: i64::from(house.id),
             source: SCOUT_API.to_owned(),
             item_id: self.item_id,
             name: None,
@@ -69,7 +125,11 @@ pub struct LastPrice {
 
 /// The rows to store from the latest prices, given the newest stored price of each item.
 /// An item still priced here but missing from them left the auction house meanwhile.
-pub fn latest_rows(last: &HashMap<i64, LastPrice>, latest: &[PriceLine]) -> Vec<Row> {
+pub fn latest_rows(
+    house: &AuctionHouse,
+    last: &HashMap<i64, LastPrice>,
+    latest: &[PriceLine],
+) -> Vec<Row> {
     let mut rows = Vec::new();
     for line in latest {
         let price = line.price();
@@ -82,7 +142,7 @@ pub fn latest_rows(last: &HashMap<i64, LastPrice>, latest: &[PriceLine]) -> Vec<
             }
         };
         if keep && last.get(&line.item_id).is_none_or(|b| line.ts > b.ts) {
-            rows.push(line.row());
+            rows.push(line.row(house));
         }
     }
     let Some(newest) = latest.iter().map(|l| l.ts).max() else {
@@ -102,14 +162,14 @@ pub fn latest_rows(last: &HashMap<i64, LastPrice>, latest: &[PriceLine]) -> Vec<
             min_unit: None,
             quantity: 0,
         }
-        .row()
+        .row(house)
     }));
     rows
 }
 
 /// One item's history, stored whole.
-pub fn history_rows(lines: &[PriceLine]) -> Vec<Row> {
-    lines.iter().map(PriceLine::row).collect()
+pub fn history_rows(house: &AuctionHouse, lines: &[PriceLine]) -> Vec<Row> {
+    lines.iter().map(|line| line.row(house)).collect()
 }
 
 #[cfg(test)]
@@ -122,6 +182,13 @@ mod tests {
             item_id,
             min_unit,
             quantity,
+        }
+    }
+
+    fn eu114() -> AuctionHouse {
+        AuctionHouse {
+            region: "eu".into(),
+            id: 114,
         }
     }
 
@@ -149,17 +216,18 @@ mod tests {
             line(t, 118, Some(8), 5),
         ];
         assert_eq!(
-            kept(&latest_rows(&stored, &latest)),
+            kept(&latest_rows(&eu114(), &stored, &latest)),
             [(t, 2589, Some(25)), (t, 118, Some(8))]
         );
         let tomorrow = [line(t + days, 765, Some(42), 90)];
-        let rows = latest_rows(&stored, &tomorrow);
+        let rows = latest_rows(&eu114(), &stored, &tomorrow);
         // Same price, new day: kept; 2589 is missing from the listing: it left.
         assert_eq!(
             kept(&rows),
             [(t + days, 765, Some(42)), (t + days, 2589, None)]
         );
         assert_eq!(rows[0].source, SCOUT_API);
+        assert_eq!((rows[0].region.as_str(), rows[0].house), ("eu", 114));
         assert_eq!(rows[1].quantity, Some(0));
     }
 
@@ -173,15 +241,37 @@ mod tests {
             line(t, 9, Some(4), 1),
         ];
         // 7 already gone, 8 never seen, 9 has a newer price stored (from its history).
-        assert!(latest_rows(&stored, &latest).is_empty());
-        assert!(latest_rows(&stored, &[]).is_empty());
+        assert!(latest_rows(&eu114(), &stored, &latest).is_empty());
+        assert!(latest_rows(&eu114(), &stored, &[]).is_empty());
+    }
+
+    #[test]
+    fn houses_are_named_by_side_and_group() {
+        let house = |id, name: &str| ServerHouse {
+            id,
+            name: name.into(),
+            last_update: None,
+        };
+        assert_eq!(
+            house(114, "Hôtel des ventes de la Horde").label(),
+            "114 · Horde (groupe 2)"
+        );
+        assert_eq!(
+            house(116, "Hôtel des ventes des Flots noirs").label(),
+            "116 · Flots noirs (groupe 1)"
+        );
+        assert_eq!(
+            house(124, "Hôtel des ventes de la Horde").label(),
+            "124 · Horde (groupe 5)"
+        );
+        assert_eq!(house(200, "Auction House").label(), "200 · Auction House");
     }
 
     #[test]
     fn history_is_kept_whole() {
         let lines = [line(100, 765, Some(42), 9), line(200, 765, Some(41), 0)];
         assert_eq!(
-            kept(&history_rows(&lines)),
+            kept(&history_rows(&eu114(), &lines)),
             [(100, 765, Some(42)), (200, 765, None)]
         );
     }

@@ -15,6 +15,15 @@ impl State {
                 if self.config.as_ref().map(|c| c.hide_obsolete) != Some(config.hide_obsolete) {
                     self.revision += 1;
                 }
+                let house = |c: &scout_worker::Config| c.price_server.auction_house();
+                if self
+                    .config
+                    .as_ref()
+                    .is_some_and(|old| house(old) != house(&config))
+                {
+                    self.history = None;
+                    self.house_changed = true;
+                }
                 self.config = Some(config);
             }
             Event::Busy(task, true) => {

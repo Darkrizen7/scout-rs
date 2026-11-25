@@ -9,7 +9,7 @@ use crate::ui::{
     calculator, chart, fonts, header, item_list, items, loot, recipes, settings, sidebar, theme,
 };
 use scout_core::Theme;
-use scout_worker::WorkerHandle;
+use scout_worker::{Command, WorkerHandle};
 
 pub struct App {
     worker: WorkerHandle,
@@ -53,6 +53,12 @@ impl eframe::App for App {
         let events: Vec<_> = self.worker.poll().collect();
         for event in events {
             self.state.apply(event);
+        }
+        // Another auction house: the open sheet's history is that house's now.
+        if std::mem::take(&mut self.state.house_changed)
+            && let Some(id) = self.state.selected
+        {
+            self.worker.send(Command::LoadHistory(id));
         }
         if self.state.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);

@@ -13,7 +13,10 @@ affiche à côté des scans Scout. Les identifiants Battle.net ne quittent jamai
 ## 2. Ce qu'on sait de l'API (vérifié le 2026-11-25)
 
 - Jeton : `POST https://oauth.battle.net/token` (client credentials, Basic auth), valable 24 h (`expires_in`).
-- Namespace `dynamic-forever-eu`, `locale=fr_FR`, hôte `eu.api.blizzard.com`.
+- Namespace `dynamic-forever-{région}`, hôte `{région}.api.blizzard.com`, langue de la région (`fr_FR` pour eu,
+  `en_US`, `ko_KR`, `zh_TW`). Le serveur relève **eu, us, kr, tw** (`SCOUT_REGIONS`) : une base et un dossier de
+  bruts par région (`data/` pour eu, `data/<région>/` pour les autres) ; `/v1/regions` ne liste que celles où le
+  relevé a trouvé des maisons (une région sans HdV Forever répond 404, dit une seule fois dans le journal).
 - `GET /data/wow/ruleset/2/auctions/` : les 15 maisons (le ruleset doit exister mais ne filtre rien).
 - `GET /data/wow/ruleset/2/auctions/{house}` (objets) et `…/{house}/commodities` (empilables).
 - 15 maisons = 5 groupes de trois (Alliance / Horde / Flots noirs) : 110-113-116, **111-114-117 (celui de
@@ -97,12 +100,13 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 
 | Méthode | Chemin | Clé | Réponse |
 |---|---|---|---|
-| GET | `/health` | non | JSON : `last_success`, `seconds_since`, `free_gb`, `low_disk`, `raw_stopped` |
+| GET | `/health` | non | JSON : par région `last_success` / `seconds_since`, puis `free_gb`, `low_disk`, `raw_stopped` |
 | GET | `/privacy` | non | politique de confidentialité (HTML, `api/privacy.html`) + mention Blizzard |
-| GET | `/v1/houses` | oui | JSON : `id`, `name`, `last_update` (dernier `ts` de prix), `last_check` |
-| GET | `/v1/houses/{id}/latest` | oui | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir |
-| GET | `/v1/houses/{id}/items/{item}/history?since=<unix>` | oui | CSV : toutes les lignes d'un objet après `since` (index `prices_item`) |
-| GET | `/v1/houses/{id}/prices?since=<unix>` | oui | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
+| GET | `/v1/regions` | oui | JSON : les régions où Forever a des hôtels des ventes |
+| GET | `/v1/{region}/houses` | oui | JSON : `id`, `name`, `last_update` (dernier `ts` de prix), `last_check` |
+| GET | `/v1/{region}/houses/{id}/latest` | oui | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir |
+| GET | `/v1/{region}/houses/{id}/items/{item}/history?since=<unix>` | oui | CSV : toutes les lignes d'un objet après `since` (index `prices_item`) |
+| GET | `/v1/{region}/houses/{id}/prices?since=<unix>` | oui | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
 
 - **Pages** (`api.rs`, `db/prices.rs`) : ~200 000 lignes au plus (environ un jour d'une grosse maison), toujours
   des instantanés entiers. En-têtes `X-Scout-Until` (le `since` de la page suivante) et `X-Scout-More: 1` s'il
@@ -132,18 +136,20 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 
 - Source **`scout-api`** dans `snapshots` (`price` = `min_unit`, `NULL` si l'objet est parti ; `quantity`), à côté de
   `scout`, `auctionator`, `foreverguide`. Supprimer cette source = une requête.
-- **Derniers prix** (`/v1/houses/{id}/latest`, tous les objets) : vérifiés au démarrage puis toutes les 10 min,
+- **Derniers prix** (`/v1/{region}/houses/{id}/latest`, tous les objets) : vérifiés au démarrage puis toutes les 10 min,
   téléchargés quand ils ont plus d'**1 h** (ou par « ⟳ Mettre à jour » dans les Réglages). Une ligne n'est écrite que
   si le prix a changé, plus la première de chaque jour local (chaque jour garde son prix) ; un objet qui n'y est plus
   reçoit une ligne `NULL` (`scout_core::scout_api::latest_rows`).
-- **Historique d'un objet** (`/v1/houses/{id}/items/{item}/history?since=`) : à l'ouverture de sa fiche Market, la base
+- **Historique d'un objet** (`/v1/{region}/houses/{id}/items/{item}/history?since=`) : à l'ouverture de sa fiche Market, la base
   est affichée tout de suite, puis complétée depuis le serveur (tout la première fois, ensuite ce qui suit `until`) si
   le cache a plus d'1 h ; gardé en entier (une ligne par version). Cache : table `scout_api_history`.
 - Fusion des graphiques (`merge`) : Scout, sinon Scout API, sinon moyenne Auctionator / Forever Guide.
-- Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), clé, hôtel des
-  ventes choisi dans la liste du serveur. `[price_server]` dans `config.toml`.
+- Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), clé, région (parmi
+  `/v1/regions`), hôtel des ventes ; le même sélecteur d'HdV est dans l'en-tête (`ui/widgets/house.rs`).
+  `[price_server]` dans `config.toml`. Noms : « EU 114 · Horde (groupe 2) » (`ServerHouse::label` : côté déduit du
+  n°, groupe = les 5 groupes de trois vus en Europe ; à quel type de royaume correspond chaque groupe : inconnu).
 - Crédits (`ui/credits.rs`) : API Battle.net de Blizzard Entertainment, non approuvé ni affilié.
-- Changer d'hôtel des ventes mêle pour l'instant les prix des deux dans la source `scout-api`.
+- Chaque ligne de `snapshots` a sa région et son HdV : changer d'HdV ne mêle rien, chaque HdV garde son cache.
 - **TODO** : compresser à un point par jour les relevés `scout-api` de plus de 3 mois (`prix.db` grossit d'environ
   2 400 lignes par version téléchargée).
 
@@ -178,9 +184,12 @@ Mesuré sur une version complète (15 maisons, 2026-11-25) : **8 Mo de bruts** (
 | 2026-11-25 | Sous-domaine `scout.arthurdevtest.duckdns.org`. |
 | 2026-11-25 | Crate `scout-server` dans ce workspace, avec son propre client Battle.net (pas `scout-sources`). |
 | 2026-11-25 | `prices` : min, p25 et médiane pondérés par la quantité, quantité, enchères, sans prix immédiat ; pas de max ; variantes fusionnées par `item_id` (à séparer plus tard). |
+| 2026-11-25 | Cadence de Blizzard : une version par heure, vers HH:21 UTC. |
+| 2026-11-25 | Toutes les régions où Forever a une API d'HdV (eu, us, kr, tw vérifiées par le relevé) ; `prix.db` a une région et un HdV par ligne, les relevés existants rattachés à EU 114. |
 | 2026-11-25 | Plus tard : estimer les ventes (une enchère qui disparaît avant expiration, `id` stable d'un relevé à l'autre). |
 
 ## Questions ouvertes
 
-- Cadence réelle de Blizzard (dates `Last-Modified` successives).
+- Quel groupe de maisons = quel type de royaume (Normal, PvP, RP, RP-PvP ; le 3ᵉ groupe est vide en Europe).
+  Goldwright (addon) nomme ses HdV ainsi (région + type de royaume + côté) mais ne publie pas les n° Blizzard.
 - Séparer les variantes (`bonus_lists` → suffixes) ; estimation des ventes.

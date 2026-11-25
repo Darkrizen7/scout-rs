@@ -1,9 +1,10 @@
-//! Settings section of the price server (source « Scout API »): address, access key, auction house.
+//! Settings section of the price server (source « Scout API »): address, access key, region and
+//! auction house.
 
 use eframe::egui;
 
 use crate::state::State;
-use crate::ui::theme;
+use crate::ui::{theme, widgets};
 use scout_core::time::format_datetime;
 use scout_worker::{Command, Task, WorkerHandle};
 
@@ -12,7 +13,7 @@ use scout_worker::{Command, Task, WorkerHandle};
 pub struct Form {
     url: String,
     key: String,
-    /// Ask the worker for the server's houses (once per opening of the settings).
+    /// Ask the worker for the server's regions and houses (once per opening of the settings).
     load_houses: bool,
 }
 
@@ -48,7 +49,18 @@ impl Form {
                         .desired_width(300.0),
                 );
                 ui.end_row();
+                if server.key.is_some() {
+                    ui.label("Région");
+                    region_choice(ui, state, worker);
+                    ui.end_row();
+                    ui.label("Hôtel des ventes");
+                    widgets::house_picker(ui, state, worker, 300.0);
+                    ui.end_row();
+                }
             });
+        if let Some(Err(error)) = &state.server_houses {
+            ui.colored_label(theme::current(ui).loss, format!("⚠ {error}"));
+        }
         let changed =
             self.url.trim() != server.url || Some(self.key.trim()) != server.key.as_deref();
         ui.horizontal(|ui| {
@@ -59,6 +71,7 @@ impl Form {
                 worker.send(Command::SetPriceServer {
                     url: self.url.clone(),
                     key: Some(self.key.clone()),
+                    region: server.region.clone(),
                     house: server.house,
                 });
             }
@@ -80,70 +93,44 @@ impl Form {
                 None => ui.weak("Jamais téléchargés"),
             };
         });
-        house_choice(ui, state, worker, self);
     }
 }
 
-/// The auction house whose prices are kept, among the server's.
-fn house_choice(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, form: &Form) {
+/// The Battle.net regions where the server found Forever auction houses.
+fn region_choice(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
     let Some(config) = &state.config else {
         return;
     };
     let server = &config.price_server;
-    if server.key.is_none() {
-        return;
-    }
-    match &state.server_houses {
-        None => {
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.weak("Hôtels des ventes du serveur…");
-            });
-        }
-        Some(Err(error)) => {
-            ui.colored_label(theme::current(ui).loss, format!("⚠ {error}"));
-        }
-        Some(Ok(houses)) => {
-            let label = |id: u32| {
-                houses.iter().find(|h| h.id == id).map_or_else(
-                    || format!("n° {id}"),
-                    |h| format!("n° {} · {}", h.id, h.name),
-                )
-            };
-            let selected = server.house.map_or_else(|| "à choisir".to_owned(), label);
-            ui.horizontal(|ui| {
-                ui.label("Hôtel des ventes").on_hover_text(
-                    "Les 15 maisons de WoW Forever : 5 serveurs, et sur chacun Alliance, Horde et \
-                     Flots noirs. Choisis celle où tu vends.",
-                );
-                egui::ComboBox::from_id_salt("server_house")
-                    .selected_text(selected)
-                    .width(300.0)
-                    .show_ui(ui, |ui| {
-                        for house in houses {
-                            let text = match house.last_update {
-                                Some(ts) => format!(
-                                    "n° {} · {} ({})",
-                                    house.id,
-                                    house.name,
-                                    format_datetime(ts)
-                                ),
-                                None => format!("n° {} · {} (vide)", house.id, house.name),
-                            };
-                            if ui
-                                .selectable_label(server.house == Some(house.id), text)
-                                .clicked()
-                                && server.house != Some(house.id)
-                            {
-                                worker.send(Command::SetPriceServer {
-                                    url: form.url.clone(),
-                                    key: Some(form.key.clone()),
-                                    house: Some(house.id),
-                                });
-                            }
-                        }
+    let regions = match &state.server_houses {
+        Some(Ok(choice)) => &choice.regions[..],
+        _ => &[],
+    };
+    egui::ComboBox::from_id_salt("server_region")
+        .selected_text(server.region.to_uppercase())
+        .width(80.0)
+        .show_ui(ui, |ui| {
+            if regions.is_empty() {
+                ui.weak("Liste des régions pas encore reçue");
+            }
+            for region in regions {
+                if ui
+                    .selectable_label(*region == server.region, region.to_uppercase())
+                    .clicked()
+                    && *region != server.region
+                {
+                    worker.send(Command::SetPriceServer {
+                        url: server.url.clone(),
+                        key: server.key.clone(),
+                        region: region.clone(),
+                        house: None,
                     });
-            });
-        }
-    }
+                }
+            }
+        })
+        .response
+        .on_hover_text(
+            "Régions Battle.net où le serveur a trouvé des hôtels des ventes WoW Forever. \
+             En changer demande de choisir à nouveau l'hôtel des ventes.",
+        );
 }

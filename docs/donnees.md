@@ -5,15 +5,19 @@
   vrai par défaut : masque les objets inutilisables : « Deprecated / Unused / [INUTILISÉ] / périmé / [PH] / OLD /
   Monster - / DNT », `gamedata::is_obsolete` ;
   `last_import` = date du dernier import Scout réussi ; `[price_server]` : `url` du serveur de prix (défaut
-  `scout_api::DEFAULT_SERVER`), `key` = clé d'accès personnelle, `house` = hôtel des ventes suivi, `last_sync` = date
+  `scout_api::DEFAULT_SERVER`), `key` = clé d'accès personnelle, `region` (eu, us, kr, tw) et `house` = hôtel des ventes affiché partout, `last_sync` = date
   des derniers prix téléchargés). Chemins via `directories`.
 - Tables :
   - Market : `items (item_id, name, class_id, subclass_id, class_name, subclass_name)` (noms et catégories vus par
-    Scout), `snapshots (item_id, source, ts, price, quantity)` clé `(item_id, source, ts)`, `source` ∈
+    Scout), `snapshots (item_id, source, region, house, ts, price, quantity)` clé `(item_id, region, house,
+    source, ts)` : **hôtel des ventes** = région Battle.net (`eu`…) + n° de maison (114…), `''` / 0 tant qu'aucun n'est
+    choisi (rattachés au premier choisi : `Db::claim_unassigned`, migration `market/migrate` du 2026-11-25 qui a
+    gardé toutes les lignes) ; toutes les lectures ne montrent que l'HdV choisi, et un import Scout / Auctionator /
+    Forever Guide prend l'HdV choisi à ce moment ; `source` ∈
     `scout | scout-api | auctionator | foreverguide`, prix en cuivre (NULL = pas en vente), `ts` en secondes Unix.
     `scout-api` = notre serveur de prix (API Battle.net) : derniers prix gardés seulement quand ils changent (plus le
     premier de chaque jour), historique complet d'un objet à l'ouverture de sa fiche ; `scout_api_history (item_id,
-    house, until, checked_at)` dit jusqu'où cet historique est téléchargé (redemandé après 1 h).
+    region, house, until, checked_at)` dit jusqu'où cet historique est téléchargé (redemandé après 1 h).
     Imports **idempotents** (`INSERT OR IGNORE`) : la base garde tout, même ce que Scout oublie après 21 jours.
   - `favorites (item_id)` : partagés par Market et Objets. `zone_favorites (zone)` : zones favorites du Butin.
   - `vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)` : complétée à chaque import Scout

@@ -42,7 +42,7 @@ pub(super) async fn import(db: &Db, config: &Config, send: &dyn Fn(Event)) -> Re
             "butin enregistré par Scout (addon à jour ?) : {e:#}"
         ))),
     }
-    store(db, &rows, send).await
+    store(db, config, rows, send).await
 }
 
 /// Forever Guide's item sources, imported again only when its files (or our export) changed.
@@ -164,12 +164,19 @@ pub(super) async fn import_legacy(db: &Db, config: &Config, send: &dyn Fn(Event)
         dir.display()
     )));
     let rows = sources::run_legacy_export(dir)?;
-    store(db, &rows, send).await
+    store(db, config, rows, send).await
 }
 
-async fn store(db: &Db, rows: &[Row], send: &dyn Fn(Event)) -> Result<()> {
-    let added = db.insert(rows).await?;
-    refresh(db, send).await?;
+/// The addons do not say which auction house they scanned: the one chosen in the settings
+/// (none yet: given to the first one chosen).
+async fn store(db: &Db, config: &Config, mut rows: Vec<Row>, send: &dyn Fn(Event)) -> Result<()> {
+    let house = config.price_server.auction_house();
+    for row in &mut rows {
+        row.region.clone_from(&house.region);
+        row.house = i64::from(house.id);
+    }
+    let added = db.insert(&rows).await?;
+    refresh(db, &house, send).await?;
     send(Event::Status(format!(
         "{} relevés lus, {added} nouveaux enregistrés",
         rows.len()

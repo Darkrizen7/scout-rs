@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
-use scout_core::scout_api::{PriceLine, ServerHouse};
+use scout_core::scout_api::{AuctionHouse, PriceLine, ServerHouse};
 use serde::Deserialize;
 
 /// The latest prices of a busy house are ~300 KB of CSV (gzipped on the way).
@@ -31,33 +31,57 @@ fn get(url: &str, key: &str) -> Result<ureq::http::Response<ureq::Body>> {
     }
 }
 
-/// The houses the server records.
-pub fn houses(server: &str, key: &str) -> Result<Vec<ServerHouse>> {
-    let url = format!("{}/v1/houses", server.trim_end_matches('/'));
-    let mut response = get(&url, key)?;
-    let body = response.body_mut().with_config().limit(MAX_BYTES).reader();
-    serde_json::from_reader(body).context("liste des hôtels des ventes illisible")
+/// The regions where the server found Forever auction houses (eu, us, kr, tw).
+pub fn regions(server: &str, key: &str) -> Result<Vec<String>> {
+    read_json(
+        &format!("{}/v1/regions", base(server)),
+        key,
+        "liste des régions illisible",
+    )
+}
+
+/// The houses the server records in `region`.
+pub fn houses(server: &str, key: &str, region: &str) -> Result<Vec<ServerHouse>> {
+    let url = format!("{}/v1/{region}/houses", base(server));
+    read_json(&url, key, "liste des hôtels des ventes illisible")
 }
 
 /// The newest prices of every item of `house` (`quantity = 0`: just left the auction house).
-pub fn latest(server: &str, key: &str, house: u32) -> Result<Vec<PriceLine>> {
-    let url = format!("{}/v1/houses/{house}/latest", server.trim_end_matches('/'));
+pub fn latest(server: &str, key: &str, house: &AuctionHouse) -> Result<Vec<PriceLine>> {
+    let url = format!(
+        "{}/v1/{}/houses/{}/latest",
+        base(server),
+        house.region,
+        house.id
+    );
     read_csv(&url, key)
 }
 
-/// Every price of one item after `since` (Unix seconds), oldest first.
+/// Every price of one item at `house` after `since` (Unix seconds), oldest first.
 pub fn history(
     server: &str,
     key: &str,
-    house: u32,
+    house: &AuctionHouse,
     item_id: i64,
     since: i64,
 ) -> Result<Vec<PriceLine>> {
     let url = format!(
-        "{}/v1/houses/{house}/items/{item_id}/history?since={since}",
-        server.trim_end_matches('/')
+        "{}/v1/{}/houses/{}/items/{item_id}/history?since={since}",
+        base(server),
+        house.region,
+        house.id
     );
     read_csv(&url, key)
+}
+
+fn base(server: &str) -> &str {
+    server.trim_end_matches('/')
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(url: &str, key: &str, what: &str) -> Result<T> {
+    let mut response = get(url, key)?;
+    let body = response.body_mut().with_config().limit(MAX_BYTES).reader();
+    serde_json::from_reader(body).context(what.to_owned())
 }
 
 fn read_csv(url: &str, key: &str) -> Result<Vec<PriceLine>> {

@@ -6,6 +6,7 @@ use anyhow::Result;
 use scout_core::GAME_FORMAT;
 use scout_core::analysis;
 use scout_core::gamedata::GameData;
+use scout_core::scout_api::AuctionHouse;
 use scout_db::Db;
 use scout_sources as sources;
 use scout_sources::wow;
@@ -29,7 +30,7 @@ async fn imports_local_saved_variables() -> Result<()> {
     let db = Db::open(&path).await?;
     let added = db.insert(&scout).await? + db.insert(&legacy).await?;
     assert_eq!(db.insert(&legacy).await?, 0, "a second import adds nothing");
-    let items = db.items().await?;
+    let items = db.items(&AuctionHouse::default()).await?;
     println!(
         "{} scout + {} legacy rows, {added} stored, {} items",
         scout.len(),
@@ -37,7 +38,7 @@ async fn imports_local_saved_variables() -> Result<()> {
         items.len()
     );
     for id in [2589, 8191] {
-        for s in db.history(id).await? {
+        for s in db.history(id, &AuctionHouse::default()).await? {
             println!("{id} {} {} {:?} {:?}", s.source, s.ts, s.price, s.quantity);
         }
     }
@@ -180,7 +181,8 @@ async fn downloads_assembles_and_stores_latest_build() -> Result<()> {
 async fn summarizes_local_database() -> Result<()> {
     let db = Db::open(&database_path()?).await?;
     let start = std::time::Instant::now();
-    let a = analysis::analyze(&db.observations().await?);
+    let house = scout_worker::Config::load().price_server.auction_house();
+    let a = analysis::analyze(&db.observations(&house).await?);
     println!("analysed in {:?}", start.elapsed());
     for d in &a.days {
         println!(

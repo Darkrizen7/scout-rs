@@ -19,6 +19,12 @@ pub struct Row {
     pub price: Option<i64>,
     /// Units listed; empty when the source did not record it.
     pub quantity: Option<i64>,
+    /// Auction house: Battle.net region and house id (`""` / 0 until known: the addons do not say,
+    /// the import gives the house chosen in the settings).
+    #[serde(default)]
+    pub region: String,
+    #[serde(default)]
+    pub house: i64,
 }
 
 fn scout_source() -> String {

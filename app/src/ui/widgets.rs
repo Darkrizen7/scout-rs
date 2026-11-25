@@ -8,6 +8,10 @@ use scout_core::drops::{Observed, TRUSTED_KILLS, format_percent};
 use scout_core::update::AddonInstall;
 use scout_worker::{Command, Task, WorkerHandle};
 
+mod house;
+
+pub use house::house_picker;
+
 /// Files-like star: dim outline, filled and colored when starred.
 pub fn star_button(ui: &mut egui::Ui, favorite: bool, palette: &theme::Palette) -> egui::Response {
     let (icon, color, hint) = if favorite {

@@ -2,10 +2,12 @@
 
 use anyhow::Result;
 use scout_core::analysis::Observation;
+use scout_core::scout_api::AuctionHouse;
 use scout_core::{ItemName, ItemSummary, Row, Snapshot};
 
 use super::Db;
 
+pub(crate) mod migrate;
 pub(crate) mod scout_api;
 
 impl Db {
@@ -41,10 +43,13 @@ impl Db {
             .execute(&mut *tx)
             .await?;
             added += sqlx::query(
-                "INSERT OR IGNORE INTO snapshots (item_id, source, ts, price, quantity) VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR IGNORE INTO snapshots (item_id, source, region, house, ts, price, quantity)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
             )
                 .bind(row.item_id)
                 .bind(&row.source)
+                .bind(&row.region)
+                .bind(row.house)
                 .bind(row.timestamp)
                 .bind(row.price)
                 .bind(row.quantity)
@@ -54,6 +59,19 @@ impl Db {
         }
         tx.commit().await?;
         Ok(added)
+    }
+
+    /// Gives the snapshots recorded before any house was chosen to `house` (the first one chosen:
+    /// that is where they were scanned). Returns how many.
+    pub async fn claim_unassigned(&self, house: &AuctionHouse) -> Result<u64> {
+        Ok(sqlx::query(
+            "UPDATE OR IGNORE snapshots SET region = ?, house = ? WHERE region = '' AND house = 0",
+        )
+        .bind(&house.region)
+        .bind(house.id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected())
     }
 
     /// Names Scout saw; they also name the items imported from other addons (same item ids).
@@ -83,7 +101,8 @@ impl Db {
         Ok(())
     }
 
-    pub async fn items(&self) -> Result<Vec<ItemSummary>> {
+    /// The items with a price at `house`, and their latest snapshot there.
+    pub async fn items(&self, house: &AuctionHouse) -> Result<Vec<ItemSummary>> {
         let items = sqlx::query_as(
             // Latest snapshot of each item, any source (Scout wins a tie).
             "SELECT i.item_id, i.name, i.class_id, i.subclass_id, i.class_name, i.subclass_name,
@@ -92,20 +111,25 @@ impl Db {
              JOIN (SELECT item_id, price, quantity, ts,
                           COUNT(*) OVER w AS scans,
                           ROW_NUMBER() OVER (w ORDER BY ts DESC, source = 'scout' DESC) AS rank
-                   FROM snapshots
+                   FROM snapshots WHERE region = ? AND house = ?
                    WINDOW w AS (PARTITION BY item_id)) s
                ON s.item_id = i.item_id AND s.rank = 1",
         )
+        .bind(&house.region)
+        .bind(house.id)
         .fetch_all(&self.pool)
         .await?;
         Ok(items)
     }
 
-    /// Every priced snapshot, for the analysis.
-    pub async fn observations(&self) -> Result<Vec<Observation>> {
+    /// Every priced snapshot of `house`, for the analysis.
+    pub async fn observations(&self, house: &AuctionHouse) -> Result<Vec<Observation>> {
         let rows: Vec<(i64, i64, i64, Option<i64>)> = sqlx::query_as(
-            "SELECT item_id, ts, price, quantity FROM snapshots WHERE price IS NOT NULL",
+            "SELECT item_id, ts, price, quantity FROM snapshots
+             WHERE price IS NOT NULL AND region = ? AND house = ?",
         )
+        .bind(&house.region)
+        .bind(house.id)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows
@@ -119,11 +143,14 @@ impl Db {
             .collect())
     }
 
-    pub async fn history(&self, item_id: i64) -> Result<Vec<Snapshot>> {
+    pub async fn history(&self, item_id: i64, house: &AuctionHouse) -> Result<Vec<Snapshot>> {
         let history = sqlx::query_as(
-            "SELECT source, ts, price, quantity FROM snapshots WHERE item_id = ? ORDER BY ts",
+            "SELECT source, ts, price, quantity FROM snapshots
+             WHERE item_id = ? AND region = ? AND house = ? ORDER BY ts",
         )
         .bind(item_id)
+        .bind(&house.region)
+        .bind(house.id)
         .fetch_all(&self.pool)
         .await?;
         Ok(history)
@@ -145,6 +172,8 @@ mod tests {
     ) -> Row {
         Row {
             source: SCOUT.to_owned(),
+            region: String::new(),
+            house: 0,
             item_id,
             name: name.map(str::to_owned),
             timestamp,
@@ -172,21 +201,21 @@ mod tests {
             1
         );
 
-        let items = db.items().await?;
+        let items = db.items(&AuctionHouse::default()).await?;
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name.as_deref(), Some("Lin"));
         assert_eq!(
             (items[0].ts, items[0].price, items[0].scans),
             (200, None, 2)
         );
-        assert_eq!(db.history(1).await?.len(), 2);
+        assert_eq!(db.history(1, &AuctionHouse::default()).await?.len(), 2);
 
         // Same time from another addon: a separate snapshot, the newest one wins in the list.
         let mut legacy = row(1, None, 300, Some(40), 0);
         legacy.source = "auctionator".into();
         legacy.quantity = None;
         assert_eq!(db.insert(&[legacy]).await?, 1);
-        let items = db.items().await?;
+        let items = db.items(&AuctionHouse::default()).await?;
         assert_eq!(
             (
                 items[0].ts,
@@ -207,7 +236,7 @@ mod tests {
             subclass: Some("Tissu".into()),
         }])
         .await?;
-        let item = &db.items().await?[0];
+        let item = &db.items(&AuctionHouse::default()).await?[0];
         assert_eq!(item.name.as_deref(), Some("Tissu de lin"));
         assert_eq!(
             (item.class_id, item.subclass_name.as_deref()),

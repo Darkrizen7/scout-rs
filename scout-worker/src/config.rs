@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use scout_core::Theme;
+use scout_core::scout_api::AuctionHouse;
 use scout_sources::wow;
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +36,9 @@ pub struct Config {
 pub struct PriceServer {
     #[serde(default = "default_server")]
     pub url: String,
+    /// Battle.net region of the house (eu, us, kr, tw).
+    #[serde(default = "default_region")]
+    pub region: String,
     /// Personal access key, given by the server's administrator.
     #[serde(default)]
     pub key: Option<String>,
@@ -50,6 +54,7 @@ impl Default for PriceServer {
     fn default() -> Self {
         Self {
             url: default_server(),
+            region: default_region(),
             key: None,
             house: None,
             last_sync: None,
@@ -59,10 +64,24 @@ impl Default for PriceServer {
 
 impl PriceServer {
     /// Url, key and house, when all are set.
-    pub fn ready(&self) -> Option<(&str, &str, u32)> {
+    pub fn ready(&self) -> Option<(&str, &str, AuctionHouse)> {
         let key = self.key.as_deref().filter(|k| !k.is_empty())?;
-        Some((self.url.as_str(), key, self.house?))
+        self.house?;
+        Some((self.url.as_str(), key, self.auction_house()))
     }
+
+    /// The house whose prices every page shows (`AuctionHouse::default()` until one is chosen).
+    pub fn auction_house(&self) -> AuctionHouse {
+        self.house
+            .map_or_else(AuctionHouse::default, |id| AuctionHouse {
+                region: self.region.clone(),
+                id,
+            })
+    }
+}
+
+fn default_region() -> String {
+    "eu".to_owned()
 }
 
 fn default_server() -> String {
