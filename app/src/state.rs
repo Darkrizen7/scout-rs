@@ -163,6 +163,14 @@ impl Default for State {
 }
 
 impl State {
+    /// Whether the server has game data newer than the stored ones (or any, when none are
+    /// stored). False while checking, on a network error or when the server has nothing.
+    pub fn game_update_available(&self) -> bool {
+        let game = &self.game;
+        let stored = (!game.is_empty()).then_some((game.build.as_str(), game.format, game.updated));
+        update_available(self.latest_game_data.as_ref(), stored)
+    }
+
     pub fn busy(&self, task: Task) -> bool {
         self.running.contains(&task)
     }
@@ -290,4 +298,40 @@ pub fn item_name(item: &ItemSummary) -> String {
     item.name
         .clone()
         .unwrap_or_else(|| format!("objet #{}", item.item_id))
+}
+
+/// The rule behind `State::game_update_available`, on plain values.
+fn update_available(
+    latest: Option<&Result<Option<scout_worker::Manifest>, String>>,
+    stored: Option<(&str, i64, i64)>,
+) -> bool {
+    matches!(latest, Some(Ok(Some(m))) if m.newer_than(stored))
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    use scout_worker::Manifest;
+
+    fn manifest() -> Manifest {
+        Manifest {
+            format: 1,
+            build: "b1".into(),
+            updated: 100,
+            complete: true,
+            bytes: 5,
+        }
+    }
+
+    #[test]
+    fn badge_rule() {
+        let ok = Ok(Some(manifest()));
+        assert!(!update_available(None, None));
+        assert!(!update_available(Some(&Err("x".into())), None));
+        assert!(!update_available(Some(&Ok(None)), None));
+        assert!(update_available(Some(&ok), None));
+        assert!(update_available(Some(&ok), Some(("b0", 1, 100))));
+        assert!(update_available(Some(&ok), Some(("b1", 1, 99))));
+        assert!(!update_available(Some(&ok), Some(("b1", 1, 100))));
+    }
 }

@@ -33,11 +33,21 @@ pub fn tabs(ui: &mut egui::Ui, state: &mut State, settings: &mut Settings, worke
             .max_rect(full)
             .layout(egui::Layout::right_to_left(egui::Align::Center)),
         |ui| {
-            if ui
+            let badge = state.game_update_available();
+            let mut button = ui
                 .button("⚙ Réglages")
-                .on_hover_text("Thème, imports, dossier WoW")
-                .clicked()
-            {
+                .on_hover_text("Thème, imports, dossier WoW");
+            if badge {
+                button = button.on_hover_text("Nouvelles données du jeu disponibles");
+                let red = theme::current(ui).loss;
+                let rect = button.rect;
+                ui.painter().circle_filled(
+                    egui::pos2(rect.right() - 3.0, rect.top() + 3.0),
+                    4.0,
+                    red,
+                );
+            }
+            if button.clicked() {
                 settings.open(state);
             }
             if state.config.is_some() {

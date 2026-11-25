@@ -246,9 +246,7 @@ fn game_data(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
                      version de l'outil.",
                 );
             }
-            (Some(Ok(Some(latest))), Some(build))
-                if !latest.newer_than(Some((build, game.format, game.updated))) =>
-            {
+            (Some(Ok(Some(_))), Some(_)) if !state.game_update_available() => {
                 if game.complete {
                     ui.colored_label(palette.gain, "✔ À jour");
                 } else {
