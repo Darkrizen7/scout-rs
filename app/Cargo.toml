@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "wayland", "x11", "clipboard"] }
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "wayland", "x11", "clipboard", "links"] }
 egui = { version = "0.37", default-features = false, features = ["monochrome_emoji_fonts"] }
 egui_extras = { version = "0.37", default-features = false }
 egui_plot = "0.38.0"
