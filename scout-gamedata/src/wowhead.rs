@@ -9,8 +9,10 @@ use scout_core::gamedata::GameItem;
 
 /// A single item's XML is a few kilobytes.
 const MAX_BYTES: u64 = 1024 * 1024;
-/// Pause between two requests: Wowhead's CDN blocks the address (403) after a few hundred quick ones.
-pub const PAUSE: Duration = Duration::from_secs(1);
+/// Pause between two requests: Wowhead's CDN blocks the address (403) after a few hundred quick
+/// ones; at 1 s it still did after ~270 requests (4.5 min). 3 s divides the rate by three and keeps a
+/// 150-item round under 8 min, while the app's rare full download stays acceptable.
+pub const PAUSE: Duration = Duration::from_secs(3);
 
 /// The item as Wowhead describes it, or None when Wowhead does not know it.
 pub fn item(item_id: i64) -> Result<Option<GameItem>> {
