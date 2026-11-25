@@ -25,6 +25,7 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 ## Tickets (Plane)
 - Source de vérité des tâches : **Plane** (http://localhost:8080, workspace `wow-scout`, via le MCP `plane`),
   projets `APP` (crate `app`), `SERVER` (`scout-server`), `ADDON` (dépôt `../scout-addon`). `TODO.md` n'est plus tenu.
+- Chaque ticket porte un label : **Feature** (nouveauté, évolution) ou **Fix** (correction d'un bug), posé à la création.
 - États : Backlog → Todo → In Progress → In Review → Done (ou Cancelled). Après la fusion, Claude passe en « Done »
   les tickets sans UI ; un ticket qui change l'interface reste en « In Review », assigné à l'utilisateur, qui le
   passe en « Done » après son test (ses dépendants restent bloqués jusque-là).
@@ -66,7 +67,7 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - `GAME_FORMAT` (`scout-core/src/gamedata.rs`) : l'augmenter quand on garde de nouvelles colonnes ou tables du jeu.
   Le paquet de butin et marchands du serveur a son propre format, `REFERENCE_FORMAT` (`scout-core/src/reference.rs`).
 - Le paquet de référence du serveur (`scout-server/data/reference.db.gz`) n'a **jamais** de données personnelles :
-  ni prix, ni favoris, ni butin enregistré (seulement `drop_*` et `vendor_prices`, `scout-db/src/reference.rs`).
+  ni prix, ni favoris, ni butin enregistré (seulement `drop_*`, `vendor_prices` et les noms et catégories d'objets de `items`, `scout-db/src/reference.rs`).
   Le binaire n'embarque aucune donnée : premier lancement = tout vient du serveur.
 - Une nouvelle source de données se cite dans `scout-core/src/credits.rs` (`SOURCES`, affichée par la page `/thanks` du serveur, ouverte depuis les réglages).
 

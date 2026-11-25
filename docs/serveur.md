@@ -173,9 +173,9 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
   (autre build, autre format) ou est plus récent (`Manifest::newer_than` contre `game_meta`), puis remplace les
   `game_*`. Sans clé : pas de données du jeu (l'appli les demande au premier lancement).
 
-### 3.6 bis Paquet de référence (butin et marchands)
-- SQLite gzippé avec seulement `drop_sources`, `drop_npcs`, `drop_names`, `drop_meta` et `vendor_prices` (même schéma
-  que `prix.db` ; rien de personnel). Le paquet et son manifeste (`scout-server/data/reference.db.gz`, `reference.json`)
+### 3.6 bis Paquet de référence (butin, marchands et noms d'objets)
+- SQLite gzippé avec seulement `drop_sources`, `drop_npcs`, `drop_names`, `drop_meta`, `vendor_prices` et `items` (noms et catégories des objets vus par Scout, lignes
+  avec un nom seulement ; même schéma que `prix.db` ; ni prix ni rien de personnel). Le paquet et son manifeste (`scout-server/data/reference.db.gz`, `reference.json`)
   sont commités et inclus dans le binaire (`include_bytes!`, `api/reference.rs`) : le serveur ne les ouvre pas.
 - Nouvelle version : `cargo run -p scout-worker --example server_reference [base]` (par défaut `prix.db`, lue
   seulement ; préférer une copie), commiter les deux fichiers, redéployer le serveur. Changer les colonnes de ces
