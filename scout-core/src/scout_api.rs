@@ -83,6 +83,27 @@ pub fn realm_type(id: u32) -> Option<&'static str> {
     }
 }
 
+/// The house of a Scout scan: the one of the settings' game mode on the side of `faction`
+/// (`Alliance`, `Horde`, `Neutral` = Flots noirs). `None` for an unknown faction or house.
+pub fn house_for_faction(settings_house: u32, faction: &str) -> Option<u32> {
+    let base = match settings_house {
+        110 | 113 | 116 => 110,
+        111 | 114 | 117 => 111,
+        119..=121 => 119,
+        123..=125 => 123,
+        _ => return None,
+    };
+    // PvP and Normal houses are spaced by three (Alliance, Horde, Neutral); RP ones follow each other.
+    let step = if base < 119 { 3 } else { 1 };
+    let side = match faction {
+        "Alliance" => 0,
+        "Horde" => 1,
+        "Neutral" => 2,
+        _ => return None,
+    };
+    Some(base + side * step)
+}
+
 /// What the settings offer: the server's regions and the houses of the chosen one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServerChoice {
@@ -123,6 +144,8 @@ impl PriceLine {
             timestamp: self.ts,
             price: self.price(),
             quantity: Some(self.quantity),
+            realm: None,
+            faction: None,
         }
     }
 }
@@ -194,6 +217,18 @@ mod tests {
             min_unit,
             quantity,
         }
+    }
+
+    #[test]
+    fn house_follows_faction_in_the_settings_mode() {
+        assert_eq!(house_for_faction(114, "Alliance"), Some(111));
+        assert_eq!(house_for_faction(114, "Neutral"), Some(117));
+        assert_eq!(house_for_faction(113, "Horde"), Some(113));
+        assert_eq!(house_for_faction(120, "Alliance"), Some(119));
+        assert_eq!(house_for_faction(124, "Neutral"), Some(125));
+        assert_eq!(house_for_faction(114, "Elfes"), None);
+        assert_eq!(house_for_faction(0, "Horde"), None);
+        assert_eq!(house_for_faction(112, "Horde"), None);
     }
 
     fn eu114() -> AuctionHouse {

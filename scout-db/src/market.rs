@@ -192,6 +192,8 @@ mod tests {
             timestamp,
             price,
             quantity: Some(quantity),
+            realm: None,
+            faction: None,
         }
     }
 

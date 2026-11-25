@@ -112,6 +112,8 @@ mod tests {
             timestamp: ts,
             price,
             quantity: Some(1),
+            realm: None,
+            faction: None,
         };
         let (eu, us, none) = (house("eu", 114), house("us", 114), AuctionHouse::default());
         db.insert(&[

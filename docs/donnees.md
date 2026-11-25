@@ -12,7 +12,7 @@
     Scout), `snapshots (item_id, source, region, house, ts, price, quantity)` clé `(item_id, region, house,
     source, ts)` : **hôtel des ventes** = région Battle.net (`eu`…) + n° de maison (114…), `''` / 0 tant qu'aucun n'est
     choisi (rattachés au premier choisi : `Db::claim_unassigned`, migration `market/migrate` du 2026-11-25 qui a
-    gardé toutes les lignes) ; toutes les lectures ne montrent que l'HdV choisi, et un import Scout prend l'HdV choisi à ce
+    gardé toutes les lignes) ; toutes les lectures ne montrent que l'HdV choisi, et un import Scout donne à chaque relevé la maison du même mode que l'HdV choisi, du côté de sa faction (APP-26, sans nouvelle colonne ni migration ; ancien export : l'HdV choisi) à ce
     moment ; `source` ∈ `scout | scout-api` (les lignes `auctionator` / `foreverguide` des anciens imports sont
     supprimées à l'ouverture, une fois : `market/migrate::drop_addon_prices`, clé `addon_prices_removed` de `meta`), prix en cuivre (NULL = pas en vente), `ts` en secondes Unix.
     `scout-api` = notre serveur de prix (API Battle.net) : derniers prix gardés seulement quand ils changent (plus le

@@ -122,6 +122,22 @@ mod tests {
     }
 
     #[test]
+    fn parses_realm_and_faction() {
+        let csv = b"item_id,name,timestamp,datetime,price,quantity,realm,faction\n\
+            728,,1795258800,2026-11-21 12:00:00,6789,24,Soulseeker,Horde\n\
+            783,,1795258800,2026-11-21 12:00:00,,0,,\n";
+        let rows: Vec<Row> = parse(csv).unwrap();
+        assert_eq!(rows[0].realm.as_deref(), Some("Soulseeker"));
+        assert_eq!(rows[0].faction.as_deref(), Some("Horde"));
+        assert_eq!(
+            (rows[1].realm.clone(), rows[1].faction.clone()),
+            (None, None)
+        );
+        let old = b"item_id,name,timestamp,datetime,price,quantity\n1,,5,x,9,1\n";
+        assert_eq!(parse::<Row>(old).unwrap()[0].faction, None);
+    }
+
+    #[test]
     fn parses_loot_rows() {
         let csv = b"npc_id,name,zone,kills,skins,kind,item_id,drops,quantity\n\
             3,D\xc3\xa9voreur,Bois,2,1,loot,2589,2,5\n6,,,4,0,,,,\n";

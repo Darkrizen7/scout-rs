@@ -8,6 +8,11 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   vérifié au démarrage, à l'ouverture des Réglages et quand le dossier WoW change). `lua <wow_dir>/Interface/AddOns/Scout/tools/export.lua <Scout.lua>` (historique) et `… --names`
   (noms + catégories). Format CSV = **contrat avec l'addon** : le changer des deux côtés (`scout-sources/src/import.rs`).
   Rappeler `/reload` en jeu avant d'importer (le jeu n'écrit le fichier qu'à ce moment).
+  Les relevés d'HdV portent `realm,faction` en fin de ligne (vides dans les anciens exports ; `faction` = `Alliance`,
+  `Horde` ou `Neutral`). L'HdV d'un relevé = région des réglages + maison du **même mode** que celle des réglages, du
+  **côté** de la faction (`scout_api::house_for_faction` ; Neutral = Flots noirs), donc comparable aux prix du serveur.
+  Sans faction, faction inconnue ou maison non choisie : maison des réglages (ou non attribuée). Limite : le royaume
+  n'est pas stocké, le mode vient des réglages (un scan d'un royaume d'un autre mode serait classé dans le mauvais).
 - **PNJ** : `scout-sources/lua/vendor_export.lua` (intégré), à chaque import Scout : `ScoutDB.merchants` (PNJ, zone, position,
   stock limité ; prioritaire) et `ScoutDB.vendor` (anciens relevés sans PNJ). La liste de composants vendus sans limite
   (lignes `foreverguide`) ne vient plus que du paquet de référence du serveur. `BuyPrice` du client existe pour **tous**
