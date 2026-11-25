@@ -27,14 +27,14 @@
 - **Recettes** : recherche d'une recette ou d'un objet, par métier (même page d'arrivée que Objets, recherche puis
   résultats avec l'icône du métier ou de la catégorie) ; fiche recette (barre de compétence orange / jaune / vert / gris de 0 à 300 sur la ligne du métier, sections séparées, composants en tableau bordé avec ligne Total
   au moins cher entre PNJ et HdV, ou au prix de son craft quand le même métier le fabrique pour moins cher,
-  étiquette « Craft » ; bénéfice, patron). Dans la liste, une icône « $ » devant chaque recette : verte (bénéfice ≥ 0), rouge (< 0) ou grise « Prix inconnu » (produit ou composant sans prix, recette sans objet) ; bulle = bénéfice en pièces. Calcul dans `scout_core::crafting::profit`, refait quand la révision des prix change. Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
+  étiquette « Craft » ; bénéfice, patron). Dans la liste, une icône « $ » devant chaque recette : verte (bénéfice ≥ 0), rouge (< 0) ou grise « Prix inconnu » (produit ou composant sans prix, recette sans objet) ; bulle = bénéfice en pièces. Calcul dans `scout_core::crafting::profit`, refait quand la révision des prix change. Filtre « Compétence de … à … » (compétence requise, 0 si aucune ; champs vides = pas de borne ; `crafting::skill_in_range`) et bouton ⏶/⏷ de tri par compétence requise (le nom reste le second critère) ; les composants trouvés ne sont pas filtrés (`recipes/filters`). Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
   cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
 
 ## Fichiers de l'UI (`app/src/ui/`)
 `header` (onglets, en-tête Market, barre d'état, sélecteur d'hôtel des ventes, fenêtre Réglages ; `settings/price_server` : serveur de prix, région, mode de jeu, HdV), `sidebar` (barre latérale Market ; `sidebar/entry` : lignes et
 icônes de catégories partagées par les barres latérales), `item_list`, `chart` (`plots` réutilisé par la fiche objet, qui n'a pas les boutons d'agrégation Détaillé / Journalier / Hebdo / Mensuel du Market : tous les relevés, un point par jour, moyenne par semaine ou par mois, avec la fenêtre de temps correspondante ; sur le graphe du Market le titre mène à la fiche objet ; `chart/money_axis` : axe des prix avec pièces ; `chart/limits` : déplacement et zoom des graphes, bornés aux jours de données et à 0, avec effet élastique, axe du temps partagé et bouton « Aujourd'hui »), `analysis_view` (+ `charts`),
 `calculator`, `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`),
-`loot` (+ `loot/{map,map/paint,npcs,npc,sidebar}`), `recipes` (+ `recipes/{results,detail,reagents,skill_bar}`), `widgets` (étoile de favori,
+`loot` (+ `loot/{map,map/paint,npcs,npc,sidebar}`), `recipes` (+ `recipes/{results,filters,detail,reagents,skill_bar}`), `widgets` (étoile de favori,
 couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chance et chance réelle : partagés ; `widgets/house` : sélecteur d'hôtel des ventes de l'en-tête et des Réglages),
 `theme` (palettes libadwaita), `fonts` (Inter), `coins` (pièces dessinées).
 

@@ -24,11 +24,15 @@ impl Recipes {
             {
                 self.search.clear();
                 self.profession = None;
+                self.skill = Default::default();
                 self.selection = None;
                 self.browsing = false;
             }
         });
-        ui.add_space(6.0);
+        ui.add_space(4.0);
+        // "Ma compétence" (APP-20) goes next to this row.
+        self.skill.show(ui);
+        ui.add_space(4.0);
         ui.separator();
         ui.add_space(2.0);
         self.rebuild(game, state);
@@ -103,24 +107,30 @@ impl Recipes {
             self.search.clone(),
             self.profession,
             state.revision,
+            self.skill.key(),
         );
         if self.built_for.as_ref() == Some(&key) {
             return;
         }
         let query = Query::new(&self.search);
+        let (skill_min, skill_max) = self.skill.range();
         let matches = |name: &str| query.matches(name);
         let mut recipes: Vec<usize> = (0..game.recipes.len())
             .filter(|&i| {
                 let r = &game.recipes[i];
                 self.profession.is_none_or(|p| r.profession == p)
+                    && crafting::skill_in_range(r, skill_min, skill_max)
                     && (matches(&r.name)
                         || r.creates
                             .is_some_and(|c| matches(&game.item_name(c.item_id))))
             })
             .collect();
-        recipes.sort_by_key(|&i| {
+        // Name stays the second criterion in both directions.
+        let descending = self.skill.descending;
+        recipes.sort_by_cached_key(|&i| {
+            let skill = game.recipes[i].required.unwrap_or(0);
             (
-                game.recipes[i].required.unwrap_or(0),
+                if descending { -skill } else { skill },
                 game.recipes[i].name.to_lowercase(),
             )
         });

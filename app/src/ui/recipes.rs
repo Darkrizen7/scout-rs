@@ -2,6 +2,7 @@
 //! Side bar (professions), then the search: in the middle of the page on arrival, above the results after.
 
 pub(crate) mod detail;
+mod filters;
 mod reagents;
 mod results;
 mod skill_bar;
@@ -34,8 +35,10 @@ pub struct Recipes {
     hits: Vec<Hit>,
     /// Profit of one craft for each hit (None: unknown, or not a recipe).
     profits: Vec<Option<i64>>,
-    /// (data address, search, profession, items revision) the hits were computed for.
-    built_for: Option<(usize, String, Option<i64>, u64)>,
+    /// Required-skill filter and sort.
+    skill: filters::SkillFilter,
+    /// (data address, search, profession, items revision, skill filter) the hits were computed for.
+    built_for: Option<(usize, String, Option<i64>, u64, filters::SkillKey)>,
     /// False on arrival: the search sits in the middle of the page until a profession is chosen or text typed.
     browsing: bool,
 }
