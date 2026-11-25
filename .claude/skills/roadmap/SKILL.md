@@ -53,15 +53,18 @@ Pas de parallèle : beaucoup de tickets touchent les mêmes fichiers (réglages)
   lignes d'attribution ; vérifier `date` : en semaine 9h–12h / 14h–18h, dater juste après la plage avec
   `--date` et `GIT_COMMITTER_DATE`). Pas de commit par le sous-agent.
 - `git push -u origin <branche>`, puis `gh pr create --base master` (titre = sujet du commit, corps : résumé,
-  comment tester, `Plane : APP-42`). Jamais de push sur `master`, ni de fusion, ni de `--force`.
+  comment tester, `Plane : APP-42`). Jamais de `--force`.
 - Commentaire de synthèse sur le ticket : ce qui a été fait, comment tester, limites, lien de la PR.
 - Tokens : lancer `python3 -I .claude/skills/roadmap/tokens.py --since <passage en « In Progress »>`
   (horodatage dans `updated_at` du `workitem update` qui a posé l'état, ou dans l'activité Plane) et coller la
   ligne dans le commentaire de synthèse. Si Claude corrige après la relecture : relevé complémentaire avec
   `--since` = fin du premier relevé.
-- Passage en « In Review ». L'utilisateur teste, fusionne la PR et passe le ticket en « Done ».
-- Revenir sur `master` (`git switch master && git pull`) avant le ticket suivant ; si un ticket dépend d'une
-  PR pas encore fusionnée, partir de sa branche et le dire dans la PR.
+- Fusion par Claude (voir `CLAUDE.md`, « Commits ») : `gh pr view` pour vérifier qu'elle n'est pas déjà fusionnée,
+  `git switch master && git pull`, `git merge --no-ff origin/<branche>` daté hors plage (`GIT_AUTHOR_DATE`,
+  `GIT_COMMITTER_DATE`, message `Fusion de la PR #N : <titre>`), clippy et tests, `git push origin master`.
+- Ticket sans UI : « Done ». Ticket qui change l'interface : « In Review », assigné à l'utilisateur, qui teste et
+  passe en « Done » (ses dépendants attendent).
+- Repartir de `master` à jour avant le ticket suivant.
 - Travail découvert en route : nouveau ticket (avec relation si pertinent), pas d'élargissement du périmètre.
 - Blocage ou ambiguïté : commentaire avec la question précise sur le ticket, puis ticket suivant.
 
