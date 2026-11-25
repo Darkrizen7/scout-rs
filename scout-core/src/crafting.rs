@@ -33,6 +33,12 @@ fn recipes(game: &GameData, item_id: i64, profession: i64) -> impl Iterator<Item
         .filter(move |&i| game.recipes[i].profession == profession)
 }
 
+/// Whether the skill a recipe requires (0 when none) lies in `min..=max`; a missing bound is open.
+pub fn skill_in_range(recipe: &Recipe, min: Option<i64>, max: Option<i64>) -> bool {
+    let skill = recipe.required.unwrap_or(0);
+    min.is_none_or(|m| skill >= m) && max.is_none_or(|m| skill <= m)
+}
+
 /// `path`: items being crafted above this one, so a recipe cycle (A from B, B from A) stops.
 fn cost(
     game: &GameData,
@@ -203,6 +209,20 @@ mod tests {
             Some(8.0)
         );
         assert_eq!(craft_cost(&game, 4, LEATHER, &|_| None), None);
+    }
+
+    #[test]
+    fn skill_range() {
+        let mut r = recipe(LEATHER, (2, 2), &[]);
+        // No required skill counts as 0.
+        assert!(skill_in_range(&r, None, None));
+        assert!(skill_in_range(&r, Some(0), Some(0)));
+        assert!(!skill_in_range(&r, Some(1), None));
+        r.required = Some(150);
+        assert!(skill_in_range(&r, Some(150), Some(150)));
+        assert!(skill_in_range(&r, None, Some(200)));
+        assert!(!skill_in_range(&r, None, Some(149)));
+        assert!(!skill_in_range(&r, Some(151), Some(300)));
     }
 
     #[test]
