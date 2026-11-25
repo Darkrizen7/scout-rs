@@ -130,8 +130,8 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - Pas d'accès aux bruts par l'API (gros, et inutiles à l'appli).
 - **Pas de clé** : `/v1` est ouvert à tous (pas de comptes). Les anciennes versions de l'appli envoient encore
   `X-Scout-Key` : le serveur l'ignore, sans erreur.
-- **Limite de débit** (`api/access.rs`) : seaux à jetons en mémoire, par adresse IP, deux fenêtres : **10 requêtes
-  par minute** (rafale de 10, recharge 10 / min) et **100 par heure** ; 429 au-delà. `/health`, `/privacy` et
+- **Limite de débit** (`api/access.rs`) : seaux à jetons en mémoire, par adresse IP, deux fenêtres : **50 requêtes
+  par minute** (rafale de 50, recharge 50 / min) et **150 par heure** ; 429 au-delà. `/health`, `/privacy` et
   `/thanks` ne sont pas limités, ni les adresses de `SCOUT_TRUSTED_IPS`. Une première synchronisation fait une dizaine de requêtes (régions, hôtels,
   paquet du jeu : 2, `latest` : 1), puis une requête d'historique par objet ouvert (au plus une par heure et par
   objet). IP = dernière entrée de `X-Forwarded-For` (celle qu'ajoute Traefik).

@@ -34,9 +34,9 @@ use gamedata::GameStore;
 use storage::Storage;
 
 /// Requests per address in a burst, and per minute afterwards.
-const PER_MINUTE: u32 = 10;
+const PER_MINUTE: u32 = 50;
 /// Requests per address per hour (a first sync takes about ten: see docs/serveur.md).
-const PER_HOUR: u32 = 100;
+const PER_HOUR: u32 = 150;
 
 #[tokio::main]
 async fn main() -> Result<()> {
