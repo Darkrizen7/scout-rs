@@ -261,6 +261,9 @@ pub fn data_missing(
     worker: &WorkerHandle,
     (glyph, title): (&str, &str),
 ) {
+    // The modules show this in a frameless panel: paint the view's background.
+    ui.painter()
+        .rect_filled(ui.max_rect(), 0.0, theme::current(ui).view);
     ui.vertical_centered(|ui| {
         ui.add_space(80.0);
         ui.label(RichText::new(glyph).size(48.0));
