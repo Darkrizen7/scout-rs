@@ -1,4 +1,4 @@
-//! The HTTP API: `/health`, `/privacy` and `/thanks` for everyone, `/v1/…` with an access key.
+//! The HTTP API: `/health`, `/privacy` and `/thanks` for everyone, `/v1/…` open to all, within a rate per address.
 
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -23,7 +23,7 @@ use crate::storage::Storage;
 
 mod access;
 
-pub use access::{Keys, Limiter};
+pub use access::Limiter;
 
 /// `/health` warns below this much free space.
 const WARN_FREE_BYTES: u64 = 10_000_000_000;
@@ -41,11 +41,10 @@ pub struct Api {
     pub regions: BTreeMap<String, Region>,
     /// Game data package, the same for every region.
     pub gamedata: Arc<GameStore>,
-    pub keys: Keys,
-    /// Per key: a first sync pages through the whole history.
-    pub by_key: Limiter,
-    /// Per address, for requests without a valid key.
-    pub by_ip: Limiter,
+    /// Per address: short bursts (the minute window).
+    pub by_minute: Limiter,
+    /// Per address: the sustained rate (the hour window).
+    pub by_hour: Limiter,
 }
 
 pub fn router(api: Arc<Api>) -> Router {
@@ -73,24 +72,12 @@ pub fn router(api: Arc<Api>) -> Router {
         .with_state(api)
 }
 
-/// A valid `X-Scout-Key` within its rate, or 401 / 429.
+/// Lets a request through within the rate of its address (both windows), or answers 429.
+/// The old `X-Scout-Key` header, still sent by older apps, is ignored.
 async fn guard(State(api): State<Arc<Api>>, request: Request, next: Next) -> Response {
     let now = Instant::now();
-    let allowed = match api.keys.check(request.headers()) {
-        Some(name) => api.by_key.allow(name, now),
-        None => {
-            let ip = access::client_ip(request.headers());
-            if api.by_ip.allow(&ip, now) {
-                return (
-                    StatusCode::UNAUTHORIZED,
-                    "clé d'accès absente ou inconnue (X-Scout-Key)\n",
-                )
-                    .into_response();
-            }
-            false
-        }
-    };
-    if !allowed {
+    let ip = access::client_ip(request.headers());
+    if !(api.by_minute.allow(&ip, now) && api.by_hour.allow(&ip, now)) {
         return (
             StatusCode::TOO_MANY_REQUESTS,
             "trop de requêtes, réessaie plus tard\n",

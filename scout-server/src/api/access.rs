@@ -1,49 +1,11 @@
-//! Who may call `/v1`: access keys (`SCOUT_KEYS`) and token buckets kept in memory only
-//! (IP addresses are never written to disk, as `/privacy` says).
+//! Who may call `/v1`: nobody is refused, but each address has a rate (token buckets kept in memory only
+//! (IP addresses are never written to disk, as `/privacy` says)).
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::Instant;
 
 use axum::http::HeaderMap;
-
-/// The access keys, from `SCOUT_KEYS`: `name=key` (or a bare key) separated by commas.
-pub struct Keys(Vec<(String, String)>);
-
-impl Keys {
-    pub fn parse(setting: &str) -> Self {
-        let keys = setting
-            .split(',')
-            .map(str::trim)
-            .filter(|entry| !entry.is_empty())
-            .enumerate()
-            .map(|(i, entry)| match entry.split_once('=') {
-                Some((name, key)) => (name.trim().to_owned(), key.trim().to_owned()),
-                None => (format!("clé {}", i + 1), entry.to_owned()),
-            })
-            .filter(|(_, key)| key.len() >= 16)
-            .collect();
-        Self(keys)
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// The name of the key in `X-Scout-Key`, if it is one of ours.
-    pub fn check(&self, headers: &HeaderMap) -> Option<&str> {
-        let given = headers.get("x-scout-key")?.as_bytes();
-        self.0
-            .iter()
-            .find(|(_, key)| constant_time_eq(key.as_bytes(), given))
-            .map(|(name, _)| name.as_str())
-    }
-}
-
-/// Compares without stopping at the first difference (no timing hint on the key).
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    a.len() == b.len() && a.iter().zip(b).fold(0, |acc, (x, y)| acc | (x ^ y)) == 0
-}
 
 /// The client's address: behind Traefik, the last `X-Forwarded-For` entry is the one Traefik
 /// added itself (the earlier ones come from the client and prove nothing).
@@ -103,21 +65,6 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-
-    #[test]
-    fn keys_are_named_and_short_ones_refused() {
-        let keys =
-            Keys::parse(" arthur = 0123456789abcdef0123 , trop-courte, fedcba9876543210fedc ");
-        assert_eq!(keys.len(), 2);
-        let mut headers = HeaderMap::new();
-        headers.insert("x-scout-key", "0123456789abcdef0123".parse().unwrap());
-        assert_eq!(keys.check(&headers), Some("arthur"));
-        headers.insert("x-scout-key", "fedcba9876543210fedc".parse().unwrap());
-        assert_eq!(keys.check(&headers), Some("clé 3"));
-        headers.insert("x-scout-key", "0123456789abcdef0124".parse().unwrap());
-        assert_eq!(keys.check(&headers), None);
-        assert_eq!(Keys::parse("").check(&headers), None);
-    }
 
     #[test]
     fn the_last_forwarded_address_counts() {

@@ -2,7 +2,7 @@
 //! (docs/serveur.md): the collector, the prices of every new snapshot, and the API that serves them.
 //!
 //! Settings (environment): `BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET` (required),
-//! `SCOUT_KEYS` (access keys, `name=key,…`; none = `/v1` refuses everyone), `SCOUT_REGIONS` (eu,us,kr,tw:
+//! `SCOUT_REGIONS` (eu,us,kr,tw:
 //! each region has its own database and raw folder, `data/` for eu, `data/<region>/` for the others),
 //! `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600),
 //! `SCOUT_ZSTD_LEVEL` (15), `SCOUT_GAMEDATA_SECS` (21600: how often to look for a new Forever build),
@@ -25,17 +25,17 @@ mod gamedata;
 mod peak;
 mod storage;
 
-use api::{Api, Keys, Limiter, Region};
+use api::{Api, Limiter, Region};
 use blizzard::{Client, Credentials};
 use collector::Collector;
 use db::Db;
 use gamedata::GameStore;
 use storage::Storage;
 
-/// Requests per hour for one key (and at once): a first sync pages through the whole history.
-const KEY_RATE: u32 = 600;
-/// Requests per hour from one address without a valid key.
-const GUESS_RATE: u32 = 20;
+/// Requests per address in a burst, and per minute afterwards.
+const PER_MINUTE: u32 = 10;
+/// Requests per address per hour (a first sync takes about ten: see docs/serveur.md).
+const PER_HOUR: u32 = 100;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -94,16 +94,11 @@ async fn main() -> Result<()> {
     let gamedata_every = Duration::from_secs(env_or("SCOUT_GAMEDATA_SECS", "21600").parse()?);
     tokio::spawn(gamedata.clone().run(gamedata_every));
 
-    let keys = Keys::parse(&env_or("SCOUT_KEYS", ""));
-    if keys.len() == 0 {
-        eprintln!("aucune clé d'accès (SCOUT_KEYS) : /v1 refuse toutes les requêtes");
-    }
     let app = api::router(Arc::new(Api {
         regions,
         gamedata,
-        keys,
-        by_key: Limiter::new(KEY_RATE, KEY_RATE),
-        by_ip: Limiter::new(GUESS_RATE, GUESS_RATE),
+        by_minute: Limiter::new(PER_MINUTE, PER_MINUTE * 60),
+        by_hour: Limiter::new(PER_HOUR, PER_HOUR),
     }));
     let listen = env_or("SCOUT_LISTEN", "0.0.0.0:3000");
     let listener = tokio::net::TcpListener::bind(&listen)
