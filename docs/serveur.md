@@ -160,7 +160,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
   propre, changer de mode change d'HdV), hôtel des ventes ; le même sélecteur d'HdV est dans l'en-tête
   (`ui/widgets/house.rs`) et ne propose que les HdV du mode courant (`ServerChoice::houses_to_offer`).
   `[price_server]` dans `config.toml`. Noms : « Horde (114) » (`ServerHouse::label`) ; région et mode de jeu ne sont affichés que dans les réglages.
-- Crédits (`ui/credits.rs`) : API Battle.net de Blizzard Entertainment, non approuvé ni affilié.
+- Crédits (page `/thanks`, ouverte par Réglages → « ℹ Sources des données », `scout_api::thanks_url`) : API Battle.net de Blizzard Entertainment, non approuvé ni affilié.
 - Chaque ligne de `snapshots` a sa région et son HdV : changer d'HdV ne mêle rien, chaque HdV garde son cache.
 - **TODO** : compresser à un point par jour les relevés `scout-api` de plus de 3 mois (`prix.db` grossit d'environ
   2 400 lignes par version téléchargée).

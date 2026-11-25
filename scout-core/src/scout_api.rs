@@ -19,6 +19,17 @@ pub const DEFAULT_SERVER: &str = "https://scout.arthurdevtest.duckdns.org";
 /// Latest prices and item histories are downloaded again once they are this old.
 pub const REFRESH_SECS: i64 = 3600;
 
+/// The public page of the server that thanks the data sources (`/thanks`), opened from the settings.
+pub fn thanks_url(server: &str) -> String {
+    let server = server.trim().trim_end_matches('/');
+    let server = if server.is_empty() {
+        DEFAULT_SERVER
+    } else {
+        server
+    };
+    format!("{server}/thanks")
+}
+
 /// Battle.net regions the server may record (it lists those where Forever has auction houses).
 pub const REGIONS: [&str; 4] = ["eu", "us", "kr", "tw"];
 
@@ -278,5 +289,14 @@ mod tests {
             kept(&history_rows(&eu114(), &lines)),
             [(100, 765, Some(42)), (200, 765, None)]
         );
+    }
+
+    #[test]
+    fn thanks_page_is_on_the_chosen_server() {
+        assert_eq!(
+            thanks_url("http://localhost:3000/"),
+            "http://localhost:3000/thanks"
+        );
+        assert_eq!(thanks_url(" "), format!("{DEFAULT_SERVER}/thanks"));
     }
 }

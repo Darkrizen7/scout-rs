@@ -1,4 +1,4 @@
-//! Settings dialog: appearance, imports, price server, game data, WoW folder; button to the data credits. Explanations live in hover texts.
+//! Settings dialog: appearance, imports, price server, game data, WoW folder; button to the data credits (`/thanks` page of the price server). Explanations live in hover texts.
 
 use std::path::PathBuf;
 
@@ -7,18 +7,16 @@ use eframe::egui;
 mod price_server;
 
 use crate::state::State;
-use crate::ui::{credits, theme, widgets};
-use scout_core::Theme;
+use crate::ui::{theme, widgets};
 use scout_core::time::format_datetime;
 use scout_core::update::AddonInstall;
+use scout_core::{Theme, scout_api};
 use scout_worker::{Command, Task, WorkerHandle};
 
 #[derive(Default)]
 pub struct Settings {
     open: bool,
     wow_dir: String,
-    /// "Sources des données" window.
-    credits: bool,
     /// Ask the worker again whether the Scout addon is installed (it may have been since the start).
     check_addon: bool,
     price_server: price_server::Form,
@@ -63,10 +61,15 @@ impl Settings {
                 ui.horizontal(|ui| {
                     if ui
                         .button("ℹ Sources des données")
-                        .on_hover_text("D'où viennent les données de l'outil, avec les liens.")
+                        .on_hover_text(
+                            "D'où viennent les données de l'outil, avec les liens : \
+                             page du serveur de prix, dans le navigateur.",
+                        )
                         .clicked()
                     {
-                        self.credits = true;
+                        let server = state.config.as_ref().map_or("", |c| &c.price_server.url);
+                        ui.ctx()
+                            .open_url(egui::OpenUrl::new_tab(scout_api::thanks_url(server)));
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.weak(version(state));
@@ -81,7 +84,6 @@ impl Settings {
                 }
             });
         self.open = open;
-        credits::window(ctx, &mut self.credits);
     }
 
     fn wow(&mut self, ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
