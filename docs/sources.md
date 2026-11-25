@@ -50,7 +50,7 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   recettes (surtout repris de Season of Discovery) sont envoyés par le serveur de Forever en hotfix : ils sont
   dans `Item` mais pas dans `ItemSparse`, donc sans nom chez wago.tools (et absents de `DBCache.bin` tant
   qu'on ne les a pas croisés). À la mise à jour, `Tables::missing_recipe_items` → nom, qualité, niveaux, revente
-  depuis Wowhead ; la catégorie reste celle de `Item` (`Tables::unnamed_categories`). 1 s de pause entre deux
+  depuis Wowhead ; la catégorie reste celle de `Item` (`Tables::unnamed_categories`). 3 s de pause entre deux
   requêtes (sans pause, CloudFront bloque l'adresse en 403 après ~300) ; au premier refus (403…) on
   arrête de demander : le paquet est publié marqué incomplet (`complete: false`, « ⚠ Incomplètes » dans Réglages)
   et le serveur recommence au tour suivant (son cache `data/gamedata/wowhead.json` garde ce qui a été lu).

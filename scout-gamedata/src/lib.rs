@@ -7,6 +7,6 @@ pub mod package;
 mod wago;
 pub mod wowhead;
 
-pub use fetch::{Download, download, name_items, wanted_items};
+pub use fetch::{Download, Naming, download, name_items, wanted_items};
 pub use package::{Manifest, Package};
 pub use wago::{TABLES, assemble, latest_build, table_csv};

@@ -16,11 +16,49 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use scout_core::GAME_FORMAT;
 use scout_core::gamedata::GameItem;
-use scout_gamedata::{Manifest, Package};
+use scout_gamedata::{Manifest, Naming, Package};
 
 use crate::api::reference::named_items;
 use crate::collector::unix_now;
 use crate::db::Db;
+
+/// Wowhead requests per round: the CDN blocked the address after ~270 in a row.
+const ROUND_LIMIT: usize = 150;
+/// Next round after the limit was reached: the rest is only a matter of spacing requests out.
+const AFTER_LIMIT: Duration = Duration::from_secs(15 * 60);
+/// Next round after a refusal (403…): let the block lift before asking again.
+const AFTER_BLOCK: Duration = Duration::from_secs(60 * 60);
+
+/// What is left to do once a round ended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Left {
+    Nothing,
+    /// The round limit was reached, items remain.
+    Limited,
+    /// Wowhead refused the requests.
+    Blocked,
+}
+
+impl Left {
+    fn of(naming: &Naming) -> Self {
+        if naming.blocked.is_some() {
+            Self::Blocked
+        } else if naming.limited {
+            Self::Limited
+        } else {
+            Self::Nothing
+        }
+    }
+
+    /// Wait before the next round: sooner while the package is incomplete.
+    fn next_delay(self, interval: Duration) -> Duration {
+        match self {
+            Self::Nothing => interval,
+            Self::Limited => AFTER_LIMIT.min(interval),
+            Self::Blocked => AFTER_BLOCK.min(interval),
+        }
+    }
+}
 
 pub struct GameStore {
     dir: PathBuf,
@@ -113,8 +151,9 @@ impl GameStore {
     /// download). Otherwise, when the last package is incomplete (Wowhead refused) or lacks items
     /// (recipe items, `extra`) that Wowhead can still name, names them in that package: no new
     /// wago.tools download. `extra`: items seen in the auction snapshots that nothing else names.
-    /// Blocking: network, a pause per Wowhead item.
-    pub fn refresh(&self, extra: &[i64]) -> Result<Option<Manifest>> {
+    /// At most `ROUND_LIMIT` Wowhead requests per call; the returned `Left` says whether another
+    /// round is needed. Blocking: network, a pause per Wowhead item.
+    pub fn refresh(&self, extra: &[i64]) -> Result<(Option<Manifest>, Left)> {
         let build = scout_gamedata::latest_build()?;
         let latest = self.latest(GAME_FORMAT);
         let mut known = self.wowhead();
@@ -124,47 +163,60 @@ impl GameStore {
             .as_ref()
             .filter(|m| m.build == build)
             .and_then(|m| self.read_package(m).ok());
-        let package = match current {
+        let (package, left) = match current {
             Some(mut package) => {
                 let wanted = scout_gamedata::wanted_items(&package.tables, extra, &unknown);
                 if package.complete && wanted.is_empty() {
-                    return Ok(None);
+                    return Ok((None, Left::Nothing));
                 }
                 eprintln!(
                     "données du jeu : {} objets à nommer par Wowhead",
                     wanted.len()
                 );
-                let blocked = scout_gamedata::name_items(
+                let naming = scout_gamedata::name_items(
                     &mut package.tables,
                     extra,
                     &mut known,
                     &mut unknown,
+                    Some(ROUND_LIMIT),
                     &|_| {},
                 );
                 self.save_caches(&known, &unknown)?;
                 package.updated = unix_now();
-                package.complete = blocked.is_none();
-                report(blocked);
-                package
+                package.complete = naming.complete();
+                report(&naming);
+                (package, Left::of(&naming))
             }
             None => {
                 eprintln!("données du jeu : téléchargement de Forever {build}");
-                let download =
-                    scout_gamedata::download(&build, extra, &mut known, &mut unknown, &|_| {});
+                let download = scout_gamedata::download(
+                    &build,
+                    extra,
+                    &mut known,
+                    &mut unknown,
+                    Some(ROUND_LIMIT),
+                    &|_| {},
+                );
                 // Keep what Wowhead answered even when the download failed further on.
                 self.save_caches(&known, &unknown)?;
                 let download = download?;
-                report(download.blocked.clone());
-                Package {
+                let naming = Naming {
+                    blocked: download.blocked,
+                    limited: download.limited,
+                };
+                report(&naming);
+                let package = Package {
                     format: GAME_FORMAT,
                     build,
                     updated: unix_now(),
-                    complete: download.blocked.is_none(),
+                    complete: naming.complete(),
                     tables: download.tables,
-                }
+                };
+                (package, Left::of(&naming))
             }
         };
-        self.publish(&package, latest.as_ref()).map(Some)
+        let manifest = self.publish(&package, latest.as_ref())?;
+        Ok((Some(manifest), left))
     }
 
     fn save_caches(&self, known: &HashMap<i64, GameItem>, unknown: &HashSet<i64>) -> Result<()> {
@@ -188,24 +240,33 @@ impl GameStore {
                 }
             };
             let store = self.clone();
+            let mut left = Left::Nothing;
             match tokio::task::spawn_blocking(move || store.refresh(&extra)).await {
-                Ok(Ok(Some(m))) => eprintln!(
-                    "données du jeu : Forever {} prêtes ({} Ko)",
-                    m.build,
-                    m.bytes / 1000
-                ),
-                Ok(Ok(None)) => {}
+                Ok(Ok((manifest, rest))) => {
+                    left = rest;
+                    if let Some(m) = manifest {
+                        eprintln!(
+                            "données du jeu : Forever {} prêtes ({} Ko)",
+                            m.build,
+                            m.bytes / 1000
+                        );
+                    }
+                }
                 Ok(Err(e)) => eprintln!("données du jeu : {e:#}"),
                 Err(e) => eprintln!("données du jeu : {e}"),
             }
-            tokio::time::sleep(interval).await;
+            tokio::time::sleep(left.next_delay(interval)).await;
         }
     }
 }
 
-fn report(blocked: Option<String>) {
-    if let Some(reason) = blocked {
-        eprintln!("données du jeu incomplètes ({reason}) : nouvel essai au prochain tour");
+fn report(naming: &Naming) {
+    if let Some(reason) = &naming.blocked {
+        eprintln!("données du jeu incomplètes ({reason}) : nouvel essai dans une heure");
+    } else if naming.limited {
+        eprintln!(
+            "données du jeu incomplètes (limite de {ROUND_LIMIT} objets par tour) : suite dans 15 min"
+        );
     }
 }
 
@@ -262,6 +323,17 @@ pub(crate) mod tests {
         )
         .unwrap();
         store
+    }
+
+    #[test]
+    fn incomplete_packages_come_back_sooner() {
+        let normal = Duration::from_secs(6 * 3600);
+        assert_eq!(Left::Nothing.next_delay(normal), normal);
+        assert_eq!(Left::Limited.next_delay(normal), AFTER_LIMIT);
+        assert_eq!(Left::Blocked.next_delay(normal), AFTER_BLOCK);
+        // Never later than the normal interval.
+        let short = Duration::from_secs(60);
+        assert_eq!(Left::Blocked.next_delay(short), short);
     }
 
     #[tokio::test]
