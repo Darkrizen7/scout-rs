@@ -114,3 +114,81 @@ async fn applies_server_package_keeping_local_merchants() -> Result<()> {
     std::fs::remove_dir_all(&dir)?;
     Ok(())
 }
+
+#[tokio::test]
+async fn item_names_fill_gaps_without_overwriting() -> Result<()> {
+    let dir = temp_dir("items")?;
+    let source = filled(&dir.join("source.db"), 200, "Lin").await?;
+    sqlx::raw_sql(
+        "DELETE FROM snapshots; DELETE FROM items;
+         INSERT INTO items (item_id, name, class_id, subclass_id, class_name, subclass_name) VALUES
+            (1, 'Nom serveur', 7, 5, 'Artisanat', 'Tissu'),
+            (2, 'Manquant', 7, 5, 'Artisanat', 'Tissu'),
+            (3, 'Ajouté', 2, 1, 'Arme', 'Hache'),
+            (4, '', NULL, NULL, NULL, NULL);",
+    )
+    .execute(&source.pool)
+    .await?;
+    source.close().await;
+    let package = dir.join("package.db");
+    Db::export_loot_vendors(&dir.join("source.db"), &package).await?;
+
+    let local = filled(&dir.join("local.db"), 100, "Lin").await?;
+    sqlx::raw_sql(
+        "DELETE FROM snapshots; DELETE FROM items;
+         INSERT INTO items (item_id, name, class_id) VALUES (1, 'Nom local', 9), (2, '', NULL);",
+    )
+    .execute(&local.pool)
+    .await?;
+    local.apply_loot_vendors(&package).await?;
+    let rows: Vec<(i64, String, Option<i64>, Option<String>)> =
+        sqlx::query_as("SELECT item_id, name, class_id, class_name FROM items ORDER BY item_id")
+            .fetch_all(&local.pool)
+            .await?;
+    let cat = |s: &str| Some(s.to_string());
+    assert_eq!(
+        rows,
+        vec![
+            (1, "Nom local".into(), Some(9), cat("Artisanat")),
+            (2, "Manquant".into(), Some(7), cat("Artisanat")),
+            (3, "Ajouté".into(), Some(2), cat("Arme")),
+        ]
+    );
+    // Nothing personal in the package.
+    let package_db = Db::open(&package).await?;
+    assert_eq!(count(&package_db, "SELECT COUNT(*) FROM items").await?, 3);
+    package_db.close().await;
+    local.close().await;
+    std::fs::remove_dir_all(&dir)?;
+    Ok(())
+}
+
+/// Simulation on real copies: `SIM_DB` (local) and `SIM_PACKAGE` (decompressed package), houses eu 111 / 114.
+#[tokio::test]
+#[ignore = "needs SIM_DB and SIM_PACKAGE"]
+async fn simulate_item_names() -> Result<()> {
+    use scout_core::scout_api::AuctionHouse;
+    let db = Db::open(Path::new(&std::env::var("SIM_DB")?)).await?;
+    let unnamed = async |db: &Db, id: u32| -> Result<usize> {
+        let house = AuctionHouse {
+            region: "eu".into(),
+            id,
+        };
+        Ok(db
+            .items(&house)
+            .await?
+            .iter()
+            .filter(|i| i.name.as_deref().is_none_or(str::is_empty))
+            .count())
+    };
+    for id in [111, 114] {
+        println!("avant {id} : {}", unnamed(&db, id).await?);
+    }
+    db.apply_loot_vendors(Path::new(&std::env::var("SIM_PACKAGE")?))
+        .await?;
+    for id in [111, 114] {
+        println!("après {id} : {}", unnamed(&db, id).await?);
+    }
+    db.close().await;
+    Ok(())
+}

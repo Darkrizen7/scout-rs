@@ -38,9 +38,10 @@
     `server_reference` = `format:updated` du paquet butin + marchands du serveur déjà appliqué
     (`Db::server_reference`).
 - **Paquet de référence du serveur** (`scout-server/data/reference.db.gz`, GPL-3.0-or-later, téléchargé, jamais
-  intégré au binaire) : butin `drop_*` et `vendor_prices` seulement. Jamais `items`, `snapshots`, favoris ni
-  `loot_*`. Appliqué par `Db::apply_loot_vendors` (`scout-db/src/reference.rs`) : butin remplacé, marchands
-  ajoutés (`INSERT OR IGNORE` : le local gagne). Les marchands vus par Scout s'ajoutent à chaque import (jamais
+  intégré au binaire) : butin `drop_*`, `vendor_prices` et `items` (noms et catégories seulement, lignes nommées). Jamais
+  `snapshots`, favoris ni `loot_*`. Appliqué par `Db::apply_loot_vendors` (`scout-db/src/reference.rs`) : butin remplacé, marchands
+  ajoutés (`INSERT OR IGNORE` : le local gagne), noms et catégories d'objets comblés sans jamais écraser
+  (`ON CONFLICT … COALESCE`). Les marchands vus par Scout s'ajoutent à chaque import (jamais
   supprimés). Régénérer : `cargo run -p scout-worker --example server_reference` (depuis `prix.db`).
 - **Premier lancement** : sans données du jeu (`game_meta` vide), le worker télécharge tout seul les données du
   jeu puis le butin et les marchands (`tasks::update_all`, tâche `GameData`) ; les onglets Objets, Recettes et

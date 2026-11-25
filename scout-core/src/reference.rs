@@ -1,9 +1,9 @@
-//! The reference package the server serves (loot and merchants, a gzipped SQLite file), and its version.
+//! The reference package the server serves (loot, merchants and item names, a gzipped SQLite file), and its version.
 
 use serde::{Deserialize, Serialize};
 
-/// Schema of the tables in the package (`drop_*`, `vendor_prices`): raise it when their columns change.
-pub const REFERENCE_FORMAT: i64 = 1;
+/// Schema of the tables in the package (`drop_*`, `vendor_prices`, `items`): raise it when their columns change.
+pub const REFERENCE_FORMAT: i64 = 2;
 
 /// Describes the package served by the server (`reference.json` next to it).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,7 +31,7 @@ mod tests {
     use super::*;
 
     const M: ReferenceManifest = ReferenceManifest {
-        format: 1,
+        format: 2,
         updated: 100,
         bytes: 5,
     };
@@ -39,10 +39,10 @@ mod tests {
     #[test]
     fn newer_than_compares_format_then_date() {
         assert!(M.newer_than(None));
-        assert!(M.newer_than(Some((1, 99))));
-        assert!(!M.newer_than(Some((1, 100))));
-        assert!(!M.newer_than(Some((1, 101))));
-        assert!(M.newer_than(Some((2, 500))));
-        assert!(M.newer_than(Some((0, 500))));
+        assert!(M.newer_than(Some((2, 99))));
+        assert!(!M.newer_than(Some((2, 100))));
+        assert!(!M.newer_than(Some((2, 101))));
+        assert!(M.newer_than(Some((3, 500))));
+        assert!(M.newer_than(Some((1, 500))));
     }
 }

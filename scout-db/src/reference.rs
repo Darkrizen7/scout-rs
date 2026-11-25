@@ -1,6 +1,6 @@
 //! The reference package of the server: loot (derived from Forever Guide) and merchants. Applied from a
-//! downloaded database, exported for the server from a filled one. Personal data (prices, item names seen
-//! by Scout, favorites, recorded loot) never goes in it.
+//! downloaded database, exported for the server from a filled one. Item names and categories seen by Scout
+//! are game data and go in it; personal data (prices, favorites, recorded loot) never does.
 
 use std::path::Path;
 
@@ -30,7 +30,7 @@ INSERT OR IGNORE INTO main.vendor_prices (item_id, source, npc_id, price, npc, z
     SELECT item_id, source, npc_id, price, npc, zone, x, y, limited FROM seed.vendor_prices;
 ";
 
-/// The package served to every app: loot and merchants only, same schema as in the local database.
+/// The package served to every app: loot, merchants and item names only, same schema as in the local database.
 const COPY_LOOT_VENDORS: &str = "
 INSERT INTO main.drop_sources (item_id, kind, source_id, chance, quest_only, more)
     SELECT item_id, kind, source_id, chance, quest_only, more FROM seed.drop_sources;
@@ -42,6 +42,33 @@ INSERT INTO main.vendor_prices (item_id, source, npc_id, price, npc, zone, x, y,
     SELECT item_id, source, npc_id, price, npc, zone, x, y, limited FROM seed.vendor_prices;
 INSERT OR IGNORE INTO main.drop_meta (key, value)
     SELECT 'updated', CAST(unixepoch() AS TEXT) WHERE EXISTS (SELECT 1 FROM main.drop_sources);
+INSERT INTO main.items (item_id, name, class_id, subclass_id, class_name, subclass_name)
+    SELECT item_id, name, class_id, subclass_id, class_name, subclass_name FROM seed.items
+    WHERE name IS NOT NULL AND name <> '';
+";
+
+/// Item names and categories: added when absent, otherwise only the empty columns are filled (never overwritten).
+const MERGE_ITEMS: &str = "
+INSERT INTO main.items (item_id, name, class_id, subclass_id, class_name, subclass_name)
+    SELECT item_id, name, class_id, subclass_id, class_name, subclass_name FROM seed.items WHERE true
+ON CONFLICT(item_id) DO UPDATE SET
+    name = COALESCE(NULLIF(main.items.name, ''), excluded.name),
+    class_id = COALESCE(main.items.class_id, excluded.class_id),
+    subclass_id = COALESCE(main.items.subclass_id, excluded.subclass_id),
+    class_name = COALESCE(NULLIF(main.items.class_name, ''), excluded.class_name),
+    subclass_name = COALESCE(NULLIF(main.items.subclass_name, ''), excluded.subclass_name);
+";
+
+/// Same schema as the local `items` table (names and categories only, no price).
+const ITEMS_SCHEMA: &str = "
+CREATE TABLE IF NOT EXISTS items (
+    item_id       INTEGER PRIMARY KEY,
+    name          TEXT,
+    class_id      INTEGER,
+    subclass_id   INTEGER,
+    class_name    TEXT,
+    subclass_name TEXT
+);
 ";
 
 /// Runs `job` with the database at `path` attached as `seed`, detached afterwards even on failure.
@@ -64,7 +91,7 @@ async fn with_seed<T>(
 
 impl Db {
     /// Replaces the loot (`drop_*`) by that of the server package at `path` and adds its merchants (those
-    /// already there win). A package without loot is refused: the local loot is never emptied.
+    /// already there win), and fills the item names and categories missing. A package without loot is refused: the local loot is never emptied.
     pub async fn apply_loot_vendors(&self, path: &Path) -> Result<()> {
         let mut conn = self.pool.acquire().await?;
         with_seed(&mut conn, path, async |conn| {
@@ -75,6 +102,7 @@ impl Db {
             let mut tx = conn.begin().await?;
             sqlx::raw_sql(COPY_DROPS).execute(&mut *tx).await?;
             sqlx::raw_sql(MERGE_VENDORS).execute(&mut *tx).await?;
+            sqlx::raw_sql(MERGE_ITEMS).execute(&mut *tx).await?;
             tx.commit().await?;
             Ok(())
         })
@@ -101,8 +129,9 @@ impl Db {
         Ok(())
     }
 
-    /// Makes a new database at `dest` with only the loot (`drop_*`) and the merchants of the database at
-    /// `source`, which is only read: the package the server serves. No price, favorite or recorded loot.
+    /// Makes a new database at `dest` with only the loot (`drop_*`), the merchants and the item names and
+    /// categories of the database at `source`, which is only read: the package the server serves.
+    /// No price, favorite or recorded loot.
     pub async fn export_loot_vendors(source: &Path, dest: &Path) -> Result<()> {
         ensure!(!dest.exists(), "{} existe déjà", dest.display());
         let options = SqliteConnectOptions::new()
@@ -114,6 +143,7 @@ impl Db {
                 .execute(&mut conn)
                 .await?;
             sqlx::raw_sql(vendor::SCHEMA).execute(&mut conn).await?;
+            sqlx::raw_sql(ITEMS_SCHEMA).execute(&mut conn).await?;
             with_seed(&mut conn, source, async |conn| {
                 let mut tx = conn.begin().await?;
                 sqlx::raw_sql(COPY_LOOT_VENDORS).execute(&mut *tx).await?;
