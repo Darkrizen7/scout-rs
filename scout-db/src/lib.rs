@@ -84,6 +84,7 @@ impl Db {
         sqlx::raw_sql(market::scout_api::SCHEMA)
             .execute(&pool)
             .await?;
+        sqlx::raw_sql(market::sales::SCHEMA).execute(&pool).await?;
         Self::migrate_game(&pool).await?;
         Self::migrate_vendor(&pool).await?;
         Self::migrate_drops(&pool).await?;

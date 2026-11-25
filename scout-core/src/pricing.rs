@@ -1,5 +1,7 @@
 //! Where a reagent is cheapest to buy, and what an item is worth once looted.
 
+use crate::sales::SalesRate;
+
 /// Auction house cut on a sale.
 pub const AUCTION_CUT: f64 = 0.05;
 
@@ -52,7 +54,13 @@ pub enum LootPricing {
     Isolated,
     /// Auction price discarded: weapon, armor or miscellaneous that no recipe uses.
     NotReagent,
+    /// Auction price discarded: the item sells less than `SELLS_PER_DAY` a day.
+    NoSales,
 }
+
+/// An item sells at the auction house from this many sales a day (estimated ones count for half, see
+/// `sales`); below it, its price is not worth counting on. Gut feeling to refine with real data.
+pub const SELLS_PER_DAY: f64 = 1.0;
 
 /// What we know about an item to value it once looted.
 #[derive(Debug, Clone, Copy)]
@@ -63,6 +71,8 @@ pub struct LootItem {
     pub quality: i64,
     pub class_id: Option<i64>,
     pub is_reagent: bool,
+    /// What the item sells per day at the house; None while the sales are unknown.
+    pub sales: Option<SalesRate>,
 }
 
 /// Value of one looted unit (copper), why, and the auction price set aside if any.
@@ -71,10 +81,13 @@ pub struct LootValue {
     pub copper: f64,
     pub pricing: LootPricing,
     pub discarded_auction: Option<i64>,
+    /// Sales per day behind `NoSales`.
+    pub sales_per_day: Option<f64>,
 }
 
 /// Value of one looted unit: the merchant price when the auction price is not a real market, else `sale_value`.
-/// None when nothing gives a price.
+/// With known sales, an item that sells (`SELLS_PER_DAY`) is valued at the auction, whatever its class or
+/// offers; one that does not, at the merchant. None when nothing gives a price.
 pub fn loot_value(item: LootItem) -> Option<LootValue> {
     let merchant = (item.merchant_sell > 0).then_some(item.merchant_sell as f64);
     let gear = item.class_id.is_some_and(|c| GEAR_CLASSES.contains(&c)) && !item.is_reagent;
@@ -84,8 +97,11 @@ pub fn loot_value(item: LootItem) -> Option<LootValue> {
         }
         _ => false,
     };
+    let sells = item.sales.map(|s| s.per_day >= SELLS_PER_DAY);
     let reason = if item.quality == 0 {
         Some(LootPricing::Poor)
+    } else if let Some(sells) = sells {
+        (!sells).then_some(LootPricing::NoSales)
     } else if gear {
         Some(LootPricing::NotReagent)
     } else if isolated {
@@ -98,6 +114,7 @@ pub fn loot_value(item: LootItem) -> Option<LootValue> {
             copper: merchant?,
             pricing,
             discarded_auction: item.auction,
+            sales_per_day: item.sales.map(|s| s.per_day),
         }),
         None => {
             let copper = sale_value(item.auction, item.merchant_sell)?;
@@ -111,6 +128,7 @@ pub fn loot_value(item: LootItem) -> Option<LootValue> {
                 copper,
                 pricing,
                 discarded_auction: None,
+                sales_per_day: None,
             })
         }
     }
@@ -145,7 +163,59 @@ mod tests {
             quality: 1,
             class_id: Some(7),
             is_reagent: false,
+            sales: None,
         }
+    }
+
+    fn rate(per_day: f64) -> Option<SalesRate> {
+        Some(SalesRate {
+            per_day,
+            proven: 0,
+            estimated: 0,
+            mean_unit: None,
+        })
+    }
+
+    #[test]
+    fn known_sales_decide() {
+        // Gear that sells: auction.
+        let gear = LootItem {
+            class_id: Some(4),
+            sales: rate(3.0),
+            ..item(Some(1000), Some(1), 10)
+        };
+        let v = loot_value(gear).unwrap();
+        assert_eq!((v.copper, v.pricing), (950.0, LootPricing::Auction));
+        // Isolated offer, but it sells: auction.
+        let v = loot_value(LootItem {
+            sales: rate(1.0),
+            ..item(Some(1000), Some(2), 10)
+        })
+        .unwrap();
+        assert_eq!((v.copper, v.pricing), (950.0, LootPricing::Auction));
+        // A reagent that does not sell: merchant, with the rate.
+        let v = loot_value(LootItem {
+            sales: rate(0.5),
+            ..item(Some(1000), Some(50), 10)
+        })
+        .unwrap();
+        assert_eq!(
+            (v.copper, v.pricing, v.discarded_auction, v.sales_per_day),
+            (10.0, LootPricing::NoSales, Some(1000), Some(0.5))
+        );
+        // Nothing sells and the merchant buys nothing: no value.
+        let none = LootItem {
+            sales: rate(0.0),
+            ..item(Some(1000), Some(50), 0)
+        };
+        assert_eq!(loot_value(none), None);
+        // A grey item that sells stays at the merchant.
+        let grey = LootItem {
+            quality: 0,
+            sales: rate(9.0),
+            ..item(Some(50), Some(50), 20)
+        };
+        assert_eq!(loot_value(grey).unwrap().pricing, LootPricing::Poor);
     }
 
     #[test]

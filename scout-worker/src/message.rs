@@ -8,6 +8,7 @@ use scout_core::analysis::Analysis;
 use scout_core::drops::{ItemDrops, Zone, ZoneLoot};
 use scout_core::gamedata::GameData;
 use scout_core::map::Mask;
+use scout_core::sales::Sales;
 use scout_core::scout_api::ServerChoice;
 use scout_core::update::{AddonInstall, Release};
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
@@ -86,6 +87,8 @@ pub enum Event {
     MapMasks(Arc<HashMap<i64, Mask>>),
     Analysis(Box<Analysis>),
     Favorites(Vec<i64>),
+    /// What the house shown sells per day (unknown until it has a few days of sales).
+    Sales(Arc<Sales>),
     /// Names of the favorite zones (Loot module).
     ZoneFavorites(Vec<String>),
     GameData(Arc<GameData>),

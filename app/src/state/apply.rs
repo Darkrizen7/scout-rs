@@ -53,6 +53,10 @@ impl State {
                 self.zone_loot.clear();
                 self.zone_asked.clear();
             }
+            Event::Sales(sales) => {
+                self.sales = sales;
+                self.revision += 1;
+            }
             Event::History(id, history) => self.history = Some((id, history)),
             Event::Drops(id, drops) => {
                 self.drops = Some((id, *drops));

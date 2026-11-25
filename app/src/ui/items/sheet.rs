@@ -198,6 +198,26 @@ fn market(ui: &mut egui::Ui, state: &State, id: i64) {
         format_datetime(item.ts),
         item.scans
     ));
+    if let Some(rate) = state.sales.rate(id) {
+        ui.horizontal(|ui| {
+            let per_day = format!("{:.1}", rate.per_day).replace('.', ",");
+            ui.label(format!(
+                "Se vend ~{per_day} / jour ({} j)",
+                state.sales.days()
+            ));
+            if let Some(mean) = rate.mean_unit {
+                ui.add_space(16.0);
+                ui.label("Prix moyen des ventes :");
+                money_or_dash(ui, Some(mean.round() as i64));
+            }
+        })
+        .response
+        .on_hover_text(
+            "Ventes vues par le serveur de prix (les ventes estimées comptent pour moitié : \
+             une annonce disparue peut être annulée). Le prix moyen est sous-estimé quand des \
+             ventes n'ont pas de prix.",
+        );
+    }
     ui.add_space(8.0);
     match &state.history {
         Some((history_id, history)) if *history_id == id => chart::plots(ui, id, history, false),

@@ -55,6 +55,7 @@ pub fn unit_value(state: &State, game: &GameData, item_id: i64) -> Option<pricin
         quality: info.map_or(1, |i| i.quality),
         class_id: info.and_then(|i| i.class_id),
         is_reagent: game.used_in.contains_key(&item_id),
+        sales: state.sales.rate(item_id),
     })
 }
 
@@ -171,7 +172,8 @@ impl Loot {
 /// Explains the value per kill (sort button and monster sheet).
 pub const VALUE_HINT: &str = "Estimation par corps fouillé : chance (réelle à partir de 20 corps, sinon \
 Forever Guide) × quantité moyenne × prix (HdV après commission, ou marchand si plus cher ; marchand seul pour les objets \
-gris, l'équipement et les divers hors recettes, et les offres isolées). \
+gris et ceux qui se vendent moins d'une fois par jour ; sans ventes connues, aussi l'équipement, les divers hors \
+recettes et les offres isolées). \
 Sans l'argent ramassé, le dépeçage ni le butin de quête.";
 
 fn zone_hint(z: &Zone, faction: Option<scout_core::map::Faction>) -> String {

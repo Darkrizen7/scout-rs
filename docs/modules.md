@@ -4,7 +4,7 @@
   catégories dépliables), liste, graphique prix / quantité (une ligne par jour : le relevé le plus récent, Scout à égalité ; en détail, Scout puis les relevés Scout API qui suivent son dernier scan ; source au survol), calculateur de rentabilité ; l'analyse n'est compilée qu'avec `--features analysis` (désactivée par défaut).
 - **Objets** : les ~19 400 objets du jeu par catégorie (icône de catégorie aussi dans le tableau), avec prix HdV /
   achat PNJ / revente. À l'arrivée, seule la recherche, au milieu de la page (`widgets::landing_search`) ; le
-  tableau s'affiche dès qu'on tape ou qu'on choisit une catégorie. Une **fiche objet**
+  tableau s'affiche dès qu'on tape ou qu'on choisit une catégorie. Une **fiche objet** (onglet Market : « Se vend ~N / jour (7 j) » et prix moyen des ventes, si les ventes sont connues)
   à onglets : Market (prix et graphique), Recettes (produit par, utilisé dans, enseigne), PNJ (où l'acheter),
   Butin (monstres, dépeçage, vol à la tire, coffres, conteneurs, quêtes : chance de Forever Guide et chance
   réelle enregistrée par Scout, avec intervalle à 95 %).
@@ -17,7 +17,7 @@
   recherche par nom **ou par objet lâché**, masquer élites / rares / boss, tri par niveau, valeur estimée par kill
   ou **valeur ÷ niveau** (clic : un sens, l'autre, puis ordre d'origine). Une ligne = nom, niveau avec icône
   élite / rare, icône dépeçable, prix. Butin du monstre choisi (butin, dépeçage, vol à la tire : chance Forever Guide, chance
-  réelle, prix : HdV après commission, ou prix marchand seul pour les objets gris, l'équipement et les divers hors recettes et les offres isolées (moins de 5 en vente et plus de 20 × le marchand), le prix HdV écarté restant affiché en gris). Zone d'un monstre = son donjon, sinon sa zone Forever Guide ; un monstre que seul Scout connaît va
+  réelle, prix : HdV après commission, ou prix marchand seul pour les objets gris et ceux qui se vendent moins d'une fois par jour (`SELLS_PER_DAY`, ventes du serveur de la maison affichée : `scout_core::sales`, estimées comptées pour moitié, connues à partir de 2 jours) ; tant que les ventes sont inconnues, aussi l'équipement et les divers hors recettes et les offres isolées (moins de 5 en vente et plus de 20 × le marchand), le prix HdV écarté restant affiché en gris). Zone d'un monstre = son donjon, sinon sa zone Forever Guide ; un monstre que seul Scout connaît va
   dans la zone où il a été fouillé. L'île de Zéphras (Forever) n'est ni dans Forever Guide ni sur un continent :
   rien sur la carte, son butin ne viendra que de Scout.
 - **Positions cliquables** (fiche objet : Butin et PNJ ; module Butin) : copient `/way #<UiMap> x y Nom` (syntaxe

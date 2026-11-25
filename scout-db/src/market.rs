@@ -8,6 +8,7 @@ use scout_core::{ItemName, ItemSummary, Row, Snapshot};
 use super::Db;
 
 pub(crate) mod migrate;
+pub(crate) mod sales;
 pub(crate) mod scout_api;
 
 impl Db {
