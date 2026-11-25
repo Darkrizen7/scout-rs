@@ -8,33 +8,26 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   vérifié au démarrage, à l'ouverture des Réglages et quand le dossier WoW change). `lua <wow_dir>/Interface/AddOns/Scout/tools/export.lua <Scout.lua>` (historique) et `… --names`
   (noms + catégories). Format CSV = **contrat avec l'addon** : le changer des deux côtés (`scout-sources/src/import.rs`).
   Rappeler `/reload` en jeu avant d'importer (le jeu n'écrit le fichier qu'à ce moment).
-- **Auctionator / Forever Guide** (import ponctuel) : `scout-sources/lua/legacy_export.lua`, intégré (`include_str!`), lancé avec
-  le dossier SavedVariables. Auctionator stocke son historique en **CBOR** (décodeur Lua inclus) : par jour (depuis le 01/01/2020
-  local), `l`/`h` = prix min le plus bas / haut, `a` = quantité ; relevé daté de midi. Forever Guide ne garde que
-  le dernier prix vu par objet.
 - **PNJ** : `scout-sources/lua/vendor_export.lua` (intégré), à chaque import Scout : `ScoutDB.merchants` (PNJ, zone, position,
-  stock limité ; prioritaire), `ScoutDB.vendor` (anciens relevés sans PNJ), et `VendorPrices.lua` de Forever Guide
-  (composants vendus sans limite). `BuyPrice` du client existe pour **tous** les objets : ne jamais s'en servir pour
-  dire « vendu par un PNJ ». Revente au marchand = `SellPrice`.
+  stock limité ; prioritaire) et `ScoutDB.vendor` (anciens relevés sans PNJ). La liste de composants vendus sans limite
+  (lignes `foreverguide`) ne vient plus que de la base de référence intégrée. `BuyPrice` du client existe pour **tous**
+  les objets : ne jamais s'en servir pour dire « vendu par un PNJ ». Revente au marchand = `SellPrice`.
 - **Butin** :
-  - Forever Guide : `scout-sources/lua/drops_export.lua` (intégré), lancé avec `<AddOns/ForeverGuide> sources | npcs |
-    names`. Lit `ItemSearchData.lua` (`SI_ITEM` : sources par objet, ids en base 36 sauf les quêtes `q=`, `c` =
-    au choix, `pct` suivi de `q` = seulement quête en cours, `+N` = sources non listées ; `SI_NPC`, `SI_OBJ`,
-    `SI_QUEST`), `DungeonLoot.lua` (boss, chances plus récentes : elles remplacent celles de `d=`), `DataFrFR.lua`
-    (noms FR) et `Locale.lua` (zones / donjons FR, via un faux `GetLocale` → `frFR`). Réimporté à l'import Scout
-    seulement si l'empreinte (taille + date des 4 fichiers + `DROPS_FORMAT`, à augmenter quand le script change)
-    a changé : ~3,8 s, ~314 000 sources.
+  - Base de référence : le butin de monstres, coffres et quêtes (chances, PNJ, noms français) vient de la base intégrée
+    (`docs/donnees.md`), **figée** : il dérive de Forever Guide (GPL), mais l'outil ne lit plus cet addon
+    (ni son historique de prix, ni son butin, ni sa liste de marchands) ; pas d'import de remplacement.
   - Scout : `export.lua <Scout.lua> --loot` (contrat avec l'addon : `npc_id,name,zone,kills,skins,kind,item_id,drops,quantity`).
-  - Une erreur de butin n'interrompt pas l'import des prix.
-  - Sans Forever Guide installé : le butin de la base de référence intégrée (`docs/donnees.md`).
 - **Contours des zones** : addon **OpenMap** (`Media/Textures/Forever/MapTerritory/<UiMap>.tga`, 256×256, forme dans
   l'alpha, lignes de bas en haut), lus par `scout-sources/src/tga.rs` quand la carte s'ouvre. Ce sont des
   images de Blizzard : on les lit dans le dossier AddOns, on ne les copie jamais dans le dépôt. Sans OpenMap,
   zones en rectangles.
-- **Données du jeu** : tables du client Forever (DB2) en CSV, français, depuis
-  `https://wago.tools/db2/<Table>/csv?build=<build>&locale=frFR` ; dernière version = produit `wowf` de
-  `https://wago.tools/api/builds`, vérifiée au démarrage (Réglages affiche « À jour » ou « Nouvelle version »).
-  13 tables (`TABLES` dans `scout-sources/src/wago.rs`) ; assemblage comme le dépôt public `alcaras/forever-ref` : métiers = lignes 171,
+- **Données du jeu** : téléchargées **par le serveur de prix** (`scout-server/src/gamedata.rs`, crate partagée
+  `scout-gamedata`), une seule fois par version de Forever, puis servies à chaque appli en un paquet versionné
+  (`docs/serveur.md` §3.7) ; l'appli ne contacte plus ni wago.tools ni Wowhead. Tables du client Forever (DB2) en CSV,
+  français, depuis `https://wago.tools/db2/<Table>/csv?build=<build>&locale=frFR` ; dernière version = produit `wowf` de
+  `https://wago.tools/api/builds`, vérifiée par le serveur toutes les 6 h ; l'appli compare au démarrage son paquet
+  au dernier du serveur (Réglages affiche « À jour », « Nouvelles données » ou « Nouvelle version »).
+  14 tables (`TABLES` dans `scout-gamedata/src/wago.rs`) ; assemblage comme le dépôt public `alcaras/forever-ref` : métiers = lignes 171,
   164, 333, 202, 182, 165, 186, 393, 197, 185, 129, 356, 40 (+ lignes enfants via `ParentSkillLineID`, ex. 2948 →
   197) ; objet produit = effet 24 (`EffectItemType`, quantité `EffectBasePointsF`) ; composants `Reagent_0..7` ;
   objets de recette = `ItemEffect.TriggerType` 6 (niveau requis = leur `RequiredSkillRank`) ; catégories =
@@ -45,14 +38,15 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   seulement, appariées par nom sans le suffixe « (nom anglais) ») + `UiMapAssignment` (rectangle monde `Region_0/1` min `x,y`, `Region_3/4` max, gardé seulement s'il couvre toute la
   carte : UiMin 0,0 / UiMax 1,1). Monde : `x` vers le nord, `y` vers l'ouest (`scout-core/src/map.rs`).
   **`GAME_FORMAT`** (`scout-core/src/gamedata.rs`) est stocké avec la version : l'augmenter quand on garde de nouvelles colonnes ou
-  tables, pour que « Mettre à jour » retélécharge même si la version de Forever n'a pas changé.
-- **Wowhead** (`scout-sources/src/wowhead.rs`, `https://www.wowhead.com/classic/fr/item=<id>&xml`) : ~550 objets de
+  tables : le serveur (redéployé) construit alors un paquet de ce format, et une appli ne prend que les paquets de
+  son format (`/v1/gamedata/latest?format=`).
+- **Wowhead** (`scout-gamedata/src/wowhead.rs`, interrogé par le serveur seulement, `https://www.wowhead.com/classic/fr/item=<id>&xml`) : ~550 objets de
   recettes (surtout repris de Season of Discovery) sont envoyés par le serveur de Forever en hotfix : ils sont
   dans `Item` mais pas dans `ItemSparse`, donc sans nom chez wago.tools (et absents de `DBCache.bin` tant
   qu'on ne les a pas croisés). À la mise à jour, `Tables::missing_recipe_items` → nom, qualité, niveaux, revente
   depuis Wowhead ; la catégorie reste celle de `Item` (`Tables::unnamed_categories`). 1 s de pause entre deux
   requêtes (sans pause, CloudFront bloque l'adresse en 403 après ~300) ; au premier refus (403…) on
-  arrête de demander, le reste des données est enregistré mais marqué incomplet (`complete = 0` dans `game_meta`, donc « ⚠ Incomplètes » dans Réglages et la mise à jour suivante recommence)
-  et un message rouge dit de réessayer plus tard (le cache garde ce qui a été lu).
+  arrête de demander : le paquet est publié marqué incomplet (`complete: false`, « ⚠ Incomplètes » dans Réglages)
+  et le serveur recommence au tour suivant (son cache `data/gamedata/wowhead.json` garde ce qui a été lu).
 - Les sources sont citées dans Réglages → bouton « ℹ Sources des données » (`ui/credits.rs`, `SOURCES` : à compléter
   si on en ajoute une).

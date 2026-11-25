@@ -32,8 +32,8 @@ pub struct Palette {
     pub star: Color32,
     pub gain: Color32,
     pub loss: Color32,
-    /// Chart series: Scout, Auctionator, Forever Guide.
-    pub series: [Color32; 3],
+    /// Two contrasting chart colors (Scout's line; the analysis bars).
+    pub series: [Color32; 2],
 }
 
 const LIGHT: Palette = Palette {
@@ -53,7 +53,7 @@ const LIGHT: Palette = Palette {
     star: rgb(0xe5a50a),
     gain: rgb(0x26a269),
     loss: rgb(0xc01c28),
-    series: [rgb(0x3584e4), rgb(0xe66100), rgb(0x2ec27e)],
+    series: [rgb(0x3584e4), rgb(0xe66100)],
 };
 
 const DARK: Palette = Palette {
@@ -73,7 +73,7 @@ const DARK: Palette = Palette {
     star: rgb(0xf6d32d),
     gain: rgb(0x8ff0a4),
     loss: rgb(0xf66151),
-    series: [rgb(0x78aeed), rgb(0xffa348), rgb(0x57e389)],
+    series: [rgb(0x78aeed), rgb(0xffa348)],
 };
 
 pub fn palette(theme: Theme) -> &'static Palette {

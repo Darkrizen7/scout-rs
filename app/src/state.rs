@@ -98,7 +98,7 @@ pub struct State {
     /// Recipe (index in `game.recipes`) to open in the Recipes module.
     pub open_recipe: Option<usize>,
     /// Newest Forever build on wago.tools (checked at start), or the error.
-    pub latest_build: Option<Result<String, String>>,
+    pub latest_game_data: Option<Result<Option<scout_worker::Manifest>, String>>,
     /// The price server's regions and houses (Settings, header), or why they could not be read.
     pub server_houses: Option<Result<ServerChoice, String>>,
     /// The house shown changed: the open sheet asks for its history again.
@@ -151,7 +151,7 @@ impl Default for State {
             update: None,
             update_installed: None,
             quit: false,
-            latest_build: None,
+            latest_game_data: None,
             server_houses: None,
             house_changed: false,
             scout_addon: None,
@@ -180,7 +180,7 @@ impl State {
     }
 
     pub fn importing(&self) -> bool {
-        self.busy(Task::Import) || self.busy(Task::ImportLegacy)
+        self.busy(Task::Import)
     }
 
     pub fn item(&self, item_id: i64) -> Option<&ItemSummary> {

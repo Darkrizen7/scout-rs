@@ -1,6 +1,6 @@
 //! Makes the reference database shipped with the tool (`scout-worker/data/reference.db.gz`) from the local
 //! database: `cargo run -p scout-worker --example reference`. Needs the game data (Réglages → Mettre à jour
-//! les données du jeu) and Forever Guide's loot (an import with Forever Guide installed).
+//! les données du jeu) and the loot already stored in the database (it is no longer imported, see docs/sources.md).
 
 use std::path::Path;
 

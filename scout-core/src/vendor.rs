@@ -48,7 +48,7 @@ impl VendorData {
         Self { offers }
     }
 
-    /// Unit price at a merchant: the cheapest seen by Scout, else Forever Guide's list.
+    /// Unit price at a merchant: the cheapest seen by Scout, else the reference database's list (`foreverguide`).
     pub fn price(&self, item_id: i64) -> Option<f64> {
         let offers = self.offers.get(&item_id)?;
         let cheapest = |scout: bool| {

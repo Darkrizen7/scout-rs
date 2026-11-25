@@ -1,6 +1,7 @@
 //! Databases made before the auction houses were told apart (2026-11-25): `snapshots` gets its
 //! `region` and `house` columns (part of the key, so the table is copied), and the item history
-//! cache of the price server is keyed by house too.
+//! cache of the price server is keyed by house too. Auctionator and Forever Guide readings, no
+//! longer imported, are removed.
 
 use anyhow::Result;
 use sqlx::SqlitePool;
@@ -39,6 +40,28 @@ pub(crate) async fn add_houses(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
+/// Deletes the prices of the Auctionator and Forever Guide imports (once: remembered in `meta`).
+pub(crate) async fn drop_addon_prices(pool: &SqlitePool) -> Result<()> {
+    const KEY: &str = "addon_prices_removed";
+    let done: Option<(String,)> = sqlx::query_as("SELECT value FROM meta WHERE key = ?")
+        .bind(KEY)
+        .fetch_optional(pool)
+        .await?;
+    if done.is_some() {
+        return Ok(());
+    }
+    let mut tx = pool.begin().await?;
+    sqlx::query("DELETE FROM snapshots WHERE source IN ('auctionator', 'foreverguide')")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("INSERT OR REPLACE INTO meta (key, value) VALUES (?, '1')")
+        .bind(KEY)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use scout_core::scout_api::AuctionHouse;
@@ -46,7 +69,7 @@ mod tests {
     use crate::Db;
 
     #[tokio::test]
-    async fn an_old_database_keeps_every_snapshot() {
+    async fn an_old_database_keeps_scout_snapshots_and_drops_the_addons_ones() {
         let dir = std::env::temp_dir().join(format!("scout-rs-migrate-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("old.db");
@@ -63,7 +86,7 @@ mod tests {
                      ts INTEGER NOT NULL, price INTEGER, quantity INTEGER,
                      PRIMARY KEY (item_id, source, ts)) WITHOUT ROWID;
                  INSERT INTO items VALUES (2589, 'Étoffe de lin');
-                 INSERT INTO snapshots VALUES (2589, 'scout', 100, 27, 40), (2589, 'auctionator', 90, 30, NULL);",
+                 INSERT INTO snapshots VALUES (2589, 'scout', 100, 27, 40), (2589, 'scout-api', 90, 30, NULL), (2589, 'auctionator', 80, 31, NULL), (2589, 'foreverguide', 70, 32, NULL);",
             )
             .execute(&pool)
             .await
@@ -72,7 +95,11 @@ mod tests {
         }
         let db = Db::open(&path).await.unwrap();
         let none = AuctionHouse::default();
-        assert_eq!(db.history(2589, &none).await.unwrap().len(), 2);
+        assert_eq!(
+            db.history(2589, &none).await.unwrap().len(),
+            2,
+            "scout and scout-api only"
+        );
         let eu = AuctionHouse {
             region: "eu".into(),
             id: 114,

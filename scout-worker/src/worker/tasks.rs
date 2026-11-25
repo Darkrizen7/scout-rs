@@ -1,17 +1,16 @@
-//! Long tasks, each on its own thread: Scout import, older prices, game data download.
+//! Long tasks, each on its own thread: Scout import, game data download.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::Result;
-use scout_core::gamedata::{GameData, Tables};
+use anyhow::{Context, Result, bail};
 use scout_core::{GAME_FORMAT, Row};
 use scout_db::Db;
+use scout_gamedata::Manifest;
 use scout_sources as sources;
-use scout_sources::wow;
+use scout_sources::{price_server, wow};
 
 use super::refresh;
-use crate::config::Config;
+use crate::config::{Config, PriceServer};
 use crate::message::Event;
 
 pub(super) async fn import(db: &Db, config: &Config, send: &dyn Fn(Event)) -> Result<()> {
@@ -24,16 +23,9 @@ pub(super) async fn import(db: &Db, config: &Config, send: &dyn Fn(Event)) -> Re
     let rows = sources::run_scout_export(&script, &saved_variables)?;
     db.set_names(&sources::run_scout_names(&script, &saved_variables)?)
         .await?;
-    let vendor = sources::run_vendor_export(
-        &saved_variables,
-        wow::guide_vendor_prices(config.wow_dir()?).as_deref(),
-    )?;
+    let vendor = sources::run_vendor_export(&saved_variables)?;
     db.save_vendor_prices(&vendor).await?;
     send(Event::Vendor(Arc::new(db.vendor_data().await?)));
-    // Drops are a bonus: a failure there must not stop the price import.
-    if let Err(e) = import_drops(db, config, send).await {
-        send(Event::Error(format!("butin de Forever Guide : {e:#}")));
-    }
     match sources::run_scout_loot(&script, &saved_variables) {
         Ok(loot) => {
             db.save_observed_loot(&loot).await?;
@@ -45,129 +37,67 @@ pub(super) async fn import(db: &Db, config: &Config, send: &dyn Fn(Event)) -> Re
     store(db, config, rows, send).await
 }
 
-/// Forever Guide's item sources, imported again only when its files (or our export) changed.
-async fn import_drops(db: &Db, config: &Config, send: &dyn Fn(Event)) -> Result<()> {
-    let Some(guide) = wow::forever_guide(config.wow_dir()?) else {
-        return Ok(());
-    };
-    let fingerprint = wow::guide_fingerprint(&guide, sources::DROPS_FORMAT);
-    if db.drops_fingerprint().await?.as_deref() == Some(fingerprint.as_str()) {
-        return Ok(());
-    }
-    send(Event::Status("Lecture du butin de Forever Guide…".into()));
-    let export = sources::run_drops_export(&guide)?;
-    let count = db.save_drops(&export, &fingerprint).await?;
-    send(Event::Status(format!(
-        "Butin de Forever Guide : {count} sources"
-    )));
-    Ok(())
-}
-
-/// Newest Forever build → client tables (+ Wowhead for the items they lack) → recipes, stored
-/// with the build they come from.
+/// The newest game data package of our price server (which downloads wago.tools and Wowhead once
+/// for everyone), stored when it is newer than ours.
 pub(super) fn update_game_data(
     runtime: &tokio::runtime::Runtime,
     db: &Db,
+    server: &PriceServer,
     send: &dyn Fn(Event),
 ) -> Result<()> {
     send(Event::Status(
-        "Recherche de la dernière version de WoW Forever…".into(),
+        "Recherche des dernières données du jeu…".into(),
     ));
-    let build = sources::latest_build()?;
-    send(Event::LatestBuild(Ok(build.clone())));
-    if runtime.block_on(db.game_version())? == Some((build.clone(), GAME_FORMAT, true)) {
+    let latest = latest_game_data(server);
+    send(Event::LatestGameData(
+        latest
+            .as_ref()
+            .map(Clone::clone)
+            .map_err(|e| format!("{e:#}")),
+    ));
+    let Some(manifest) = latest? else {
+        bail!("le serveur de prix n'a pas encore les données du jeu de cette version de l'outil");
+    };
+    let local = runtime.block_on(db.game_version())?;
+    if !manifest.newer_than(local.as_ref().map(|(b, f, u)| (b.as_str(), *f, *u))) {
         send(Event::Status(format!(
-            "Données du jeu déjà à jour (Forever {build})."
+            "Données du jeu déjà à jour (Forever {}).",
+            manifest.build
         )));
         return Ok(());
     }
-    let mut tables = HashMap::new();
-    for (i, table) in sources::TABLES.iter().enumerate() {
-        send(Event::Status(format!(
-            "Forever {build} : téléchargement {}/{} ({table})…",
-            i + 1,
-            sources::TABLES.len()
-        )));
-        tables.insert(*table, sources::table_csv(table, &build)?);
-    }
-    send(Event::Status("Assemblage des recettes…".into()));
-    let mut tables = sources::assemble(&tables)?;
-    let blocked = add_wowhead_items(runtime, db, &mut tables, send)?;
-    let now = chrono::Utc::now().timestamp();
-    let mut game = GameData::new(build.clone(), now, tables);
-    // Incomplete: the next update runs again instead of finding the data up to date.
-    game.complete = blocked.is_none();
+    send(Event::Status(format!(
+        "Téléchargement des données du jeu (Forever {}, {} Ko)…",
+        manifest.build,
+        manifest.bytes / 1000
+    )));
+    let (url, key) = server_access(server)?;
+    let game = price_server::gamedata_package(url, key, &manifest)?.into_game_data(GAME_FORMAT)?;
     runtime.block_on(db.save_game(&game))?;
     send(Event::Status(format!(
-        "Données du jeu : Forever {build}, {} recettes, {} objets.",
+        "Données du jeu : Forever {}, {} recettes, {} objets.",
+        game.build,
         game.recipes.len(),
         game.items.len()
     )));
     send(Event::GameData(Arc::new(game)));
-    if let Some(reason) = blocked {
-        send(Event::Error(format!(
-            "{reason}. Mise à jour incomplète (le reste est enregistré) : réessaie plus tard."
-        )));
-    }
     Ok(())
 }
 
-/// Recipe items missing from the client tables (sent by Forever's server as hotfixes), named by
-/// Wowhead. Each item is asked for once: the answers are kept across updates. Stops at the first refusal
-/// (403…) and returns why, so the update can say to try again later.
-fn add_wowhead_items(
-    runtime: &tokio::runtime::Runtime,
-    db: &Db,
-    tables: &mut Tables,
-    send: &dyn Fn(Event),
-) -> Result<Option<String>> {
-    let mut blocked = None;
-    let missing = tables.missing_recipe_items();
-    let mut known = runtime.block_on(db.wowhead_items())?;
-    let unknown: Vec<i64> = missing
-        .iter()
-        .copied()
-        .filter(|id| !known.contains_key(id))
-        .collect();
-    for (i, &id) in unknown.iter().enumerate() {
-        if i > 0 {
-            std::thread::sleep(sources::wowhead::PAUSE);
-        }
-        send(Event::Status(format!(
-            "Objets absents des tables du jeu, depuis Wowhead : {}/{}…",
-            i + 1,
-            unknown.len()
-        )));
-        // Wowhead only names a few extra items: when it refuses (403…), stop asking and keep going
-        // with the client tables rather than losing the whole update.
-        match sources::wowhead::item(id) {
-            Ok(Some(item)) => {
-                runtime.block_on(db.save_wowhead_item(&item))?;
-                known.insert(id, item);
-            }
-            Ok(None) => {}
-            Err(error) => {
-                blocked = Some(format!("{error:#}"));
-                break;
-            }
-        }
-    }
-    tables.add_items(missing.iter().filter_map(|id| known.remove(id)));
-    Ok(blocked)
+/// What the price server offers for this tool's `GAME_FORMAT` (None: nothing built yet).
+pub(super) fn latest_game_data(server: &PriceServer) -> Result<Option<Manifest>> {
+    let (url, key) = server_access(server)?;
+    price_server::gamedata_latest(url, key, GAME_FORMAT)
 }
 
-pub(super) async fn import_legacy(db: &Db, config: &Config, send: &dyn Fn(Event)) -> Result<()> {
-    let saved_variables = wow::saved_variables(config.wow_dir()?)?;
-    let dir = saved_variables.parent().unwrap_or(&saved_variables);
-    send(Event::Status(format!(
-        "Lecture d'Auctionator et Forever Guide dans {}…",
-        dir.display()
-    )));
-    let rows = sources::run_legacy_export(dir)?;
-    store(db, config, rows, send).await
+fn server_access(server: &PriceServer) -> Result<(&str, &str)> {
+    let key = server.key.as_deref().filter(|k| !k.is_empty()).context(
+        "les données du jeu viennent du serveur de prix : saisis ta clé d'accès dans les Réglages",
+    )?;
+    Ok((server.url.as_str(), key))
 }
 
-/// The addons do not say which auction house they scanned: the one chosen in the settings
+/// Scout does not say which auction house it scanned: the one chosen in the settings
 /// (none yet: given to the first one chosen).
 async fn store(db: &Db, config: &Config, mut rows: Vec<Row>, send: &dyn Fn(Event)) -> Result<()> {
     let house = config.price_server.auction_house();

@@ -112,7 +112,7 @@ impl Loot {
             return;
         };
         if zones.is_empty() {
-            ui.weak("Aucun butin en base : relance l'outil, ou installe Forever Guide puis ⚙ Réglages → Importer depuis Scout.");
+            ui.weak("Aucun butin en base : relance l'outil.");
             return;
         }
         let game = Arc::clone(&state.game);

@@ -155,7 +155,7 @@ impl WorldMap {
                         ui.weak("Clic : ses monstres · Ctrl+clic : l'ajouter à la sélection");
                     }
                     None => {
-                        ui.weak("Aucun butin connu : Forever Guide n'a pas cette zone.");
+                        ui.weak("Aucun butin connu pour cette zone.");
                         ui.weak("Scout l'apprendra quand tu y fouilleras des monstres (puis /reload et import).");
                     }
                 }

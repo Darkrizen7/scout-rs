@@ -182,7 +182,7 @@ fn market(ui: &mut egui::Ui, state: &State, id: i64) {
     let Some(item) = state.item(id) else {
         ui.add_space(20.0);
         ui.vertical_centered(|ui| {
-            ui.weak("Jamais vu à l'hôtel des ventes (ni par Scout, ni par Auctionator ou Forever Guide).");
+            ui.weak("Jamais vu à l'hôtel des ventes (ni par Scout ni par le serveur de prix).");
         });
         return;
     };

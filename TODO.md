@@ -4,5 +4,6 @@
 3. ~~Version 0.3.0 : installer l'addon Scout depuis l'outil s'il manque, et le mettre à jour s'il est plus ancien que
    la dernière Release de `Darkrizen7/scout-addon` (comparer `## Version` de `Scout.toc` au tag).~~ Fait (boutons en
    haut et dans Réglages ; `Scout.zip` publié par l'Action de l'addon).
-4. Un selecteur pour pouvoir choisir son HDV (à côté de réglage), aussi dans les réglages pouvoir choisir son serveur US/EU/Etc ...
-5. Que toutes les donnéees qu'on télécharge depuis wow head, wago etc soit téléchargé si nécessaire par le serveur une fois et servies ensuite aux clients.
+4. ~~Un selecteur pour pouvoir choisir son HDV (à côté de réglage), aussi dans les réglages pouvoir choisir son serveur US/EU/Etc ...~~ Fait.
+5. ~~On va pouvoir rettirer la dépendance à Auctionnator ainsi qu'à ForeverGuide, car maintenant qu'on télécharge depuis le serveur les prix ce n'est plus nécessaire. Tu peux donc le retirer des crédits et des réglages. Ainsi que de la BDD.~~ Fait : plus aucun import d'Auctionator ni de Forever Guide, leurs prix supprimés de `prix.db` ; le butin reste celui de la base de référence (Forever Guide cité comme origine).
+6. ~~J'aimerai que toutes les données que l'on télécharge actuellement via Données du jeu -> Mettre à jours soit maintenant récupéré depuis l'API, c'est elle qui fera ce fetch et qui distribuera les données aux clients comme ça on ne fait qu'un appel à wago, wow head etc. Il faudra donc qu'il enregistre ça dans un dossier compressé avec un numéro de version, qu'il y ai une route qui donne le latest que le client compare ett télécharge si nous ne sommes pas au latest.~~ Fait : crate `scout-gamedata`, routes `/v1/gamedata/…` (`docs/serveur.md` §3.7) ; reste à déployer le serveur.

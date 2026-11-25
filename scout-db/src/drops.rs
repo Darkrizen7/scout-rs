@@ -1,4 +1,4 @@
-//! Where items come from: Forever Guide's reference (replaced when its files change) and the loot Scout
+//! Where items come from: the reference loot (from the embedded reference database, now frozen) and the loot Scout
 //! recorded in game (replaced at each Scout import: the addon keeps running totals).
 
 mod zones;
@@ -6,7 +6,7 @@ mod zones;
 use anyhow::Result;
 
 use super::Db;
-use scout_core::drops::{BaseRow, DropsExport, ItemDrops, ObservedLoot, ObservedRow};
+use scout_core::drops::{BaseRow, ItemDrops, ObservedLoot, ObservedRow};
 
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS drop_sources (
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS drop_names (
     PRIMARY KEY (kind, id)
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS drop_meta (
-    key   TEXT PRIMARY KEY,  -- fingerprint: Forever Guide files the drops come from; updated: Unix seconds
+    key   TEXT PRIMARY KEY,  -- fingerprint: version of the reference loot (frozen); updated: Unix seconds
     value TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS loot_npcs (
@@ -79,7 +79,7 @@ FROM loot_observed o JOIN loot_npcs n ON n.npc_id = o.npc_id
 WHERE o.item_id = ?";
 
 impl Db {
-    /// Adds `drop_npcs.ui_map` to databases made before it (filled by the next import: `DROPS_FORMAT` 2).
+    /// Adds `drop_npcs.ui_map` to databases made before it (filled by the reference database).
     pub(super) async fn migrate_drops(pool: &sqlx::SqlitePool) -> Result<()> {
         let columns: Vec<(String,)> =
             sqlx::query_as("SELECT name FROM pragma_table_info('drop_npcs')")
@@ -93,75 +93,13 @@ impl Db {
         Ok(())
     }
 
-    /// Fingerprint of the Forever Guide files the stored drops come from.
+    /// Fingerprint of the reference loot the stored drops come from.
     pub async fn drops_fingerprint(&self) -> Result<Option<String>> {
         let row: Option<(String,)> =
             sqlx::query_as("SELECT value FROM drop_meta WHERE key = 'fingerprint'")
                 .fetch_optional(&self.pool)
                 .await?;
         Ok(row.map(|(v,)| v))
-    }
-
-    /// Replaces Forever Guide's drops in one transaction. Returns the number of sources.
-    pub async fn save_drops(&self, export: &DropsExport, fingerprint: &str) -> Result<usize> {
-        let mut tx = self.pool.begin().await?;
-        for table in [
-            "DELETE FROM drop_sources",
-            "DELETE FROM drop_npcs",
-            "DELETE FROM drop_names",
-        ] {
-            sqlx::query(table).execute(&mut *tx).await?;
-        }
-        for s in &export.sources {
-            sqlx::query(
-                "INSERT OR REPLACE INTO drop_sources (item_id, kind, source_id, chance, quest_only, more)
-                 VALUES (?, ?, ?, ?, ?, ?)",
-            )
-            .bind(s.item_id)
-            .bind(&s.kind)
-            .bind(s.source_id)
-            .bind(s.chance)
-            .bind(s.quest_only == 1)
-            .bind(s.more)
-            .execute(&mut *tx)
-            .await?;
-        }
-        for n in &export.npcs {
-            sqlx::query(
-                "INSERT OR REPLACE INTO drop_npcs (npc_id, name, min_level, max_level, rank, zone, x, y, dungeon, ui_map)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            )
-            .bind(n.npc_id)
-            .bind(&n.name)
-            .bind(n.min_level)
-            .bind(n.max_level)
-            .bind(n.rank)
-            .bind(&n.zone)
-            .bind(n.x)
-            .bind(n.y)
-            .bind(&n.dungeon)
-            .bind(n.ui_map)
-            .execute(&mut *tx)
-            .await?;
-        }
-        for n in &export.names {
-            sqlx::query("INSERT OR REPLACE INTO drop_names (kind, id, name) VALUES (?, ?, ?)")
-                .bind(&n.kind)
-                .bind(n.id)
-                .bind(&n.name)
-                .execute(&mut *tx)
-                .await?;
-        }
-        sqlx::query("INSERT OR REPLACE INTO drop_meta (key, value) VALUES ('fingerprint', ?)")
-            .bind(fingerprint)
-            .execute(&mut *tx)
-            .await?;
-        // When: a newer reference database replaces them, an older one does not.
-        sqlx::query("INSERT OR REPLACE INTO drop_meta (key, value) VALUES ('updated', CAST(unixepoch() AS TEXT))")
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
-        Ok(export.sources.len())
     }
 
     /// Replaces the loot Scout recorded (running totals). Returns the number of kills.

@@ -53,7 +53,7 @@ impl DropKind {
     }
 }
 
-/// `drops_export.lua npcs` line.
+/// A monster of the reference loot (`drop_npcs`).
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct DropNpc {
     pub npc_id: i64,
@@ -305,7 +305,7 @@ pub fn format_percent(p: f64) -> String {
 mod records;
 mod sort;
 mod zone;
-pub use records::{BaseRow, DropName, DropSource, DropsExport, ObservedLoot, ObservedRow};
+pub use records::{BaseRow, ObservedLoot, ObservedRow};
 pub use sort::{DropColumn, compare};
 pub use zone::{
     NpcDrop, Zone, ZoneDropRow, ZoneLoot, ZoneNpc, ZoneNpcLevel, ZoneNpcRow, ZoneObservedRow, zones,

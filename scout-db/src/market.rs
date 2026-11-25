@@ -210,11 +210,11 @@ mod tests {
         );
         assert_eq!(db.history(1, &AuctionHouse::default()).await?.len(), 2);
 
-        // Same time from another addon: a separate snapshot, the newest one wins in the list.
-        let mut legacy = row(1, None, 300, Some(40), 0);
-        legacy.source = "auctionator".into();
-        legacy.quantity = None;
-        assert_eq!(db.insert(&[legacy]).await?, 1);
+        // Same time from another source: a separate snapshot, the newest one wins in the list.
+        let mut other = row(1, None, 300, Some(40), 0);
+        other.source = "scout-api".into();
+        other.quantity = None;
+        assert_eq!(db.insert(&[other]).await?, 1);
         let items = db.items(&AuctionHouse::default()).await?;
         assert_eq!(
             (
@@ -226,7 +226,7 @@ mod tests {
             (300, Some(40), None, 3)
         );
 
-        // A name learnt later (item first imported from another addon) is applied.
+        // A name learnt later (item first imported from another source) is applied.
         db.set_names(&[ItemName {
             item_id: 1,
             name: "Tissu de lin".into(),

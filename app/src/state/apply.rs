@@ -70,7 +70,7 @@ impl State {
             Event::Analysis(_) => {}
             Event::GameData(game) => self.game = game,
             Event::Vendor(vendor) => self.vendor = vendor,
-            Event::LatestBuild(build) => self.latest_build = Some(build),
+            Event::LatestGameData(latest) => self.latest_game_data = Some(latest),
             Event::ScoutAddon(install) => self.scout_addon = Some(install),
             Event::AddonRelease(release) => self.addon_release = Some(release),
             Event::UpdateAvailable(release) => self.update = Some(release),

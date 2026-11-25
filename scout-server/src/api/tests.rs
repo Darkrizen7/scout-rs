@@ -48,8 +48,14 @@ async fn api(ip_burst: u32, key_burst: u32) -> Router {
         ("eu".to_owned(), Region { db, storage }),
         ("us".to_owned(), empty),
     ]);
+    // One folder per router: tests run side by side.
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("scout-api-{}-{n}", std::process::id()));
+    let gamedata = Arc::new(crate::gamedata::tests::store_with_package(&dir, 1000));
     router(Arc::new(Api {
         regions,
+        gamedata,
         keys: Keys::parse(&format!("test={KEY}")),
         by_key: Limiter::new(key_burst, 60),
         by_ip: Limiter::new(ip_burst, 60),
@@ -191,4 +197,37 @@ async fn answers_are_gzipped_on_request() {
         .unwrap();
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.headers()["content-encoding"], "gzip");
+}
+
+#[tokio::test]
+async fn game_data_package() {
+    let app = api(10, 10).await;
+    let format = scout_core::GAME_FORMAT;
+    let (status, response) = get(
+        &app,
+        &format!("/v1/gamedata/latest?format={format}"),
+        Some(KEY),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let manifest: scout_gamedata::Manifest = serde_json::from_str(&text(response).await).unwrap();
+    assert_eq!(manifest.updated, 1000);
+    let (status, _) = get(
+        &app,
+        &format!("/v1/gamedata/latest?format={}", format + 1),
+        Some(KEY),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, response) = get(&app, &format!("/v1/gamedata/{format}/1000"), Some(KEY)).await;
+    assert_eq!(status, StatusCode::OK);
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    assert_eq!(
+        scout_gamedata::Package::decode(&bytes).unwrap().build,
+        "1.60.1.71037"
+    );
+    let (status, _) = get(&app, &format!("/v1/gamedata/{format}/999"), Some(KEY)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = get(&app, &format!("/v1/gamedata/{format}/1000"), None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }

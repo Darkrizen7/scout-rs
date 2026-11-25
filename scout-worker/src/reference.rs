@@ -64,10 +64,13 @@ pub async fn export(source: &Path, dest: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use scout_core::GAME_FORMAT;
-    use scout_sources::DROPS_FORMAT;
+
+    /// Version of the reference loot. Frozen since Forever Guide is no longer imported: the fingerprint of
+    /// the embedded loot starts with it.
+    const DROPS_FORMAT: u32 = 2;
 
     /// The embedded database must match this version of the tool: regenerate it (see the module doc) when
-    /// `GAME_FORMAT` or `DROPS_FORMAT` change.
+    /// `GAME_FORMAT` changes.
     #[tokio::test]
     async fn embedded_reference_is_up_to_date() -> Result<()> {
         let dir = std::env::temp_dir().join(format!("scout-rs-embedded-{}", std::process::id()));
@@ -82,8 +85,9 @@ mod tests {
                 drops: true
             })
         );
-        let (_, format, complete) = db.game_version().await?.context("pas de données du jeu")?;
-        assert_eq!((format, complete), (GAME_FORMAT, true));
+        let (_, format, _) = db.game_version().await?.context("pas de données du jeu")?;
+        assert_eq!(format, GAME_FORMAT);
+        assert!(db.load_game().await?.complete, "données du jeu incomplètes");
         let fingerprint = db.drops_fingerprint().await?.context("pas de butin")?;
         assert!(
             fingerprint.starts_with(&format!("v{DROPS_FORMAT};")),

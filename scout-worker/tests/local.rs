@@ -24,17 +24,17 @@ async fn imports_local_saved_variables() -> Result<()> {
     let wow_dir = config.wow_dir()?;
     let saved_variables = wow::saved_variables(wow_dir)?;
     let scout = sources::run_scout_export(&wow::export_script(wow_dir)?, &saved_variables)?;
-    let legacy = sources::run_legacy_export(saved_variables.parent().unwrap())?;
+    let loot = sources::run_scout_loot(&wow::export_script(wow_dir)?, &saved_variables)?;
 
     let path = throwaway_db("local");
     let db = Db::open(&path).await?;
-    let added = db.insert(&scout).await? + db.insert(&legacy).await?;
-    assert_eq!(db.insert(&legacy).await?, 0, "a second import adds nothing");
+    let added = db.insert(&scout).await?;
+    assert_eq!(db.insert(&scout).await?, 0, "a second import adds nothing");
+    let kills = db.save_observed_loot(&loot).await?;
     let items = db.items(&AuctionHouse::default()).await?;
     println!(
-        "{} scout + {} legacy rows, {added} stored, {} items",
+        "{} scout rows, {added} stored, {} items, {kills} kills",
         scout.len(),
-        legacy.len(),
         items.len()
     );
     for id in [2589, 8191] {
@@ -46,65 +46,16 @@ async fn imports_local_saved_variables() -> Result<()> {
     Ok(())
 }
 
-/// Forever Guide's drops and Scout's recorded loot into a throwaway database, then a few items' sources.
-#[tokio::test]
-#[ignore = "reads the local WoW install"]
-async fn imports_drops() -> Result<()> {
-    let config = Config::load();
-    let wow_dir = config.wow_dir()?;
-    let guide = wow::forever_guide(wow_dir).expect("Forever Guide installé");
-    let started = std::time::Instant::now();
-    let export = sources::run_drops_export(&guide)?;
-    let exported = started.elapsed();
-
-    let path = throwaway_db("drops");
-    let db = Db::open(&path).await?;
-    let fingerprint = wow::guide_fingerprint(&guide, sources::DROPS_FORMAT);
-    let count = db.save_drops(&export, &fingerprint).await?;
-    assert_eq!(db.drops_fingerprint().await?, Some(fingerprint));
-    let saved_variables = wow::saved_variables(wow_dir)?;
-    let loot = sources::run_scout_loot(&wow::export_script(wow_dir)?, &saved_variables)?;
-    let kills = db.save_observed_loot(&loot).await?;
-    println!(
-        "{count} sources, {} PNJ, {} noms (export {exported:.1?}, total {:.1?}) ; Scout : {kills} kills",
-        export.npcs.len(),
-        export.names.len(),
-        started.elapsed()
-    );
-    // Linen cloth, a Sunken Temple boss item, a quest reward, a pattern found in chests.
-    for id in [2589, 10799, 1431, 2318] {
-        let drops = db.item_drops(id).await?;
-        println!(
-            "{id} : {} sources, plus {:?}",
-            drops.drops.len(),
-            drops.more
-        );
-        for d in drops.drops.iter().take(4) {
-            let (levels, place) = d
-                .npc
-                .as_ref()
-                .map(|n| (n.levels(), n.place()))
-                .unwrap_or_default();
-            println!(
-                "  {:?} {} [{levels}] {place} {:?} {:?}",
-                d.kind, d.name, d.chance, d.observed
-            );
-        }
-    }
-    std::fs::remove_file(&path)?;
-    Ok(())
-}
-
 /// Full download from wago.tools into a throwaway database (about 12 MB).
 #[tokio::test]
 #[ignore = "downloads about 12 MB from wago.tools"]
 async fn downloads_assembles_and_stores_latest_build() -> Result<()> {
-    let build = sources::latest_build()?;
+    let build = scout_gamedata::latest_build()?;
     let mut tables = HashMap::new();
-    for table in sources::TABLES {
-        tables.insert(table, sources::table_csv(table, &build)?);
+    for table in scout_gamedata::TABLES {
+        tables.insert(table, scout_gamedata::table_csv(table, &build)?);
     }
-    let tables = sources::assemble(&tables)?;
+    let tables = scout_gamedata::assemble(&tables)?;
     let missing = tables.missing_recipe_items();
     let categorized = missing
         .iter()
@@ -124,7 +75,7 @@ async fn downloads_assembles_and_stores_latest_build() -> Result<()> {
 
     assert_eq!(
         db.game_version().await?,
-        Some((build.clone(), GAME_FORMAT, true))
+        Some((build.clone(), GAME_FORMAT, game.updated))
     );
     assert_eq!(
         (loaded.recipes.len(), loaded.items.len()),
@@ -287,10 +238,10 @@ fn wowhead_names_items_missing_from_the_tables() -> Result<()> {
         (234009, "Rouleau de soie qiraji"),
     ] {
         let start = std::time::Instant::now();
-        let item = sources::wowhead::item(id)?.expect("known by Wowhead");
+        let item = scout_gamedata::wowhead::item(id)?.expect("known by Wowhead");
         println!("{id} {item:?} en {:?}", start.elapsed());
         assert_eq!(item.name, name);
     }
-    assert!(sources::wowhead::item(999_999)?.is_none());
+    assert!(scout_gamedata::wowhead::item(999_999)?.is_none());
     Ok(())
 }

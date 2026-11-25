@@ -8,7 +8,7 @@ pub const SCOUT: &str = "scout";
 /// One CSV line: an item seen (or missing) at one auction house scan.
 #[derive(Debug, Deserialize)]
 pub struct Row {
-    /// Addon the price comes from (`scout`, `auctionator`, `foreverguide`).
+    /// Where the price comes from (`scout`; the price server's own readings are `scout-api`).
     #[serde(default = "scout_source")]
     pub source: String,
     pub item_id: i64,
@@ -50,7 +50,7 @@ pub struct ItemName {
 /// An item a merchant sells, with its unit price (copper, may be fractional) and, when Scout saw it, the NPC.
 #[derive(Debug, Deserialize)]
 pub struct VendorPrice {
-    /// `scout` (seen in game) or `foreverguide` (its list of unlimited profession reagents).
+    /// `scout` (seen in game) or `foreverguide` (the reference database's list of unlimited profession reagents).
     pub source: String,
     pub item_id: i64,
     pub price: f64,

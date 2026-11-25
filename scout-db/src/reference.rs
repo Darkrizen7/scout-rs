@@ -40,7 +40,7 @@ INSERT INTO main.game_maps (id, name, parent, kind, x_min, x_max, y_min, y_max)
 INSERT INTO main.game_zone_factions (name, faction) SELECT name, faction FROM seed.game_zone_factions;
 ";
 
-/// Forever Guide's loot, replaced as a whole (with `drop_meta`: fingerprint, date).
+/// The reference loot (derived from Forever Guide), replaced as a whole (with `drop_meta`: fingerprint, date).
 const COPY_DROPS: &str = "
 DELETE FROM main.drop_sources;
 DELETE FROM main.drop_npcs;

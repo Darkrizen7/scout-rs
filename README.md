@@ -20,11 +20,11 @@ carte (commande de l'addon Scout, ou de TomTom s'il est installé).
 - **Scout** (⚙ Réglages → Importer depuis Scout, après un `/reload` en jeu) : relevés HdV, noms et catégories,
   marchands vus, butin enregistré (`tools/export.lua` de l'addon). La base garde tout, même ce que Scout oublie
   en jeu après 21 jours.
-- **Forever Guide** : sources du butin et chances, noms français des PNJ et des zones (relu seulement quand ses
-  fichiers changent) ; prix des composants vendus par les marchands.
-- **Auctionator / Forever Guide** : import ponctuel de leurs prix passés.
+- **Forever Guide** : le butin (sources, chances, noms français) et la liste des marchands de la base de référence
+  intégrée en dérivent ; l'outil ne lit plus l'addon.
 - **OpenMap** : contours des zones pour la carte (lus dans le dossier AddOns, jamais copiés).
-- **wago.tools** : tables du client Forever en français (objets, recettes, métiers, cartes).
+- **wago.tools** et **Wowhead** : tables du client Forever en français (objets, recettes, métiers, cartes), téléchargées
+  une fois par le serveur de prix et distribuées à l'outil.
 
 ## Commandes
 - `cargo run --release`
@@ -49,5 +49,6 @@ Licence : MIT (`LICENSE`), sauf la base de référence `scout-worker/data/refere
 tiré de [cmangos classic-db](https://github.com/cmangos/classic-db) et de QuestieDB) : GPL-3.0-or-later
 (`LICENSE-GPL-3.0`).
 
-Workspace : `scout-core` (logique pure) ← `scout-sources` (Lua, wago.tools) et `scout-db` (SQLite) ← `scout-worker` ← `app`.
+Workspace : `scout-core` (logique pure) ← `scout-gamedata` (données du jeu) ← `scout-sources` (Lua, serveur de prix) et
+`scout-db` (SQLite) ← `scout-worker` ← `app` ; `scout-server` (serveur du VPS) ← `scout-gamedata`.
 Ancien nom : `scout-prix` ; ses dossiers de données sont déplacés automatiquement au premier lancement.

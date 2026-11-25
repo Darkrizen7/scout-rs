@@ -4,7 +4,7 @@
 use eframe::egui;
 
 /// (name, link, what the tool takes from it).
-const SOURCES: [(&str, Option<&str>, &str); 8] = [
+const SOURCES: [(&str, Option<&str>, &str); 7] = [
     (
         "wago.tools",
         Some("https://wago.tools"),
@@ -19,8 +19,8 @@ const SOURCES: [(&str, Option<&str>, &str); 8] = [
     (
         "Forever Guide",
         None,
-        "Addon : butin des monstres et des coffres, prix des marchands, dernier prix vu à l'hôtel des ventes. \
-         Son butin est inclus dans l'outil (base de référence, GPL-3.0).",
+        "Addon dont dérivent le butin des monstres et des coffres et la liste des marchands de la base de \
+         référence incluse dans l'outil (GPL-3.0). L'outil ne lit pas l'addon.",
     ),
     (
         "cmangos classic-db et QuestieDB",
@@ -33,11 +33,6 @@ const SOURCES: [(&str, Option<&str>, &str); 8] = [
         "Prix de l'hôtel des ventes (source « Scout API »), relevés par notre serveur de prix. \
          Données fournies « en l'état » ; outil non approuvé par Blizzard Entertainment et non \
          affilié à Blizzard Entertainment.",
-    ),
-    (
-        "Auctionator",
-        Some("https://www.curseforge.com/wow/addons/auctionator"),
-        "Addon : historique des prix de l'hôtel des ventes.",
     ),
     (
         "OpenMap",

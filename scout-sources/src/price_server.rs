@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use scout_core::scout_api::{AuctionHouse, PriceLine, ServerHouse};
+use scout_gamedata::{Manifest, Package};
 use serde::Deserialize;
 
 /// The latest prices of a busy house are ~300 KB of CSV (gzipped on the way).
@@ -20,7 +21,13 @@ fn agent() -> ureq::Agent {
 }
 
 fn get(url: &str, key: &str) -> Result<ureq::http::Response<ureq::Body>> {
-    match agent().get(url).header("X-Scout-Key", key).call() {
+    checked(agent().get(url).header("X-Scout-Key", key).call())
+}
+
+fn checked(
+    result: Result<ureq::http::Response<ureq::Body>, ureq::Error>,
+) -> Result<ureq::http::Response<ureq::Body>> {
+    match result {
         Err(ureq::Error::StatusCode(401)) => {
             bail!("le serveur de prix refuse la clé d'accès (voir Réglages)")
         }
@@ -29,6 +36,34 @@ fn get(url: &str, key: &str) -> Result<ureq::http::Response<ureq::Body>> {
         }
         result => Ok(result.context("serveur de prix injoignable")?),
     }
+}
+
+/// The newest game data package the server built for this tool's `format`, None while it has none.
+pub fn gamedata_latest(server: &str, key: &str, format: i64) -> Result<Option<Manifest>> {
+    let url = format!("{}/v1/gamedata/latest?format={format}", base(server));
+    let mut response = match agent().get(&url).header("X-Scout-Key", key).call() {
+        Err(ureq::Error::StatusCode(404)) => return Ok(None),
+        result => checked(result)?,
+    };
+    let body = response.body_mut().with_config().limit(MAX_BYTES).reader();
+    serde_json::from_reader(body).context("version des données du jeu illisible")
+}
+
+/// The game data package `manifest` describes (a few megabytes, gzipped).
+pub fn gamedata_package(server: &str, key: &str, manifest: &Manifest) -> Result<Package> {
+    let url = format!(
+        "{}/v1/gamedata/{}/{}",
+        base(server),
+        manifest.format,
+        manifest.updated
+    );
+    let bytes = get(&url, key)?
+        .body_mut()
+        .with_config()
+        .limit(MAX_BYTES)
+        .read_to_vec()
+        .context("téléchargement des données du jeu")?;
+    Package::decode(&bytes)
 }
 
 /// The regions where the server found Forever auction houses (eu, us, kr, tw).

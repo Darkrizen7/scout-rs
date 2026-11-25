@@ -10,7 +10,7 @@ pub const CONTINENT: i64 = 2;
 pub const ZONE: i64 = 3;
 
 /// Faction a zone belongs to (client table AreaTable); zones belonging to none are contested.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Faction {
     Alliance,
     Horde,
@@ -40,7 +40,7 @@ pub fn name_key(name: &str) -> String {
     base.trim().to_lowercase().replace('’', "'")
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
 pub struct GameMap {
     /// UiMap id (e.g. 1431 Bois de la Pénombre, 1415 Royaumes de l'est).

@@ -1,37 +1,6 @@
-//! Records the exporters hand over and the database returns, before merging into [`super::ItemDrops`].
+//! Records the Scout exporter hands over and the database returns, before merging into [`super::ItemDrops`].
 
 use serde::Deserialize;
-
-use super::DropNpc;
-
-/// `drops_export.lua sources` line. `source_id` 0 = "and `more` other sources of this kind".
-#[derive(Debug, Deserialize)]
-pub struct DropSource {
-    pub kind: String,
-    pub item_id: i64,
-    pub source_id: i64,
-    /// Percent per kill / opening; empty when unknown.
-    pub chance: Option<f64>,
-    /// 1 when it only drops while the quest is active.
-    pub quest_only: u8,
-    pub more: i64,
-}
-
-/// `drops_export.lua names` line: name of a world object or a quest.
-#[derive(Debug, Deserialize)]
-pub struct DropName {
-    pub kind: String,
-    pub id: i64,
-    pub name: String,
-}
-
-/// Everything Forever Guide tells, stored together.
-#[derive(Debug, Default)]
-pub struct DropsExport {
-    pub sources: Vec<DropSource>,
-    pub npcs: Vec<DropNpc>,
-    pub names: Vec<DropName>,
-}
 
 /// `export.lua --loot` line (Scout addon): one monster and one item it gave (or none).
 #[derive(Debug, Deserialize)]

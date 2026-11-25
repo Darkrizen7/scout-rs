@@ -50,12 +50,13 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
 ### 3.1 Code
 
 - Crate **`scout-server`** (binaire) dans ce workspace, avec son propre client Battle.net (`scout-server/src/blizzard.rs`) :
-  pas dans `scout-sources`, qui embarque Lua (C) et tout ce dont seule l'appli a besoin. `scout-core` le rejoindra à
-  l'étape 2 pour les statistiques. `app` n'en dépend pas.
+  pas dans `scout-sources`, qui embarque Lua (C) et tout ce dont seule l'appli a besoin. Il dépend de `scout-core` et de
+  `scout-gamedata` (données du jeu, §3.7). `app` n'en dépend pas.
 - HTTP entrant : `axum` + `tokio` (déjà la pile de `dofus_follow_up`). HTTP sortant : `ureq` dans
   `spawn_blocking`, comme le reste de l'outil.
 - Réglages par variables d'environnement : `BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `BLIZZARD_REGION` (eu),
-  `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600), `SCOUT_ZSTD_LEVEL` (15).
+  `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600), `SCOUT_ZSTD_LEVEL` (15),
+  `SCOUT_GAMEDATA_SECS` (21600 : vérification d'une nouvelle version de Forever, §3.7).
 - Image arm64 construite sur le PC (`tools/update.sh scout <version>`, qui lit `modules/scout/release.conf`),
   Dockerfile à la racine sur le modèle de `dofus_follow_up` (Debian slim, certificats copiés, uid 10001).
 
@@ -109,6 +110,8 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 | GET | `/v1/{region}/houses/{id}/latest` | oui | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir |
 | GET | `/v1/{region}/houses/{id}/items/{item}/history?since=<unix>` | oui | CSV : toutes les lignes d'un objet après `since` (index `prices_item`) |
 | GET | `/v1/{region}/houses/{id}/prices?since=<unix>` | oui | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
+| GET | `/v1/gamedata/latest?format=<GAME_FORMAT>` | oui | JSON `Manifest` : `format`, `build`, `updated` (= version), `complete`, `bytes` ; 404 si aucun paquet de ce format |
+| GET | `/v1/gamedata/{format}/{updated}` | oui | le paquet (`application/gzip`, pas recompressé) ; 404 s'il n'est plus le dernier |
 
 - **Pages** (`api.rs`, `db/prices.rs`) : ~200 000 lignes au plus (environ un jour d'une grosse maison), toujours
   des instantanés entiers. En-têtes `X-Scout-Until` (le `since` de la page suivante) et `X-Scout-More: 1` s'il
@@ -137,7 +140,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 ### 3.6 Appli
 
 - Source **`scout-api`** dans `snapshots` (`price` = `min_unit`, `NULL` si l'objet est parti ; `quantity`), à côté de
-  `scout`, `auctionator`, `foreverguide`. Supprimer cette source = une requête.
+  `scout` (les anciennes sources `auctionator` / `foreverguide` ne sont plus importées et sont purgées à l'ouverture de la base). Supprimer cette source = une requête.
 - **Derniers prix** (`/v1/{region}/houses/{id}/latest`, tous les objets) : vérifiés au démarrage puis toutes les 10 min,
   téléchargés quand ils ont plus d'**1 h** (ou par « ⟳ Mettre à jour » dans les Réglages). Une ligne n'est écrite que
   si le prix a changé, plus la première de chaque jour local (chaque jour garde son prix) ; un objet qui n'y est plus
@@ -145,7 +148,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - **Historique d'un objet** (`/v1/{region}/houses/{id}/items/{item}/history?since=`) : à l'ouverture de sa fiche Market, la base
   est affichée tout de suite, puis complétée depuis le serveur (tout la première fois, ensuite ce qui suit `until`) si
   le cache a plus d'1 h ; gardé en entier (une ligne par version). Cache : table `scout_api_history`.
-- Fusion des graphiques (`merge`) : Scout, sinon Scout API, sinon moyenne Auctionator / Forever Guide.
+- Fusion des graphiques (`merge`) : Scout, sinon Scout API.
 - Réglages (`ui/settings/price_server.rs`) : adresse (défaut `scout.arthurdevtest.duckdns.org`), clé, région (parmi
   `/v1/regions`), hôtel des ventes ; le même sélecteur d'HdV est dans l'en-tête (`ui/widgets/house.rs`).
   `[price_server]` dans `config.toml`. Noms : « EU Normal · Horde (114) » (`ServerHouse::label`, `scout_api::realm_type`).
@@ -153,6 +156,22 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - Chaque ligne de `snapshots` a sa région et son HdV : changer d'HdV ne mêle rien, chaque HdV garde son cache.
 - **TODO** : compresser à un point par jour les relevés `scout-api` de plus de 3 mois (`prix.db` grossit d'environ
   2 400 lignes par version téléchargée).
+- **Données du jeu** : « Mettre à jour » (Réglages, ou les boutons des onglets Objets / Recettes) et la vérification au
+  démarrage demandent `/v1/gamedata/latest` pour le `GAME_FORMAT` de l'appli ; le paquet est téléchargé s'il diffère
+  (autre build, autre format) ou est plus récent (`Manifest::newer_than` contre `game_meta`), puis remplace les
+  `game_*`. Sans clé : la base de référence intégrée seulement.
+
+### 3.7 Données du jeu (`gamedata.rs`, crate `scout-gamedata`)
+
+- Les tables du client (wago.tools) et les objets que Wowhead nomme sont téléchargés **par le serveur seul**, une fois
+  par version de Forever, au lieu d'une fois par appli (Wowhead bloque après quelques centaines de requêtes).
+- Au démarrage puis toutes les 6 h (`SCOUT_GAMEDATA_SECS`) : dernière version `wowf` de wago.tools ; nouveau paquet si
+  elle a changé, si le `GAME_FORMAT` du serveur (redéployé) n'en a pas encore, ou si le dernier est incomplet
+  (Wowhead a refusé : nouvel essai au tour suivant). Environ 10 min la première fois (1 s entre deux objets Wowhead).
+- `data/gamedata/wowhead.json` : objets déjà nommés par Wowhead (chacun n'est demandé qu'une fois) ;
+  `data/gamedata/<format>/<updated>.json.gz` (`scout_gamedata::Package` : `Tables` en JSON gzip) et `latest.json`
+  (`Manifest`). Seul le dernier paquet de chaque format est gardé ; les anciens formats restent pour les anciennes
+  versions de l'appli. Tout se reconstruit : rien à sauvegarder.
 
 ## 4. Étapes
 
@@ -188,6 +207,8 @@ Mesuré sur une version complète (15 maisons, 2026-11-25) : **8 Mo de bruts** (
 | 2026-11-25 | Cadence de Blizzard : une version par heure, vers HH:21 UTC. |
 | 2026-11-25 | Toutes les régions où Forever a une API d'HdV (eu, us, kr, tw vérifiées par le relevé) ; `prix.db` a une région et un HdV par ligne, les relevés existants rattachés à EU 114. |
 | 2026-11-25 | Noms des HdV par type de royaume et côté. |
+| 2026-11-25 | Données du jeu (wago.tools, Wowhead) téléchargées par le serveur et servies en paquet versionné ; l'appli ne les télécharge plus elle-même ; code partagé dans la crate `scout-gamedata`. |
+| 2026-11-25 | Auctionator et Forever Guide ne sont plus importés ; leurs relevés de prix sont supprimés de `prix.db`, le butin reste celui de la base de référence. |
 | 2026-11-25 | Plus tard : estimer les ventes (une enchère qui disparaît avant expiration, `id` stable d'un relevé à l'autre). |
 
 ## Questions ouvertes

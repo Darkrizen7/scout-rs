@@ -55,8 +55,7 @@ pub fn house_picker(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, wid
             }
         });
     combo.response.on_hover_text(
-        "Hôtel des ventes dont toutes les pages montrent les prix (Scout, Scout API, Auctionator, \
-         Forever Guide) : un par type de royaume (Normal, PvP, RP, RP-PvP) et par côté (Alliance, \
+        "Hôtel des ventes dont toutes les pages montrent les prix (Scout, Scout API) : un par type de royaume (Normal, PvP, RP, RP-PvP) et par côté (Alliance, \
          Horde, Flots noirs, ce dernier commun aux deux factions). Les royaumes d'un même type \
          partagent leurs hôtels des ventes.",
     );

@@ -138,17 +138,19 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         send(Event::Error(format!("{e:#}")));
     }
 
-    // Is the stored game data the newest Forever build? (network: on its own, the UI is already usable)
+    // Is the stored game data the newest package of the price server? (network: on its own, the
+    // UI is already usable)
     let latest = send.clone();
+    let server = config.price_server.clone();
     if let Err(e) = thread::Builder::new()
-        .name("latest-build".into())
+        .name("latest-game-data".into())
         .spawn(move || {
-            latest(Event::LatestBuild(
-                sources::latest_build().map_err(|e| format!("{e:#}")),
+            latest(Event::LatestGameData(
+                tasks::latest_game_data(&server).map_err(|e| format!("{e:#}")),
             ))
         })
     {
-        send(Event::LatestBuild(Err(e.to_string())));
+        send(Event::LatestGameData(Err(e.to_string())));
     }
     // A newer version of the tool? (network too; silent when offline)
     let updates = send.clone();
@@ -197,12 +199,13 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             (shared.send)(Event::Config(config.clone()));
             config.save()
         }),
-        Command::ImportLegacy => shared.spawn(Task::ImportLegacy, |runtime, shared| {
-            let config = shared.config().clone();
-            runtime.block_on(tasks::import_legacy(&shared.db, &config, &*shared.send))
-        }),
         Command::UpdateGameData => shared.spawn(Task::GameData, |runtime, shared| {
-            tasks::update_game_data(runtime, &shared.db, &*shared.send)
+            tasks::update_game_data(
+                runtime,
+                &shared.db,
+                &shared.config().price_server,
+                &*shared.send,
+            )
         }),
         Command::SetFavorite(id, favorite) => runtime.block_on(async {
             db.set_favorite(id, favorite).await?;

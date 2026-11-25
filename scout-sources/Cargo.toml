@@ -10,6 +10,7 @@ csv = "1.4.0"
 directories = "6.0.0"
 mlua = { version = "0.12.3", features = ["lua54", "vendored"] }
 scout-core = { path = "../scout-core" }
+scout-gamedata = { path = "../scout-gamedata" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"

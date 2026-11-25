@@ -58,7 +58,7 @@ pub fn show(
             if drops.drops.is_empty() && drops.more.is_empty() {
                 ui.add_space(14.0);
                 ui.vertical_centered(|ui| {
-                    ui.weak("Aucune source connue : Forever Guide ne connaît pas cet objet.");
+                    ui.weak("Aucune source connue pour cet objet.");
                 });
                 return;
             }
@@ -125,9 +125,7 @@ fn section(
         view.expanded.insert(kind);
     }
     if more > 0 {
-        ui.weak(format!(
-            "… et {more} autres sources que Forever Guide ne liste pas."
-        ));
+        ui.weak(format!("… et {more} autres sources non listées."));
     }
     ui.add_space(10.0);
 }

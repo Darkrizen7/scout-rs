@@ -1,26 +1,19 @@
 //! Runs the Lua exporters (embedded Lua 5.4) and parses their CSV output:
-//! Scout's own `tools/export.lua`, and the embedded one-off export of Auctionator / Forever Guide.
+//! Scout's own `tools/export.lua` and the embedded merchant export.
 
 use std::fs;
 use std::path::Path;
 
 use anyhow::{Context, Result, anyhow};
 use mlua::{Function, Lua, LuaString};
-use scout_core::drops::{DropsExport, ObservedLoot};
+use scout_core::drops::ObservedLoot;
 use scout_core::{ItemName, Row, VendorPrice};
 use serde::de::DeserializeOwned;
 
-/// Exports past prices from Auctionator and Forever Guide SavedVariables.
-const LEGACY_EXPORT: &str = include_str!("../lua/legacy_export.lua");
-/// Exports the items merchants sell (Scout's prices seen in game, Forever Guide's list).
+/// Exports the items merchants sell (the prices Scout saw in game).
 const VENDOR_EXPORT: &str = include_str!("../lua/vendor_export.lua");
-/// Exports where items come from, according to Forever Guide.
-const DROPS_EXPORT: &str = include_str!("../lua/drops_export.lua");
 /// Runs an exporter in-process: stdout collected, stderr dropped, files read by Rust.
 const SANDBOX: &str = include_str!("../lua/sandbox.lua");
-
-/// Bumped when `drops_export.lua` changes, so the drops are imported again.
-pub const DROPS_FORMAT: u32 = 2;
 
 /// Scout's history: `export.lua <Scout.lua>`.
 pub fn run_scout_export(script: &Path, saved_variables: &Path) -> Result<Vec<Row>> {
@@ -45,29 +38,13 @@ pub fn run_scout_loot(script: &Path, saved_variables: &Path) -> Result<Vec<Obser
     )
 }
 
-/// Forever Guide's item sources, the NPCs they name and the names of objects and quests:
-/// the embedded script `<ForeverGuide> <mode>`, once per mode.
-pub fn run_drops_export(guide: &Path) -> Result<DropsExport> {
-    let name = Path::new("drops_export.lua");
-    let run = |mode: &str| [guide.into(), mode.into()];
-    Ok(DropsExport {
-        sources: run_lua(DROPS_EXPORT, name, &run("sources"))?,
-        npcs: run_lua(DROPS_EXPORT, name, &run("npcs"))?,
-        names: run_lua(DROPS_EXPORT, name, &run("names"))?,
-    })
-}
-
-/// Auctionator and Forever Guide: the embedded script `<SavedVariables dir>`.
-pub fn run_legacy_export(saved_variables_dir: &Path) -> Result<Vec<Row>> {
-    let name = Path::new("legacy_export.lua");
-    run_lua(LEGACY_EXPORT, name, &[saved_variables_dir.into()])
-}
-
-/// The embedded script `<Scout.lua> [<ForeverGuide/VendorPrices.lua>]`.
-pub fn run_vendor_export(saved_variables: &Path, guide: Option<&Path>) -> Result<Vec<VendorPrice>> {
-    let mut args = vec![saved_variables.into()];
-    args.extend(guide.map(Arg::from));
-    run_lua(VENDOR_EXPORT, Path::new("vendor_export.lua"), &args)
+/// The embedded script `<Scout.lua>`.
+pub fn run_vendor_export(saved_variables: &Path) -> Result<Vec<VendorPrice>> {
+    run_lua(
+        VENDOR_EXPORT,
+        Path::new("vendor_export.lua"),
+        &[saved_variables.into()],
+    )
 }
 
 /// A command-line argument handed to an exporter (`arg[i]` and `...`).
@@ -126,7 +103,6 @@ fn parse<T: DeserializeOwned>(csv: &[u8]) -> Result<Vec<T>> {
 #[cfg(test)]
 mod tests {
     use scout_core::SCOUT;
-    use scout_core::drops::DropSource;
 
     use super::*;
 
@@ -146,12 +122,7 @@ mod tests {
     }
 
     #[test]
-    fn parses_drop_and_loot_rows() {
-        let csv = b"kind,item_id,source_id,chance,quest_only,more\n\
-            npc,2589,3,12,0,0\nnpc,3858,0,,0,614\n";
-        let rows: Vec<DropSource> = parse(csv).unwrap();
-        assert_eq!(rows[0].chance, Some(12.0));
-        assert_eq!((rows[1].chance, rows[1].more), (None, 614));
+    fn parses_loot_rows() {
         let csv = b"npc_id,name,zone,kills,skins,kind,item_id,drops,quantity\n\
             3,D\xc3\xa9voreur,Bois,2,1,loot,2589,2,5\n6,,,4,0,,,,\n";
         let rows: Vec<ObservedLoot> = parse(csv).unwrap();
@@ -160,15 +131,5 @@ mod tests {
             (rows[1].kind.as_deref(), rows[1].item_id, rows[1].kills),
             (None, None, 4)
         );
-    }
-
-    #[test]
-    fn parses_legacy_rows() {
-        let csv = b"source,item_id,timestamp,price,quantity\n\
-            auctionator,2589,1794222000,18,\n";
-        let rows: Vec<Row> = parse(csv).unwrap();
-        assert_eq!(rows[0].source, "auctionator");
-        assert_eq!(rows[0].name, None);
-        assert_eq!(rows[0].quantity, None);
     }
 }

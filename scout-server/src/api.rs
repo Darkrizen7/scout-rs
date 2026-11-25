@@ -14,9 +14,11 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tower_http::compression::CompressionLayer;
+use tower_http::compression::predicate::{DefaultPredicate, NotForContentType, Predicate};
 
 use crate::collector::{self, STOP_RAW_BYTES};
 use crate::db::{Db, PriceRow};
+use crate::gamedata::GameStore;
 use crate::storage::Storage;
 
 mod access;
@@ -37,6 +39,8 @@ pub struct Region {
 pub struct Api {
     /// eu, us, kr, tw (`SCOUT_REGIONS`).
     pub regions: BTreeMap<String, Region>,
+    /// Game data package, the same for every region.
+    pub gamedata: Arc<GameStore>,
     pub keys: Keys,
     /// Per key: a first sync pages through the whole history.
     pub by_key: Limiter,
@@ -47,6 +51,8 @@ pub struct Api {
 pub fn router(api: Arc<Api>) -> Router {
     let v1 = Router::new()
         .route("/regions", get(regions))
+        .route("/gamedata/latest", get(gamedata_latest))
+        .route("/gamedata/{format}/{updated}", get(gamedata_package))
         .route("/{region}/houses", get(houses))
         .route("/{region}/houses/{id}/prices", get(prices))
         .route("/{region}/houses/{id}/latest", get(latest))
@@ -59,7 +65,10 @@ pub fn router(api: Arc<Api>) -> Router {
         .route("/health", get(health))
         .route("/privacy", get(privacy))
         .nest("/v1", v1)
-        .layer(CompressionLayer::new())
+        // The game data package is gzipped already.
+        .layer(CompressionLayer::new().compress_when(
+            DefaultPredicate::new().and(NotForContentType::const_new("application/gzip")),
+        ))
         .with_state(api)
 }
 
@@ -212,6 +221,40 @@ async fn item_history(
         )
             .into_response(),
         Err(e) => internal(&e),
+    }
+}
+
+#[derive(Deserialize)]
+struct Format {
+    format: i64,
+}
+
+/// The newest game data package of the app's `GAME_FORMAT` (`Manifest`), 404 when none is built.
+async fn gamedata_latest(
+    State(api): State<Arc<Api>>,
+    Query(Format { format }): Query<Format>,
+) -> Response {
+    match api.gamedata.latest(format) {
+        Some(manifest) => Json(manifest).into_response(),
+        None => (
+            StatusCode::NOT_FOUND,
+            "pas de données du jeu pour ce format\n",
+        )
+            .into_response(),
+    }
+}
+
+/// The package itself (gzipped JSON), only while it is the newest of its format.
+async fn gamedata_package(
+    State(api): State<Arc<Api>>,
+    Path((format, updated)): Path<(i64, i64)>,
+) -> Response {
+    let Some(path) = api.gamedata.package_path(format, updated) else {
+        return (StatusCode::NOT_FOUND, "paquet inconnu ou remplacé\n").into_response();
+    };
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => ([(header::CONTENT_TYPE, "application/gzip")], bytes).into_response(),
+        Err(e) => internal(&anyhow::Error::from(e).context(path.display().to_string())),
     }
 }
 

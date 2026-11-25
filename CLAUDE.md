@@ -7,7 +7,7 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 ## Documentation détaillée (à lire seulement si la tâche la concerne)
 - `docs/modules.md` : ce que fait chaque onglet (Market, Objets, Butin, Recettes), fichiers de `app/src/ui/`, pistes.
 - `docs/donnees.md` : base SQLite (tables, colonnes), réglages `config.toml`, évolution du schéma.
-- `docs/sources.md` : imports Scout / Auctionator / Forever Guide / PNJ / butin, OpenMap, wago.tools, Wowhead.
+- `docs/sources.md` : imports Scout / PNJ / butin, OpenMap, données du jeu (wago.tools, Wowhead, via le serveur).
 - `docs/architecture.md` : rôle détaillé de chaque crate et de ses modules.
 
 ## Façon de travailler
@@ -31,33 +31,34 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
   jetable, résumé de l'analyse sur la base locale ; téléchargement complet des données du jeu :
   `cargo test -p scout-worker --test local downloads -- --ignored --nocapture`).
 - Base de référence intégrée (données du jeu, butin, marchands ; GPL) : `cargo run -p scout-worker --example reference`
-  la régénère depuis `prix.db` (après une mise à jour des données du jeu, de Forever Guide, ou de `GAME_FORMAT` /
-  `DROPS_FORMAT` : le test `embedded_reference_is_up_to_date` le rappelle).
+  la régénère depuis `prix.db` (après une mise à jour des données du jeu ou de `GAME_FORMAT` : le test
+  `embedded_reference_is_up_to_date` le rappelle ; le butin n'est plus importé de Forever Guide, il vient de cette base).
 - Les scripts Lua tournent dans Lua 5.4 intégré (`mlua`, feature `vendored`) : rien à installer.
 
 ## Données (règles ; détail dans `docs/donnees.md`)
 - Base `~/.local/share/scout-rs/prix.db`, réglages `~/.config/scout-rs/config.toml`.
 - **Ne jamais supprimer de données sans demander ; copier `prix.db` avant toute manipulation.**
 - Formats CSV des exports Scout = **contrat avec l'addon** : les changer des deux côtés.
-- `GAME_FORMAT` (`scout-core/src/gamedata.rs`) : l'augmenter quand on garde de nouvelles colonnes ou tables du jeu ;
-  `DROPS_FORMAT` : l'augmenter quand `drops_export.lua` change.
+- `GAME_FORMAT` (`scout-core/src/gamedata.rs`) : l'augmenter quand on garde de nouvelles colonnes ou tables du jeu.
+  Le format du butin est figé (Forever Guide n'est plus importé) : constante de test dans `scout-worker/src/reference.rs`.
 - La base de référence (`scout-worker/data/reference.db.gz`) n'a **jamais** de données personnelles : ni prix,
   ni favoris, ni butin enregistré (liste des tables dans `scout-db/src/reference.rs`).
 - Une nouvelle source de données se cite dans `ui/credits.rs` (`SOURCES`).
 
 ## Architecture
 Workspace Cargo (`resolver = "3"`). Les dépendances ne vont que dans un sens :
-`app → scout-worker → {scout-db, scout-sources} → scout-core`. Le compilateur fait respecter la règle « l'UI ne
+`app → scout-worker → {scout-db, scout-sources} → scout-core`, et `{scout-sources, scout-server} → scout-gamedata → scout-core`. Le compilateur fait respecter la règle « l'UI ne
 touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses dépendances directes.
 
 | Crate | Rôle (détail : `docs/architecture.md`) |
 |---|---|
 | `scout-core` | Données et logique **pures**, testées : analyse, statistiques, prix, recherche, cartes, butin, types partagés. |
-| `scout-sources` | Tout ce qui vient de l'extérieur : scripts Lua (`lua/`, `include_str!`), wago.tools, Wowhead, TGA d'OpenMap, dossier WoW. |
+| `scout-gamedata` | Données du jeu : wago.tools, Wowhead, assemblage, paquet versionné (construit par le serveur, lu par l'appli). |
+| `scout-sources` | Tout ce qui vient de l'extérieur : scripts Lua (`lua/`, `include_str!`), serveur de prix, GitHub, TGA d'OpenMap, dossier WoW. |
 | `scout-db` | SQLite (sqlx) : schéma, migrations, requêtes par domaine. |
 | `scout-worker` | Threads de fond (`Command` → `Event`) : **seul** endroit qui touche disque, base, réseau et processus. |
 | `app` (binaire `scout-rs`) | UI egui uniquement (`app.rs`, `state.rs`, `ui/`). |
-| `scout-server` (binaire) | Serveur de prix du VPS (API Battle.net), indépendant des autres crates : `docs/serveur.md`. |
+| `scout-server` (binaire) | Serveur du VPS (prix de l'API Battle.net, paquet des données du jeu), avec `scout-core` et `scout-gamedata` seulement : `docs/serveur.md`. |
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.
 - Une règle métier utilisée par l'UI va dans `scout-core` ; un widget utilisé par deux panneaux va dans `ui/widgets.rs`.
@@ -89,7 +90,7 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 - Une version = un tag `vX.Y.Z` posé **par l'utilisateur** (jamais de tag sans demande). Le push du tag lance
   `.github/workflows/release.yml` : tests, compilation, Release GitHub avec les binaires Linux et Windows et leurs `.sha256`.
 - Avant chaque version, **demander à l'utilisateur** s'il faut régénérer la base de référence
-  (`cargo run -p scout-worker --example reference`, après un import Scout récent avec Forever Guide à jour et les
+  (`cargo run -p scout-worker --example reference`, après un import Scout récent et les
   données du jeu à jour) et la commiter avec le reste : c'est elle qui donne aux autres ses nouveaux marchands et le butin.
 - Avant le tag : augmenter `version` dans `[workspace.package]` du `Cargo.toml` racine (commit à part,
   `Cargo.lock` compris). Le tag doit être identique à cette version (`v` + version), sinon l'Action échoue :

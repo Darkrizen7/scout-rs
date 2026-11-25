@@ -8,9 +8,9 @@ mod price_server;
 
 use crate::state::State;
 use crate::ui::{credits, theme, widgets};
+use scout_core::Theme;
 use scout_core::time::format_datetime;
 use scout_core::update::AddonInstall;
-use scout_core::{GAME_FORMAT, Theme};
 use scout_worker::{Command, Task, WorkerHandle};
 
 #[derive(Default)]
@@ -203,18 +203,6 @@ fn import(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
         _ => {}
     }
     widgets::addon_button(ui, state, worker);
-    let legacy = ui
-        .add_enabled(
-            !state.busy(Task::ImportLegacy),
-            egui::Button::new("📥 Historique Auctionator / Forever Guide"),
-        )
-        .on_hover_text(
-            "Prix passés gardés par Auctionator (un relevé par jour) et Forever Guide (dernier prix vu). \
-             Sans risque de doublon.",
-        );
-    if legacy.clicked() {
-        worker.send(Command::ImportLegacy);
-    }
 }
 
 fn game_data(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
@@ -228,8 +216,8 @@ fn game_data(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
                 egui::Button::new("⤓ Mettre à jour"),
             )
             .on_hover_text(
-                "Tables du client WoW Forever (objets, recettes, cartes) depuis wago.tools ; \
-                 ne télécharge que si la version a changé.",
+                "Objets, recettes et cartes de WoW Forever, préparés par le serveur de prix \
+                 (depuis wago.tools et Wowhead) ; ne télécharge que s'il a plus récent.",
             );
         if update.clicked() {
             worker.send(Command::UpdateGameData);
@@ -243,32 +231,41 @@ fn game_data(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
             )),
             None => ui.weak("Pas encore téléchargées"),
         };
-        match (&state.latest_build, stored) {
+        match (&state.latest_game_data, stored) {
             (None, _) => {
                 ui.weak("vérification…");
             }
             (Some(Err(e)), _) => {
-                ui.weak("dernière version inconnue")
-                    .on_hover_text(format!("Hors ligne ? {e}"));
+                ui.weak("dernière version inconnue").on_hover_text(e);
             }
-            (Some(Ok(latest)), Some(build)) if latest == build && game.format < GAME_FORMAT => {
-                ui.colored_label(palette.star, "⚠ À retélécharger")
+            (Some(Ok(None)), _) => {
+                ui.weak("pas encore sur le serveur").on_hover_text(
+                    "Le serveur de prix n'a pas encore préparé les données du jeu pour cette \
+                     version de l'outil.",
+                );
+            }
+            (Some(Ok(Some(latest))), Some(build))
+                if !latest.newer_than(Some((build, game.format, game.updated))) =>
+            {
+                if game.complete {
+                    ui.colored_label(palette.gain, "✔ À jour");
+                } else {
+                    ui.colored_label(palette.star, "⚠ Incomplètes")
+                        .on_hover_text(
+                            "Wowhead a refusé des requêtes du serveur : il complète les noms \
+                         d'objets manquants plus tard, « Mettre à jour » les récupérera.",
+                        );
+                }
+            }
+            (Some(Ok(Some(latest))), Some(build)) if latest.build == build => {
+                ui.colored_label(palette.star, "⚠ Nouvelles données")
                     .on_hover_text(
-                        "L'outil garde maintenant plus d'informations sur cette version.",
+                        "Le serveur a de nouvelles données pour cette version du jeu \
+                     (plus complètes, ou plus d'informations gardées).",
                     );
             }
-            (Some(Ok(latest)), Some(build)) if latest == build && !game.complete => {
-                ui.colored_label(palette.star, "⚠ Incomplètes")
-                    .on_hover_text(
-                        "Wowhead a refusé des requêtes pendant la dernière mise à jour : \
-                         réessaie plus tard pour compléter les noms d'objets manquants.",
-                    );
-            }
-            (Some(Ok(latest)), Some(build)) if latest == build => {
-                ui.colored_label(palette.gain, "✔ À jour");
-            }
-            (Some(Ok(latest)), _) => {
-                ui.colored_label(palette.star, format!("⚠ Nouvelle version {latest}"));
+            (Some(Ok(Some(latest))), _) => {
+                ui.colored_label(palette.star, format!("⚠ Nouvelle version {}", latest.build));
             }
         }
     });

@@ -4,13 +4,12 @@
 use anyhow::Result;
 
 use super::Db;
-use scout_core::merge::FOREVER_GUIDE;
 use scout_core::{VendorData, VendorOffer, VendorPrice};
 
 pub(super) const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS vendor_prices (
     item_id INTEGER NOT NULL,
-    source  TEXT    NOT NULL,  -- scout (seen in game), foreverguide (its reagent list)
+    source  TEXT    NOT NULL,  -- scout (seen in game), foreverguide (reference database reagent list)
     npc_id  INTEGER NOT NULL,  -- 0 when the merchant is unknown
     price   REAL    NOT NULL,  -- copper per unit
     npc     TEXT,
@@ -38,15 +37,9 @@ impl Db {
         Ok(())
     }
 
-    /// Adds or updates these prices. Forever Guide's list is replaced only when it comes with them (kept
-    /// from the reference database when Forever Guide is not installed).
+    /// Adds or updates these prices (the `foreverguide` ones come from the reference database only).
     pub async fn save_vendor_prices(&self, prices: &[VendorPrice]) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        if prices.iter().any(|p| p.source == FOREVER_GUIDE) {
-            sqlx::query("DELETE FROM vendor_prices WHERE source = 'foreverguide'")
-                .execute(&mut *tx)
-                .await?;
-        }
         for p in prices {
             sqlx::query(
                 "INSERT OR REPLACE INTO vendor_prices (item_id, source, npc_id, price, npc, zone, x, y, limited)

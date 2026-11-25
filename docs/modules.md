@@ -1,7 +1,7 @@
 # Modules (onglets en haut)
 
 - **Market** : historique HdV. Barre latérale façon Fichiers (tous les objets, favoris, Analyse, Rentabilité,
-  catégories dépliables), liste, graphique prix / quantité (une ligne par jour : Scout seul, sinon moyenne Auctionator + Forever Guide ; source au survol), calculateur de rentabilité ; l'analyse n'est compilée qu'avec `--features analysis` (désactivée par défaut).
+  catégories dépliables), liste, graphique prix / quantité (une ligne par jour : Scout, sinon Scout API ; source au survol), calculateur de rentabilité ; l'analyse n'est compilée qu'avec `--features analysis` (désactivée par défaut).
 - **Objets** : les ~19 400 objets du jeu par catégorie (icône de catégorie aussi dans le tableau), avec prix HdV /
   achat PNJ / revente. À l'arrivée, seule la recherche, au milieu de la page (`widgets::landing_search`) ; le
   tableau s'affiche dès qu'on tape ou qu'on choisit une catégorie. Une **fiche objet**
@@ -40,7 +40,7 @@ couleurs de qualité, champ de recherche et page d'arrivée, prix ou tiret, chan
 
 ## Pistes
 - Butin : `ForeverGuide/ForeverBossLoot.lua` (butin confirmé de boss Forever, chances inconnues, appliqué par
-  l'addon à l'exécution) n'est pas lu.
+  l'addon à l'exécution) n'est pas lu (l'outil ne lit plus Forever Guide).
 - Carte : points des monstres de la zone (coordonnées Forever Guide `x`, `y` sur `ui_map`), entrées des donjons
   (`OpenMap/Data/Forever/Places.lua`, coordonnées monde), fond peint (`MapZones` d'OpenMap, BLP).
 - Toutes les apparitions d'un monstre : QuestieDB (`QuestieDB_Forever`) les a, mais dans un format codé

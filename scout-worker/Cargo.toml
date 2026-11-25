@@ -11,6 +11,7 @@ directories = "6.0.0"
 flate2 = "1.1.11"
 scout-core = { path = "../scout-core" }
 scout-db = { path = "../scout-db" }
+scout-gamedata = { path = "../scout-gamedata" }
 scout-sources = { path = "../scout-sources" }
 self-replace = "1.5.1"
 serde = { version = "1.0.229", features = ["derive"] }

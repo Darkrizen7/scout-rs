@@ -11,13 +11,12 @@ use scout_core::map::Mask;
 use scout_core::scout_api::ServerChoice;
 use scout_core::update::{AddonInstall, Release};
 use scout_core::{ItemSummary, Snapshot, Theme, VendorData};
+pub use scout_gamedata::Manifest;
 
 use crate::Config;
 
 pub enum Command {
     Import,
-    /// One-off import of the prices Auctionator and Forever Guide kept.
-    ImportLegacy,
     /// An item's price history: what the database has at once, then (`Event::History` again) the
     /// rest of it from the price server when the cache is an hour old.
     LoadHistory(i64),
@@ -63,8 +62,6 @@ pub enum Command {
 pub enum Task {
     /// Prices, names, merchants and loot recorded by Scout.
     Import,
-    /// Older prices kept by Auctionator and Forever Guide.
-    ImportLegacy,
     /// Forever client tables (and Wowhead).
     GameData,
     /// New version of the tool.
@@ -93,8 +90,9 @@ pub enum Event {
     /// Names of the favorite zones (Loot module).
     ZoneFavorites(Vec<String>),
     GameData(Arc<GameData>),
-    /// Newest Forever build on wago.tools, or why it could not be checked.
-    LatestBuild(Result<String, String>),
+    /// Newest game data package on the price server (None: none for this version of the tool),
+    /// or why it could not be checked.
+    LatestGameData(Result<Option<Manifest>, String>),
     /// The Scout addon in the WoW folder (missing, dev install, version).
     ScoutAddon(AddonInstall),
     /// Newest release of the Scout addon (checked at start).

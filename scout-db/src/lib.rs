@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS zone_favorites (
 );
 CREATE TABLE IF NOT EXISTS snapshots (
     item_id  INTEGER NOT NULL REFERENCES items(item_id),
-    source   TEXT    NOT NULL,  -- scout, scout-api, auctionator, foreverguide
+    source   TEXT    NOT NULL,  -- scout, scout-api
     region   TEXT    NOT NULL DEFAULT '',  -- auction house: Battle.net region (eu, us, kr, tw)…
     house    INTEGER NOT NULL DEFAULT 0,   -- …and house id (114…); '' / 0 = not known yet
     ts       INTEGER NOT NULL,  -- scan time, Unix seconds
@@ -78,6 +78,7 @@ impl Db {
         sqlx::raw_sql(game::maps::SCHEMA).execute(&pool).await?;
         sqlx::raw_sql(game::wowhead::SCHEMA).execute(&pool).await?;
         market::migrate::add_houses(&pool).await?;
+        market::migrate::drop_addon_prices(&pool).await?;
         sqlx::raw_sql(market::scout_api::SCHEMA)
             .execute(&pool)
             .await?;

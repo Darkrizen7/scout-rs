@@ -5,7 +5,7 @@
 //! `SCOUT_KEYS` (access keys, `name=key,…`; none = `/v1` refuses everyone), `SCOUT_REGIONS` (eu,us,kr,tw:
 //! each region has its own database and raw folder, `data/` for eu, `data/<region>/` for the others),
 //! `SCOUT_DATA_DIR` (data), `SCOUT_LISTEN` (0.0.0.0:3000), `SCOUT_INTERVAL_SECS` (600),
-//! `SCOUT_ZSTD_LEVEL` (15).
+//! `SCOUT_ZSTD_LEVEL` (15), `SCOUT_GAMEDATA_SECS` (21600: how often to look for a new Forever build).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -18,12 +18,14 @@ mod api;
 mod blizzard;
 mod collector;
 mod db;
+mod gamedata;
 mod storage;
 
 use api::{Api, Keys, Limiter, Region};
 use blizzard::{Client, Credentials};
 use collector::Collector;
 use db::Db;
+use gamedata::GameStore;
 use storage::Storage;
 
 /// Requests per hour for one key (and at once): a first sync pages through the whole history.
@@ -76,12 +78,17 @@ async fn main() -> Result<()> {
         regions.insert(region.to_owned(), Region { db, storage });
     }
 
+    let gamedata = Arc::new(GameStore::new(&data_dir)?);
+    let gamedata_every = Duration::from_secs(env_or("SCOUT_GAMEDATA_SECS", "21600").parse()?);
+    tokio::spawn(gamedata.clone().run(gamedata_every));
+
     let keys = Keys::parse(&env_or("SCOUT_KEYS", ""));
     if keys.len() == 0 {
         eprintln!("aucune clé d'accès (SCOUT_KEYS) : /v1 refuse toutes les requêtes");
     }
     let app = api::router(Arc::new(Api {
         regions,
+        gamedata,
         keys,
         by_key: Limiter::new(KEY_RATE, KEY_RATE),
         by_ip: Limiter::new(GUESS_RATE, GUESS_RATE),

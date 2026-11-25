@@ -12,7 +12,7 @@ use crate::map::{Faction, GameMap};
 /// 2: merchant buy / sell prices. 3: item category names. 4: maps. 5: recipe items from Wowhead. 6: zone factions.
 pub const GAME_FORMAT: i64 = 6;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "sqlx", derive(sqlx::FromRow))]
 pub struct GameItem {
     #[cfg_attr(feature = "sqlx", sqlx(rename = "item_id"))]
@@ -31,20 +31,20 @@ pub struct GameItem {
     pub sell_price: i64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Profession {
     /// Skill line id (171 Alchimie, 164 Forge…).
     pub id: i64,
     pub name: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Reagent {
     pub item_id: i64,
     pub count: i64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Recipe {
     pub spell_id: i64,
     pub name: String,
@@ -69,7 +69,7 @@ impl Recipe {
 }
 
 /// An item category: a class (`subclass_id` None) or one of its subclasses, named in French.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Category {
     pub class_id: i64,
     pub subclass_id: Option<i64>,
@@ -77,7 +77,7 @@ pub struct Category {
 }
 
 /// What the client tables give, before indexing.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct Tables {
     pub items: Vec<GameItem>,
     pub professions: Vec<Profession>,

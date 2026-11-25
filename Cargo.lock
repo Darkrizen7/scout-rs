@@ -2862,6 +2862,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "scout-gamedata"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "csv",
+ "flate2",
+ "scout-core",
+ "serde",
+ "serde_json",
+ "ureq",
+]
+
+[[package]]
 name = "scout-rs"
 version = "0.3.0"
 dependencies = [
@@ -2882,6 +2895,8 @@ dependencies = [
  "anyhow",
  "axum",
  "rustix 1.1.6",
+ "scout-core",
+ "scout-gamedata",
  "serde",
  "serde_json",
  "sha2",
@@ -2902,6 +2917,7 @@ dependencies = [
  "directories",
  "mlua",
  "scout-core",
+ "scout-gamedata",
  "serde",
  "serde_json",
  "sha2",
@@ -2919,6 +2935,7 @@ dependencies = [
  "flate2",
  "scout-core",
  "scout-db",
+ "scout-gamedata",
  "scout-sources",
  "self-replace",
  "serde",

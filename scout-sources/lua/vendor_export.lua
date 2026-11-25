@@ -1,14 +1,13 @@
 -- Exports the items merchants (NPCs) sell and their unit price, as CSV on stdout.
--- Usage : lua vendor_export.lua <SavedVariables/Scout.lua> [<AddOns/ForeverGuide/VendorPrices.lua>]
+-- Usage : lua vendor_export.lua <SavedVariables/Scout.lua>
 --
 -- Colonnes : source,item_id,price,npc_id,npc,zone,x,y,limited
 --   scout        : vu chez un marchand en jeu par Scout, avec le PNJ (ScoutDB.merchants) quand il est connu,
 --                  sinon le seul prix (ScoutDB.vendor, relevés plus anciens) ; prix unitaire, remise comprise
---   foreverguide : composants de métier vendus sans limite (liste de Forever Guide, ns.VENDOR_PRICE), sans PNJ
 -- price en cuivre, éventuellement fractionnaire (prix d'un lot divisé par sa taille) ;
 -- x, y en pourcentage sur la carte de la zone ; limited = 1 pour un stock limité.
-local scoutPath, guidePath = arg[1], arg[2]
-assert(scoutPath, "usage : lua vendor_export.lua <Scout.lua> [<VendorPrices.lua>]")
+local scoutPath = arg[1]
+assert(scoutPath, "usage : lua vendor_export.lua <Scout.lua>")
 
 local function field(v)
     if v == nil then return "" end
@@ -42,17 +41,6 @@ if chunk then
     -- Prices seen before merchants were recorded: no NPC known.
     for id, price in pairs(db.vendor or {}) do
         if not withNpc[id] then emit("scout", id, price) end
-    end
-end
-
--- Forever Guide data files start with `local _, ns = ...`: give them a namespace table.
-if guidePath and guidePath ~= "" then
-    local guide = loadfile(guidePath, "t", {})
-    if guide then
-        local ns = {}
-        if pcall(guide, "ForeverGuide", ns) then
-            for id, price in pairs(ns.VENDOR_PRICE or {}) do emit("foreverguide", id, price) end
-        end
     end
 end
 

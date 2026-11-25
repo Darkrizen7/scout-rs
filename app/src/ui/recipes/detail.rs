@@ -26,7 +26,7 @@ pub(super) fn source_tag(ui: &mut egui::Ui, state: &State, item_id: i64, source:
         Source::Merchant => (
             "PNJ",
             palette.gain,
-            "Vendu par un marchand (prix vu par Scout ou liste de Forever Guide)",
+            "Vendu par un marchand (prix vu par Scout ou liste de la base intégrée)",
         ),
         Source::Auction => (
             "HdV",

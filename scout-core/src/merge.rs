@@ -1,5 +1,5 @@
 //! One point per day for the market charts: Scout wins, then Scout API (our price server, from the
-//! Battle.net auction API), else the two other addons are averaged.
+//! Battle.net auction API).
 
 use std::collections::BTreeMap;
 
@@ -11,20 +11,14 @@ pub use aggregate::{Period, aggregate};
 use crate::time::local_day;
 use crate::{SCOUT, Snapshot};
 
-pub const AUCTIONATOR: &str = "auctionator";
 /// Prices of the Battle.net auction API, through our price server (`scout-server`).
 pub const SCOUT_API: &str = "scout-api";
-pub const FOREVER_GUIDE: &str = "foreverguide";
 
 /// Where a merged point comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Origin {
     Scout,
     ScoutApi,
-    Auctionator,
-    ForeverGuide,
-    /// Mean of Auctionator and Forever Guide on the same day.
-    Average,
     /// Mean over several days (weekly or monthly charts).
     Period,
 }
@@ -45,17 +39,14 @@ fn keep_latest(slot: &mut Reading, ts: i64, value: f64) {
     }
 }
 
-/// Merge the sources day by day (local days), in chronological order.
-/// Scout alone if present, then Scout API; otherwise the mean of Auctionator and Forever Guide, or
-/// whichever exists.
+/// Merge the sources day by day (local days), in chronological order: Scout if it has readings that
+/// day, else Scout API.
 pub fn merge(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> Vec<Point> {
-    let mut days: BTreeMap<NaiveDate, [Reading; 4]> = BTreeMap::new();
+    let mut days: BTreeMap<NaiveDate, [Reading; 2]> = BTreeMap::new();
     for s in history {
         let slot = match s.source.as_str() {
             SCOUT => 0,
             SCOUT_API => 1,
-            AUCTIONATOR => 2,
-            FOREVER_GUIDE => 3,
             _ => continue,
         };
         let (Some(day), Some(v)) = (local_day(s.ts), value(s)) else {
@@ -64,19 +55,9 @@ pub fn merge(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> 
         keep_latest(&mut days.entry(day).or_default()[slot], s.ts, v);
     }
     days.into_values()
-        .filter_map(|[scout, api, auction, guide]| {
+        .filter_map(|[scout, api]| {
             let point = |r: Reading, origin| r.map(|(ts, value)| Point { ts, value, origin });
-            let addons = || match (auction, guide) {
-                (Some((t1, v1)), Some((t2, v2))) => Some(Point {
-                    ts: t1.max(t2),
-                    value: (v1 + v2) / 2.0,
-                    origin: Origin::Average,
-                }),
-                (a, g) => point(a, Origin::Auctionator).or_else(|| point(g, Origin::ForeverGuide)),
-            };
-            point(scout, Origin::Scout)
-                .or_else(|| point(api, Origin::ScoutApi))
-                .or_else(addons)
+            point(scout, Origin::Scout).or_else(|| point(api, Origin::ScoutApi))
         })
         .collect()
 }
@@ -96,15 +77,13 @@ pub fn series(
 }
 
 /// Every reading, with the same choice of source as `merge`, day by day: Scout alone on the days
-/// it has readings, else Scout API alone, otherwise Auctionator and Forever Guide side by side (no mean).
+/// it has readings, else Scout API alone.
 fn detailed(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> Vec<Point> {
     let mut days: BTreeMap<NaiveDate, Vec<Point>> = BTreeMap::new();
     for s in history {
         let origin = match s.source.as_str() {
             SCOUT => Origin::Scout,
             SCOUT_API => Origin::ScoutApi,
-            AUCTIONATOR => Origin::Auctionator,
-            FOREVER_GUIDE => Origin::ForeverGuide,
             _ => continue,
         };
         let (Some(day), Some(v)) = (local_day(s.ts), value(s)) else {
@@ -118,11 +97,8 @@ fn detailed(history: &[Snapshot], value: impl Fn(&Snapshot) -> Option<f64>) -> V
     }
     let mut out = Vec::new();
     for mut points in days.into_values() {
-        for first in [Origin::Scout, Origin::ScoutApi] {
-            if points.iter().any(|p| p.origin == first) {
-                points.retain(|p| p.origin == first);
-                break;
-            }
+        if points.iter().any(|p| p.origin == Origin::Scout) {
+            points.retain(|p| p.origin == Origin::Scout);
         }
         points.sort_by_key(|p| p.ts);
         out.extend(points);
@@ -153,20 +129,19 @@ mod tests {
     #[test]
     fn scout_hides_the_others_on_the_same_day() {
         let h = [
-            snap(AUCTIONATOR, 1_000_000_000, 10),
+            snap(SCOUT_API, 1_000_000_000, 10),
             snap(SCOUT, 1_000_000_100, 30),
-            snap(FOREVER_GUIDE, 1_000_000_200, 20),
+            snap(SCOUT_API, 1_000_000_200, 20),
         ];
         assert_eq!(merged(&h), [(Origin::Scout, 30.0)]);
     }
 
     #[test]
-    fn scout_api_comes_after_scout_and_before_the_addons() {
+    fn scout_api_comes_after_scout() {
         let day = 86_400 * 3;
         let h = [
             snap(SCOUT, 1_000_000_000, 30),
             snap(SCOUT_API, 1_000_000_100, 29),
-            snap(AUCTIONATOR, 1_000_000_000 + day, 10),
             snap(SCOUT_API, 1_000_000_100 + day, 12),
             snap(SCOUT_API, 1_000_000_200 + day, 13),
         ];
@@ -189,24 +164,10 @@ mod tests {
     }
 
     #[test]
-    fn averages_without_scout_and_keeps_a_lone_source() {
-        let day = 86_400 * 3;
-        let h = [
-            snap(AUCTIONATOR, 1_000_000_000, 10),
-            snap(FOREVER_GUIDE, 1_000_000_100, 20),
-            snap(FOREVER_GUIDE, 1_000_000_000 + day, 50),
-        ];
-        assert_eq!(
-            merged(&h),
-            [(Origin::Average, 15.0), (Origin::ForeverGuide, 50.0)]
-        );
-    }
-
-    #[test]
     fn detail_keeps_every_reading_of_the_chosen_source() {
         let h = [
-            snap(AUCTIONATOR, 1_000_000_000, 10),
-            snap(AUCTIONATOR, 1_000_000_100, 12),
+            snap(SCOUT_API, 1_000_000_000, 10),
+            snap(SCOUT_API, 1_000_000_100, 12),
             snap(SCOUT, 1_000_000_200, 30),
             snap(SCOUT, 1_000_000_300, 31),
         ];

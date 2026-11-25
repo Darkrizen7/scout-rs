@@ -93,10 +93,10 @@ impl Db {
         Ok(())
     }
 
-    /// Forever build, format and completeness of the stored game data, if any.
-    pub async fn game_version(&self) -> Result<Option<(String, i64, bool)>> {
+    /// Forever build, format and date (`updated`) of the stored game data, if any.
+    pub async fn game_version(&self) -> Result<Option<(String, i64, i64)>> {
         let rows: Vec<(String, String)> = sqlx::query_as(
-            "SELECT key, value FROM game_meta WHERE key IN ('build', 'format', 'complete')",
+            "SELECT key, value FROM game_meta WHERE key IN ('build', 'format', 'updated')",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -109,8 +109,7 @@ impl Db {
             (
                 build,
                 get("format").and_then(|f| f.parse().ok()).unwrap_or(1),
-                // Stored before the key existed: complete.
-                get("complete").as_deref() != Some("0"),
+                get("updated").and_then(|u| u.parse().ok()).unwrap_or(0),
             )
         }))
     }

@@ -12,7 +12,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
 pub use config::{Config, PriceServer, database_path};
-pub use message::{Command, Event, Task};
+pub use message::{Command, Event, Manifest, Task};
 pub use reference::export as export_reference;
 
 /// Callback invoked after each event is sent.
