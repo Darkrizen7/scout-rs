@@ -228,11 +228,27 @@ const OBSOLETE_WORDS: [&str; 9] = [
 /// monsters hold (only shown, never looted).
 const OBSOLETE_PREFIXES: [&str; 3] = ["OLD", "Monster -", "DNT "];
 
-/// Whether an item name marks it as never obtainable (obsolete, placeholder, monster model…).
+/// Whether an item name marks it as never obtainable (obsolete, placeholder, monster model, test item…).
 pub fn is_obsolete(name: &str) -> bool {
     let lower = name.to_lowercase();
     OBSOLETE_WORDS.iter().any(|w| lower.contains(w))
         || OBSOLETE_PREFIXES.iter().any(|p| name.starts_with(p))
+        || is_test(name)
+}
+
+/// Blizzard's test items: the whole word `test` or `testing`, any case (`2200 Test sword 80 purple`,
+/// `Bâton de test`, `Ring of Critical Testing`), or glued as in `QATest…` / `TestBoots…`.
+/// A whole word only: `Testament de Rexxar` or `Echantillon testé` are real items.
+fn is_test(name: &str) -> bool {
+    name.split(|c: char| !c.is_alphanumeric()).any(|word| {
+        let lower = word.to_lowercase();
+        lower == "test"
+            || lower == "testing"
+            || lower.starts_with("qatest")
+            || word
+                .strip_prefix("Test")
+                .is_some_and(|rest| rest.starts_with(char::is_uppercase))
+    })
 }
 
 #[cfg(test)]
@@ -322,6 +338,15 @@ mod tests {
             "Monster Weapon [DNT]",
             "Hidden Belt (DNT)",
             "DNT HEAD",
+            "2000 Test sword 63 blue",
+            "2200 Test 2h Axe 63 blue",
+            "AHNQIRAJ TEST ITEM A CLOTH BELT",
+            "Cloaked Hood TEST",
+            "Bâton de test",
+            "Ring of Critical Testing 2",
+            "QATest Darkmoon Faire Tickets",
+            "TestBoots - Puffed Mail Green",
+            "Leather Helmet A (test)",
         ] {
             assert!(is_obsolete(name), "{name}");
         }
@@ -331,6 +356,10 @@ mod tests {
             "Lingot de fer",
             "Old Blanchy",
             "Bourse d'or",
+            "Testament de Rexxar",
+            "Echantillon testé d'Un'Goro",
+            "Echantillon de hyène non testé",
+            "Contest Winner's Tabard",
         ] {
             assert!(!is_obsolete(name), "{name}");
         }
