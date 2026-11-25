@@ -32,8 +32,10 @@ pub struct Recipes {
     /// Recipe shown (index in `game.recipes`).
     selection: Option<usize>,
     hits: Vec<Hit>,
-    /// (data address, search, profession) the hits were computed for.
-    built_for: Option<(usize, String, Option<i64>)>,
+    /// Profit of one craft for each hit (None: unknown, or not a recipe).
+    profits: Vec<Option<i64>>,
+    /// (data address, search, profession, items revision) the hits were computed for.
+    built_for: Option<(usize, String, Option<i64>, u64)>,
     /// False on arrival: the search sits in the middle of the page until a profession is chosen or text typed.
     browsing: bool,
 }

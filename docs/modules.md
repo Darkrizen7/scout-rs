@@ -27,7 +27,7 @@
 - **Recettes** : recherche d'une recette ou d'un objet, par métier (même page d'arrivée que Objets, recherche puis
   résultats avec l'icône du métier ou de la catégorie) ; fiche recette (barre de compétence orange / jaune / vert / gris de 0 à 300 sur la ligne du métier, sections séparées, composants en tableau bordé avec ligne Total
   au moins cher entre PNJ et HdV, ou au prix de son craft quand le même métier le fabrique pour moins cher,
-  étiquette « Craft » ; bénéfice, patron). Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
+  étiquette « Craft » ; bénéfice, patron). Dans la liste, une icône « $ » devant chaque recette : verte (bénéfice ≥ 0), rouge (< 0) ou grise « Prix inconnu » (produit ou composant sans prix, recette sans objet) ; bulle = bénéfice en pièces. Calcul dans `scout_core::crafting::profit`, refait quand la révision des prix change. Un objet cliqué ouvre sa fiche dans Objets (`State::show_item`), une recette
   cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
 
 ## Fichiers de l'UI (`app/src/ui/`)
