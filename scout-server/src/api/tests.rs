@@ -95,6 +95,14 @@ async fn health_and_privacy_need_no_key() {
 }
 
 #[tokio::test]
+async fn thanks_needs_no_key() {
+    let app = api(5, 5).await;
+    let (status, response) = get(&app, "/thanks", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(text(response).await.contains("wago.tools"));
+}
+
+#[tokio::test]
 async fn v1_wants_a_key_and_slows_down_guessers() {
     let app = api(2, 5).await;
     assert_eq!(

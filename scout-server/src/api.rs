@@ -1,4 +1,4 @@
-//! The HTTP API: `/health` and `/privacy` for everyone, `/v1/…` with an access key.
+//! The HTTP API: `/health`, `/privacy` and `/thanks` for everyone, `/v1/…` with an access key.
 
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -64,6 +64,7 @@ pub fn router(api: Arc<Api>) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/privacy", get(privacy))
+        .route("/thanks", get(thanks))
         .nest("/v1", v1)
         // The game data package is gzipped already.
         .layer(CompressionLayer::new().compress_when(
@@ -284,10 +285,16 @@ async fn privacy() -> Html<&'static str> {
     Html(include_str!("api/privacy.html"))
 }
 
+async fn thanks() -> Html<&'static str> {
+    Html(thanks::page())
+}
+
 fn internal(e: &anyhow::Error) -> Response {
     eprintln!("API : {e:#}");
     (StatusCode::INTERNAL_SERVER_ERROR, "erreur interne\n").into_response()
 }
+
+mod thanks;
 
 #[cfg(test)]
 mod tests;

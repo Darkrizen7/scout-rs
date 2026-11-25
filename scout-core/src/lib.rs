@@ -2,6 +2,7 @@
 
 pub mod analysis;
 pub mod crafting;
+pub mod credits;
 pub mod drops;
 pub mod gamedata;
 pub mod map;
