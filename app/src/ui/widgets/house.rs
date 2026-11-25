@@ -44,7 +44,6 @@ pub fn house_picker(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle, wid
                 {
                     worker.send(Command::SetPriceServer {
                         url: server.url.clone(),
-                        key: server.key.clone(),
                         region: server.region.clone(),
                         house: Some(house.id),
                     });

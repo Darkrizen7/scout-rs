@@ -31,7 +31,7 @@ pub struct Config {
     pub price_server: PriceServer,
 }
 
-/// Where the Blizzard prices come from; nothing is synced without a key and a house.
+/// Where the Blizzard prices come from; nothing is synced without a house.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PriceServer {
     #[serde(default = "default_server")]
@@ -39,9 +39,6 @@ pub struct PriceServer {
     /// Battle.net region of the house (eu, us, kr, tw).
     #[serde(default = "default_region")]
     pub region: String,
-    /// Personal access key, given by the server's administrator.
-    #[serde(default)]
-    pub key: Option<String>,
     /// Auction house whose prices are kept (`/v1/houses`).
     #[serde(default)]
     pub house: Option<u32>,
@@ -55,7 +52,6 @@ impl Default for PriceServer {
         Self {
             url: default_server(),
             region: default_region(),
-            key: None,
             house: None,
             last_sync: None,
         }
@@ -63,11 +59,10 @@ impl Default for PriceServer {
 }
 
 impl PriceServer {
-    /// Url, key and house, when all are set.
-    pub fn ready(&self) -> Option<(&str, &str, AuctionHouse)> {
-        let key = self.key.as_deref().filter(|k| !k.is_empty())?;
+    /// Url and house, once a house is chosen.
+    pub fn ready(&self) -> Option<(&str, AuctionHouse)> {
         self.house?;
-        Some((self.url.as_str(), key, self.auction_house()))
+        Some((self.url.as_str(), self.auction_house()))
     }
 
     /// The house whose prices every page shows (`AuctionHouse::default()` until one is chosen).
@@ -186,6 +181,14 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn old_config_with_server_key_still_loads() {
+        let text = "[price_server]\nurl = \"https://x.test\"\nkey = \"secret\"\nregion = \"us\"\nhouse = 7\n";
+        let config: Config = toml::from_str(text).unwrap();
+        let (url, house) = config.price_server.ready().unwrap();
+        assert_eq!((url, house.id), ("https://x.test", 7));
+    }
 
     #[test]
     fn moves_old_folder_once_and_never_overwrites() {

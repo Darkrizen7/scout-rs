@@ -5,7 +5,7 @@
   vrai par défaut : masque les objets inutilisables : « Deprecated / Unused / [INUTILISÉ] / périmé / [PH] / OLD /
   Monster - / DNT », `gamedata::is_obsolete` ;
   `last_import` = date du dernier import Scout réussi ; `[price_server]` : `url` du serveur de prix (défaut
-  `scout_api::DEFAULT_SERVER`), `key` = clé d'accès personnelle, `region` (eu, us, kr, tw) et `house` = hôtel des ventes affiché partout, `last_sync` = date
+  `scout_api::DEFAULT_SERVER`), `region` (eu, us, kr, tw) et `house` = hôtel des ventes affiché partout, `last_sync` = date
   des derniers prix téléchargés). Chemins via `directories`.
 - Tables :
   - Market : `items (item_id, name, class_id, subclass_id, class_name, subclass_name)` (noms et catégories vus par

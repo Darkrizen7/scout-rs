@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use scout_core::{GAME_FORMAT, Row};
 use scout_db::Db;
 use scout_gamedata::Manifest;
@@ -71,8 +71,8 @@ pub(super) fn update_game_data(
         manifest.build,
         manifest.bytes / 1000
     )));
-    let (url, key) = server_access(server)?;
-    let game = price_server::gamedata_package(url, key, &manifest)?.into_game_data(GAME_FORMAT)?;
+    let game =
+        price_server::gamedata_package(&server.url, &manifest)?.into_game_data(GAME_FORMAT)?;
     runtime.block_on(db.save_game(&game))?;
     send(Event::Status(format!(
         "Données du jeu : Forever {}, {} recettes, {} objets.",
@@ -86,15 +86,7 @@ pub(super) fn update_game_data(
 
 /// What the price server offers for this tool's `GAME_FORMAT` (None: nothing built yet).
 pub(super) fn latest_game_data(server: &PriceServer) -> Result<Option<Manifest>> {
-    let (url, key) = server_access(server)?;
-    price_server::gamedata_latest(url, key, GAME_FORMAT)
-}
-
-fn server_access(server: &PriceServer) -> Result<(&str, &str)> {
-    let key = server.key.as_deref().filter(|k| !k.is_empty()).context(
-        "les données du jeu viennent du serveur de prix : saisis ta clé d'accès dans les Réglages",
-    )?;
-    Ok((server.url.as_str(), key))
+    price_server::gamedata_latest(&server.url, GAME_FORMAT)
 }
 
 /// Scout does not say which auction house it scanned: the one chosen in the settings
