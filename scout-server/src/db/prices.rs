@@ -1,5 +1,7 @@
 //! `prices`: one row per item for every new content of a listing (what the app downloads).
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use sqlx::SqliteConnection;
 
@@ -122,8 +124,14 @@ impl Db {
     }
 
     /// The newest version of both listings of `house`: every item on sale, plus those that just left.
-    pub async fn latest(&self, house: u32) -> Result<Vec<PriceRow>> {
-        Ok(sqlx::query_as(
+    ///
+    /// Cached until a write changes it (`insert_snapshot`, `add_prices`).
+    pub async fn latest(&self, house: u32) -> Result<Arc<[PriceRow]>> {
+        let generation = match self.latest.get(house) {
+            Ok(rows) => return Ok(rows),
+            Err(generation) => generation,
+        };
+        let rows = sqlx::query_as(
             "SELECT ts, item_id, min_unit, p25_unit, median_unit, quantity, auctions, buyout_less
              FROM prices WHERE house = ? AND ts IN (
                  SELECT MAX(fetched_at) FROM raw_snapshots
@@ -133,7 +141,8 @@ impl Db {
         .bind(house)
         .bind(house)
         .fetch_all(&self.pool)
-        .await?)
+        .await?;
+        Ok(self.latest.put(house, generation, rows))
     }
 
     /// Every row of one item after `since`, oldest first.
@@ -203,6 +212,7 @@ impl Db {
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
+        self.latest.invalidate(p.house);
         Ok(())
     }
 }
@@ -221,6 +231,36 @@ mod tests {
             auctions: 2,
             buyout_less: 1,
         }
+    }
+
+    #[tokio::test]
+    async fn latest_is_cached_until_a_new_snapshot() {
+        let db = Db::memory().await.unwrap();
+        let snapshot = |fetched_at| super::super::NewSnapshot {
+            house: 114,
+            kind: "auctions",
+            fetched_at,
+            last_modified: None,
+            sha256: &[1],
+            path: None,
+            raw_bytes: 0,
+            bytes: 0,
+            auctions: 1,
+        };
+        db.insert_snapshot(&snapshot(100), &[row(1)]).await.unwrap();
+        let first = db.latest(114).await.unwrap();
+        assert_eq!(first.len(), 1);
+        assert!(Arc::ptr_eq(&first, &db.latest(114).await.unwrap()));
+        // Seeing the same content again changes nothing.
+        db.touch_snapshot(114, "auctions", 100, 200).await.unwrap();
+        assert!(Arc::ptr_eq(&first, &db.latest(114).await.unwrap()));
+
+        db.insert_snapshot(&snapshot(300), &[row(1), row(2)])
+            .await
+            .unwrap();
+        let second = db.latest(114).await.unwrap();
+        assert!(!Arc::ptr_eq(&first, &second));
+        assert_eq!(second.iter().map(|r| r.ts).collect::<Vec<_>>(), [300, 300]);
     }
 
     #[tokio::test]

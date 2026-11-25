@@ -107,7 +107,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 | GET | `/privacy` | non | politique de confidentialité (HTML, `api/privacy.html`) + mention Blizzard |
 | GET | `/v1/regions` | oui | JSON : les régions où Forever a des hôtels des ventes |
 | GET | `/v1/{region}/houses` | oui | JSON : `id`, `name`, `last_update` (dernier `ts` de prix), `last_check` |
-| GET | `/v1/{region}/houses/{id}/latest` | oui | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir |
+| GET | `/v1/{region}/houses/{id}/latest` | oui | CSV (même format) : la dernière version des deux listes, tous les objets ; `quantity = 0` = vient de partir ; mis en cache en mémoire, invalidé à chaque nouveau snapshot agrégé |
 | GET | `/v1/{region}/houses/{id}/items/{item}/history?since=<unix>` | oui | CSV : toutes les lignes d'un objet après `since` (index `prices_item`) |
 | GET | `/v1/{region}/houses/{id}/prices?since=<unix>` | oui | CSV `ts,item_id,min_unit,p25_unit,median_unit,quantity,auctions,buyout_less` (vide = `NULL`), du plus ancien au plus récent |
 | GET | `/v1/gamedata/latest?format=<GAME_FORMAT>` | oui | JSON `Manifest` : `format`, `build`, `updated` (= version), `complete`, `bytes` ; 404 si aucun paquet de ce format |

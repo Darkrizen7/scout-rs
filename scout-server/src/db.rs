@@ -8,6 +8,7 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePo
 
 use crate::aggregate::ItemPrices;
 
+mod cache;
 mod prices;
 
 pub use prices::PriceRow;
@@ -48,6 +49,8 @@ CREATE INDEX IF NOT EXISTS fetch_log_ts ON fetch_log (ts);
 #[derive(Clone)]
 pub struct Db {
     pool: SqlitePool,
+    /// `latest` per house; see `cache`.
+    latest: cache::LatestCache,
 }
 
 /// The newest snapshot of one listing.
@@ -116,7 +119,10 @@ impl Db {
             .execute(&pool)
             .await?;
         }
-        Ok(Self { pool })
+        Ok(Self {
+            pool,
+            latest: cache::LatestCache::default(),
+        })
     }
 
     pub async fn upsert_house(&self, id: u32, name: &str, now: i64) -> Result<()> {
@@ -196,6 +202,7 @@ impl Db {
         .await?;
         prices::insert(&mut tx, s.house, s.fetched_at, rows).await?;
         tx.commit().await?;
+        self.latest.invalidate(s.house);
         Ok(())
     }
 
