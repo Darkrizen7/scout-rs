@@ -1,0 +1,22 @@
+[package]
+name = "scout-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# The price server on the VPS (docs/serveur.md): polls the Battle.net auction API, keeps the raw
+# snapshots and serves the aggregates to the desktop app. Independent of the app's crates.
+[dependencies]
+anyhow = "1.0.104"
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+rustix = { version = "1", features = ["fs"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+sqlx = { version = "0.9.1", default-features = false, features = ["runtime-tokio", "sqlite", "derive"] }
+tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+ureq = "3"
+zstd = "0.13"
+
+[lints]
+workspace = true

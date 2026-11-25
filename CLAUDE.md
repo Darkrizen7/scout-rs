@@ -57,6 +57,7 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 | `scout-db` | SQLite (sqlx) : schéma, migrations, requêtes par domaine. |
 | `scout-worker` | Threads de fond (`Command` → `Event`) : **seul** endroit qui touche disque, base, réseau et processus. |
 | `app` (binaire `scout-rs`) | UI egui uniquement (`app.rs`, `state.rs`, `ui/`). |
+| `scout-server` (binaire) | Serveur de prix du VPS (API Battle.net), indépendant des autres crates : `docs/serveur.md`. |
 
 - Aucune opération longue sur le thread UI ; l'UI ne lit jamais le disque.
 - Une règle métier utilisée par l'UI va dans `scout-core` ; un widget utilisé par deux panneaux va dans `ui/widgets.rs`.

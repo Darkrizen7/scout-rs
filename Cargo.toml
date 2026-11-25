@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["app", "scout-core", "scout-sources", "scout-db", "scout-worker"]
+members = ["app", "scout-core", "scout-sources", "scout-db", "scout-worker", "scout-server"]
+# `cargo run` / `cargo build` = the desktop app; the server (Linux only) is built by its Dockerfile.
+default-members = ["app"]
 
 [workspace.package]
 version = "0.3.0"
