@@ -10,12 +10,13 @@ mod sidebar;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use eframe::egui::{self, RichText};
+use eframe::egui;
 
 use crate::state::State;
 use crate::ui::theme;
+use crate::ui::widgets::data_missing;
 use scout_core::gamedata::{GameData, GameItem};
-use scout_worker::{Command, Task, WorkerHandle};
+use scout_worker::WorkerHandle;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Sort {
@@ -76,7 +77,7 @@ impl Items {
     pub fn show(&mut self, ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
         let game = Arc::clone(&state.game);
         if game.is_empty() {
-            return empty(ui, state, worker);
+            return data_missing(ui, state, worker, ("📦", "Objets"));
         }
         if let Some(item) = state.open_item.take() {
             self.open(item, state, worker);
@@ -152,25 +153,4 @@ pub fn category(game: &GameData, item: &GameItem) -> String {
         .or_else(|| game.category_name(class, None))
         .unwrap_or_default()
         .to_owned()
-}
-
-fn empty(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
-    ui.vertical_centered(|ui| {
-        ui.add_space(80.0);
-        ui.label(RichText::new("📦").size(48.0));
-        ui.heading("Objets");
-        ui.add_space(6.0);
-        ui.label("Il faut d'abord télécharger les données du jeu (objets, recettes, métiers de WoW Forever).");
-        ui.add_space(10.0);
-        if ui.add_enabled(!state.busy(Task::GameData), egui::Button::new("⤓ Télécharger les données du jeu")).clicked() {
-            worker.send(Command::UpdateGameData);
-        }
-        if state.busy(Task::GameData) {
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label(&state.status);
-            });
-        }
-    });
 }

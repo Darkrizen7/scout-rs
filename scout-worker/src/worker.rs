@@ -28,7 +28,6 @@ use scout_sources::wow;
 
 use crate::config::{self, Config};
 use crate::message::{Command, Event, Task};
-use crate::reference;
 
 /// Sends an event to the UI (and wakes it up); shared by the loop and the task threads.
 pub(crate) type Sink = Arc<dyn Fn(Event) + Send + Sync>;
@@ -118,7 +117,8 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         Ok(db) => db,
         Err(e) => return send(Event::Error(format!("base de données : {e:#}"))),
     };
-    apply_reference(&runtime, &db, &*send);
+    // A new database has no game data: downloaded below, once the worker is running.
+    let first_start = !matches!(runtime.block_on(db.game_version()), Ok(Some(_)));
     match runtime.block_on(db.load_game()) {
         Ok(game) if !game.is_empty() => send(Event::GameData(Arc::new(game))),
         Ok(_) => {}
@@ -157,17 +157,20 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
     let (reference_db, reference_send) = (db.clone(), send.clone());
     let reference_server = config.price_server.clone();
     let reference_runtime = shared_runtime.clone();
-    let _ = thread::Builder::new()
-        .name("server-reference".into())
-        .spawn(move || {
-            tasks::update_server_reference(
-                &reference_runtime,
-                &reference_db,
-                &reference_server,
-                true,
-                &*reference_send,
-            )
-        });
+    // (Not on the first start: the download of everything covers it.)
+    if !first_start {
+        let _ = thread::Builder::new()
+            .name("server-reference".into())
+            .spawn(move || {
+                tasks::update_server_reference(
+                    &reference_runtime,
+                    &reference_db,
+                    &reference_server,
+                    true,
+                    &*reference_send,
+                )
+            });
+    }
     // A newer version of the tool? (network too; silent when offline)
     let updates = send.clone();
     let _ = thread::Builder::new()
@@ -190,6 +193,16 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         exe: std::env::current_exe().ok(),
     };
     prices::start(&shared);
+    if first_start {
+        shared.spawn(Task::GameData, |runtime, shared| {
+            tasks::update_all(
+                runtime,
+                &shared.db,
+                &shared.config().price_server,
+                &*shared.send,
+            )
+        });
+    }
     for command in commands {
         if let Err(e) = handle(command, &shared) {
             (shared.send)(Event::Error(format!("{e:#}")));
@@ -311,19 +324,6 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
         }
     }
     Ok(())
-}
-
-/// Game data and loot shipped with the tool, for a new database or after an update of the tool.
-fn apply_reference(runtime: &tokio::runtime::Runtime, db: &Db, send: &dyn Fn(Event)) {
-    // Unpacked next to the database while it is copied.
-    let unpacked = config::database_path().map(|p| p.with_extension("reference.tmp"));
-    match unpacked.and_then(|path| runtime.block_on(reference::apply(db, &path))) {
-        Ok(Some(update)) if update.game || update.drops => send(Event::Status(
-            "Données de référence installées (données du jeu, butin, marchands).".into(),
-        )),
-        Ok(_) => {}
-        Err(e) => send(Event::Error(format!("données de référence : {e:#}"))),
-    }
 }
 
 async fn open_db() -> Result<Db> {

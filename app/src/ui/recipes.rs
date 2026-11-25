@@ -13,9 +13,9 @@ use eframe::egui;
 use crate::state::State;
 use crate::ui::sidebar::{Icon, entry, rgb, tint};
 use crate::ui::theme;
-use crate::ui::widgets::landing_search;
+use crate::ui::widgets::{data_missing, landing_search};
 use scout_core::gamedata::GameData;
-use scout_worker::{Command, Task, WorkerHandle};
+use scout_worker::WorkerHandle;
 
 /// A search result.
 #[derive(Clone, Copy)]
@@ -42,7 +42,7 @@ impl Recipes {
     pub fn show(&mut self, ui: &mut egui::Ui, state: &mut State, worker: &WorkerHandle) {
         let game = Arc::clone(&state.game);
         if game.is_empty() {
-            return empty(ui, state, worker);
+            return data_missing(ui, state, worker, ("🔨", "Recettes"));
         }
         if let Some(recipe) = state.open_recipe.take() {
             self.selection = Some(recipe);
@@ -147,29 +147,6 @@ impl Recipes {
 
 const SEARCH_ID: &str = "recipes-search";
 const SEARCH_HINT: &str = "🔍 Rechercher une recette ou un objet";
-
-/// No game data yet: explain and offer the download.
-fn empty(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
-    ui.vertical_centered(|ui| {
-        ui.add_space(80.0);
-        ui.label(egui::RichText::new("🔨").size(48.0));
-        ui.heading("Recettes");
-        ui.add_space(6.0);
-        ui.label("Il faut d'abord télécharger les données du jeu (recettes, objets, métiers de WoW Forever).");
-        ui.weak("Tables du client Forever en français, depuis wago.tools — environ 12 Mo, une seule fois.");
-        ui.add_space(10.0);
-        if ui.add_enabled(!state.busy(Task::GameData), egui::Button::new("⤓ Télécharger les données du jeu")).clicked() {
-            worker.send(Command::UpdateGameData);
-        }
-        if state.busy(Task::GameData) {
-            ui.add_space(6.0);
-            ui.horizontal(|ui| {
-                ui.spinner();
-                ui.label(&state.status);
-            });
-        }
-    });
-}
 
 /// Icon of a profession (skill line id); only glyphs present in egui's bundled fonts.
 pub(super) fn profession_icon(id: i64, dark: bool) -> Icon {

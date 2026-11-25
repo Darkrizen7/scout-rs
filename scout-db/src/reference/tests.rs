@@ -4,7 +4,6 @@ use anyhow::Result;
 use scout_core::GAME_FORMAT;
 
 use super::super::Db;
-use super::ReferenceUpdate;
 
 fn temp_dir(name: &str) -> Result<PathBuf> {
     let dir =
@@ -51,72 +50,6 @@ async fn filled(path: &Path, updated: i64, item: &str) -> Result<Db> {
 async fn count(db: &Db, sql: &'static str) -> Result<i64> {
     let (n,): (i64,) = sqlx::query_as(sql).fetch_one(&db.pool).await?;
     Ok(n)
-}
-
-async fn item_name(db: &Db) -> Result<String> {
-    let (name,): (String,) = sqlx::query_as("SELECT name FROM game_items WHERE item_id = 1")
-        .fetch_one(&db.pool)
-        .await?;
-    Ok(name)
-}
-
-#[tokio::test]
-async fn exports_reference_data_only_and_applies_what_is_newer() -> Result<()> {
-    let dir = temp_dir("export")?;
-    let source = filled(&dir.join("source.db"), 200, "Lin").await?;
-    source.close().await;
-    let seed = dir.join("reference.db");
-    Db::export_reference(&dir.join("source.db"), &seed).await?;
-
-    // A new database gets everything but the personal data.
-    let fresh = Db::open(&dir.join("fresh.db")).await?;
-    let all = ReferenceUpdate {
-        game: true,
-        drops: true,
-    };
-    assert_eq!(fresh.apply_reference(&seed).await?, all);
-    assert_eq!(item_name(&fresh).await?, "Lin");
-    assert_eq!(count(&fresh, "SELECT COUNT(*) FROM drop_npcs").await?, 1);
-    assert_eq!(
-        count(&fresh, "SELECT COUNT(*) FROM vendor_prices").await?,
-        1
-    );
-    for personal in [
-        "SELECT COUNT(*) FROM items",
-        "SELECT COUNT(*) FROM snapshots",
-        "SELECT COUNT(*) FROM favorites",
-        "SELECT COUNT(*) FROM loot_npcs",
-    ] {
-        assert_eq!(count(&fresh, personal).await?, 0, "{personal}");
-    }
-    // Applied again: nothing newer, merchants not doubled.
-    assert_eq!(
-        fresh.apply_reference(&seed).await?,
-        ReferenceUpdate::default()
-    );
-    assert_eq!(
-        count(&fresh, "SELECT COUNT(*) FROM vendor_prices").await?,
-        1
-    );
-
-    // Newer local data (a later download) stays.
-    let newer = filled(&dir.join("newer.db"), 300, "Tissu de lin").await?;
-    assert_eq!(
-        newer.apply_reference(&seed).await?,
-        ReferenceUpdate::default()
-    );
-    assert_eq!(item_name(&newer).await?, "Tissu de lin");
-
-    // Loot imported before its date was kept is older than the reference.
-    sqlx::query("DELETE FROM drop_meta")
-        .execute(&newer.pool)
-        .await?;
-    assert!(newer.apply_reference(&seed).await?.drops);
-
-    fresh.close().await;
-    newer.close().await;
-    std::fs::remove_dir_all(&dir)?;
-    Ok(())
 }
 
 #[tokio::test]

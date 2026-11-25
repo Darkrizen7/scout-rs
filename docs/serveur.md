@@ -170,7 +170,7 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - **Données du jeu** : « Mettre à jour » (Réglages, ou les boutons des onglets Objets / Recettes) et la vérification au
   démarrage demandent `/v1/gamedata/latest` pour le `GAME_FORMAT` de l'appli ; le paquet est téléchargé s'il diffère
   (autre build, autre format) ou est plus récent (`Manifest::newer_than` contre `game_meta`), puis remplace les
-  `game_*`. Sans clé : la base de référence intégrée seulement.
+  `game_*`. Sans clé : pas de données du jeu (l'appli les demande au premier lancement).
 
 ### 3.6 bis Paquet de référence (butin et marchands)
 - SQLite gzippé avec seulement `drop_sources`, `drop_npcs`, `drop_names`, `drop_meta` et `vendor_prices` (même schéma
@@ -179,8 +179,8 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
 - Nouvelle version : `cargo run -p scout-worker --example server_reference [base]` (par défaut `prix.db`, lue
   seulement ; préférer une copie), commiter les deux fichiers, redéployer le serveur. Changer les colonnes de ces
   tables : augmenter `REFERENCE_FORMAT` (`scout-core/src/reference.rs`).
-- Licence : GPL-3.0-or-later, comme la base intégrée à l'appli (butin dérivé de Forever Guide, cmangos, QuestieDB).
-- Le téléchargement côté appli : ticket APP-14.
+- Licence : GPL-3.0-or-later, seul morceau GPL du projet : l'appli (MIT) ne l'embarque pas, elle le télécharge (butin dérivé de Forever Guide, cmangos, QuestieDB).
+- Le téléchargement côté appli : `reference::sync_server` (APP-14).
 
 ### 3.7 Données du jeu (`gamedata.rs`, crate `scout-gamedata`)
 

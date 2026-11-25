@@ -112,7 +112,9 @@ impl Loot {
             return;
         };
         if zones.is_empty() {
-            ui.weak("Aucun butin en base : relance l'outil.");
+            ui.weak("Le butin n'a pas encore été téléchargé depuis le serveur.");
+            ui.add_space(6.0);
+            crate::ui::widgets::download_game_data(ui, state, worker);
             return;
         }
         let game = Arc::clone(&state.game);

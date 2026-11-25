@@ -54,9 +54,9 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - Vraies données : `cargo test --workspace -- --ignored --nocapture` (import de l'installation WoW dans une base
   jetable, résumé de l'analyse sur la base locale ; téléchargement complet des données du jeu :
   `cargo test -p scout-worker --test local downloads -- --ignored --nocapture`).
-- Base de référence intégrée (données du jeu, butin, marchands ; GPL) : `cargo run -p scout-worker --example reference`
-  la régénère depuis `prix.db` (après une mise à jour des données du jeu ou de `GAME_FORMAT` : le test
-  `embedded_reference_is_up_to_date` le rappelle ; le butin n'est plus importé de Forever Guide, il vient de cette base).
+- Paquet de butin et marchands du serveur (GPL ; plus rien n'est intégré au binaire, MIT) :
+  `cargo run -p scout-worker --example server_reference` le régénère depuis `prix.db` dans `scout-server/data/`
+  (à commiter puis à déployer avec le serveur).
 - Les scripts Lua tournent dans Lua 5.4 intégré (`mlua`, feature `vendored`) : rien à installer.
 
 ## Données (règles ; détail dans `docs/donnees.md`)
@@ -64,9 +64,10 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - **Ne jamais supprimer de données sans demander ; copier `prix.db` avant toute manipulation.**
 - Formats CSV des exports Scout = **contrat avec l'addon** : les changer des deux côtés.
 - `GAME_FORMAT` (`scout-core/src/gamedata.rs`) : l'augmenter quand on garde de nouvelles colonnes ou tables du jeu.
-  Le format du butin est figé (Forever Guide n'est plus importé) : constante de test dans `scout-worker/src/reference.rs`.
-- La base de référence (`scout-worker/data/reference.db.gz`) n'a **jamais** de données personnelles : ni prix,
-  ni favoris, ni butin enregistré (liste des tables dans `scout-db/src/reference.rs`).
+  Le paquet de butin et marchands du serveur a son propre format, `REFERENCE_FORMAT` (`scout-core/src/reference.rs`).
+- Le paquet de référence du serveur (`scout-server/data/reference.db.gz`) n'a **jamais** de données personnelles :
+  ni prix, ni favoris, ni butin enregistré (seulement `drop_*` et `vendor_prices`, `scout-db/src/reference.rs`).
+  Le binaire n'embarque aucune donnée : premier lancement = tout vient du serveur.
 - Une nouvelle source de données se cite dans `scout-core/src/credits.rs` (`SOURCES`, affichée par la page `/thanks` du serveur, ouverte depuis les réglages).
 
 ## Architecture
@@ -122,9 +123,9 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 ## Versions et releases
 - Une version = un tag `vX.Y.Z` posé **par l'utilisateur** (jamais de tag sans demande). Le push du tag lance
   `.github/workflows/release.yml` : tests, compilation, Release GitHub avec les binaires Linux et Windows et leurs `.sha256`.
-- Avant chaque version, **demander à l'utilisateur** s'il faut régénérer la base de référence
-  (`cargo run -p scout-worker --example reference`, après un import Scout récent et les
-  données du jeu à jour) et la commiter avec le reste : c'est elle qui donne aux autres ses nouveaux marchands et le butin.
+- Avant chaque version, **demander à l'utilisateur** s'il y a de nouveaux marchands ou du butin à publier : alors
+  régénérer le paquet du serveur (`cargo run -p scout-worker --example server_reference`, après un import Scout
+  récent), le commiter et déployer le serveur. Le binaire n'en dépend pas.
 - Avant le tag : augmenter `version` dans `[workspace.package]` du `Cargo.toml` racine (commit à part,
   `Cargo.lock` compris). Le tag doit être identique à cette version (`v` + version), sinon l'Action échoue :
   la mise à jour automatique (`worker/update`, bouton « Mettre à jour » en haut) compare `CARGO_PKG_VERSION` à

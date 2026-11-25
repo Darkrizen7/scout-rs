@@ -34,20 +34,17 @@
   - `wowhead_items` (mêmes colonnes que `game_items`) : objets demandés à Wowhead par les anciennes versions de
     l'outil ; plus lue ni écrite par l'appli (le serveur les met dans son paquet), gardée parce que la base de
     référence la contient encore.
-  - `meta (key, value)` : `reference` = identifiant (fin du gzip : CRC-32 et taille) de la base de référence
-    déjà appliquée ; `server_reference` = `format:updated` du paquet butin + marchands du serveur déjà appliqué
+  - `meta (key, value)` : `reference` = ancienne clé (base intégrée, supprimée), inoffensive et conservée ;
+    `server_reference` = `format:updated` du paquet butin + marchands du serveur déjà appliqué
     (`Db::server_reference`).
-- **Base de référence** (`scout-worker/data/reference.db.gz`, intégrée par `include_bytes!`, GPL-3.0-or-later) :
-  données du jeu `game_*`, `wowhead_items`, butin `drop_*`, `vendor_prices`. Jamais `items`, `snapshots`,
-  favoris ni `loot_*`. Au premier lancement de chaque nouvelle version (identifiant différent de `meta`),
-  décompressée à côté de `prix.db` puis attachée (`scout-db/src/reference.rs`) : données du jeu remplacées si
-  elles sont au `GAME_FORMAT` courant et plus récentes (`game_meta.updated`) ou si la base locale n'en a pas ;
-  butin remplacé si plus récent (`drop_meta.updated` ; absent = plus ancien) ; marchands et objets Wowhead
+- **Paquet de référence du serveur** (`scout-server/data/reference.db.gz`, GPL-3.0-or-later, téléchargé, jamais
+  intégré au binaire) : butin `drop_*` et `vendor_prices` seulement. Jamais `items`, `snapshots`, favoris ni
+  `loot_*`. Appliqué par `Db::apply_loot_vendors` (`scout-db/src/reference.rs`) : butin remplacé, marchands
   ajoutés (`INSERT OR IGNORE` : le local gagne). Les marchands vus par Scout s'ajoutent à chaque import (jamais
-  supprimés) ; la liste `foreverguide` ne vient que de cette base.
-  Régénérer : `cargo run -p scout-worker --example reference` (depuis `prix.db`, qui doit avoir les données du
-  jeu et le butin déjà présent, qui n'est plus réimporté). Le test `embedded_reference_is_up_to_date` échoue si son
-  `GAME_FORMAT` n'est plus celui du code : la régénérer. Le format du butin (2) est figé : constante de ce test.
+  supprimés). Régénérer : `cargo run -p scout-worker --example server_reference` (depuis `prix.db`).
+- **Premier lancement** : sans données du jeu (`game_meta` vide), le worker télécharge tout seul les données du
+  jeu puis le butin et les marchands (`tasks::update_all`, tâche `GameData`) ; les onglets Objets, Recettes et
+  Butin affichent « pas encore téléchargées » avec le bouton de téléchargement en attendant.
 - Évolution du schéma : `CREATE TABLE IF NOT EXISTS` + colonnes ajoutées si absentes (`ITEM_COLUMNS` dans
   `scout-db/src/lib.rs` et `game.rs`).
 - Les numéros d'objet sont ceux du jeu, identiques dans Scout et les tables du client.
