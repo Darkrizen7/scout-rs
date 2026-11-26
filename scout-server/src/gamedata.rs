@@ -165,9 +165,16 @@ impl GameStore {
             .and_then(|m| self.read_package(m).ok());
         let (package, left) = match current {
             Some(mut package) => {
+                let fixed = apply_pattern_skills(&mut package.tables);
                 let wanted = scout_gamedata::wanted_items(&package.tables, extra, &unknown);
                 if package.complete && wanted.is_empty() {
-                    return Ok((None, Left::Nothing));
+                    if !fixed {
+                        return Ok((None, Left::Nothing));
+                    }
+                    eprintln!("données du jeu : niveaux des patrons corrigés");
+                    package.updated = unix_now();
+                    let manifest = self.publish(&package, latest.as_ref())?;
+                    return Ok((Some(manifest), Left::Nothing));
                 }
                 eprintln!(
                     "données du jeu : {} objets à nommer par Wowhead",
@@ -199,7 +206,8 @@ impl GameStore {
                 );
                 // Keep what Wowhead answered even when the download failed further on.
                 self.save_caches(&known, &unknown)?;
-                let download = download?;
+                let mut download = download?;
+                apply_pattern_skills(&mut download.tables);
                 let naming = Naming {
                     blocked: download.blocked,
                     limited: download.limited,
@@ -279,6 +287,15 @@ async fn unnamed_priced(dbs: &[Db], named: &HashSet<i64>) -> Result<Vec<i64>> {
     let mut ids: Vec<i64> = ids.difference(named).copied().collect();
     ids.sort_unstable();
     Ok(ids)
+}
+
+/// Skill levels of recipe items as seen in game (`data/pattern_skills.csv`, from the Scout addon:
+/// items and levels only), over the client tables. Returns whether a recipe changed.
+fn apply_pattern_skills(tables: &mut scout_core::gamedata::Tables) -> bool {
+    static CSV: &str = include_str!("../data/pattern_skills.csv");
+    static SKILLS: std::sync::LazyLock<HashMap<i64, i64>> =
+        std::sync::LazyLock::new(|| scout_gamedata::parse_pattern_skills(CSV));
+    scout_gamedata::apply_pattern_skills(tables, &SKILLS)
 }
 
 fn file_name(updated: i64) -> String {
@@ -366,5 +383,29 @@ pub(crate) mod tests {
         assert!(store.package_path(GAME_FORMAT, 999).is_none());
         assert!(store.latest(GAME_FORMAT + 1).is_none());
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn pattern_levels_seen_in_game_fix_the_tables() {
+        let recipe = |required, item| scout_core::gamedata::Recipe {
+            spell_id: item,
+            name: String::new(),
+            profession: 164,
+            required,
+            yellow: 0,
+            grey: 0,
+            creates: None,
+            reagents: vec![],
+            taught_by: vec![item],
+        };
+        // Plans: Iron Shield Spike, 125 in the client tables, 150 in game.
+        let mut tables = Tables {
+            recipes: vec![recipe(Some(125), 6044), recipe(Some(35), 5083)],
+            ..Tables::default()
+        };
+        assert!(apply_pattern_skills(&mut tables));
+        assert_eq!(tables.recipes[0].required, Some(150));
+        assert_eq!(tables.recipes[1].required, Some(35));
+        assert!(!apply_pattern_skills(&mut tables));
     }
 }

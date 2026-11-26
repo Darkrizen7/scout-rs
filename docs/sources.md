@@ -38,7 +38,7 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
   197) ; objet produit = effet 24 (`EffectItemType`, quantité `EffectBasePointsF`) ; composants `Reagent_0..7` ;
   objets de recette = `ItemEffect.TriggerType` 6 (niveau requis = leur `RequiredSkillRank`, servi aux clients
   dans le paquet : `Recipe.required` + `taught_by` ; comparé le 26/11/2026 aux relevés de l'addon, `ScoutDB.craft.patterns` :
-  632 patrons sur 636 identiques, donc pas de remontée des relevés vers le serveur) ; catégories =
+  632 patrons sur 636 identiques ; les relevés de l'addon priment, `scout-server/data/pattern_skills.csv`, voir `docs/serveur.md`) ; catégories =
   `ItemClass` / `ItemSubClass` (nom détaillé `VerboseName_lang` sinon `DisplayName_lang`). ~2 500 recettes
   (Classic ≈ 1 300 + ajouts Forever), cohérent avec Forever Guide ; sont écartés à raison : rangs de métier,
   récolte, spécialisations, invocations, sorts sans nom. Cartes : `UiMap` (nom, parent, type) +

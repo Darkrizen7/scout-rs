@@ -212,6 +212,11 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
   Wowhead aussi (mêmes règles : une requête par objet, 3 s de pause, arrêt au premier refus). Même build : le paquet
   courant est complété sur place (nouvel `updated`, pas de nouveau téléchargement wago.tools), seulement s'il est
   incomplet ou s'il manque des objets que Wowhead peut encore nommer.
+- Niveaux requis des patrons : `scout-server/data/pattern_skills.csv` (`item_id,skill`, intégré au binaire), relevé
+  en jeu par l'addon (`ScoutDB.craft.patterns[*].req`, objets et niveaux seulement), remplace le `RequiredSkillRank`
+  des tables du client (`scout_gamedata::apply_pattern_skills`, le plus haut des patrons d'une recette) dans chaque
+  paquet construit ; si le paquet courant diffère (serveur redéployé avec un nouveau fichier), il est republié
+  corrigé (nouvel `updated`) et les applis le reprennent.
 - `data/gamedata/wowhead.json` : objets déjà nommés par Wowhead (chacun n'est demandé qu'une fois) ;
   `data/gamedata/wowhead_unknown.json` : ids que Wowhead ne connaît pas (liste triée, pas redemandés) ;
   `data/gamedata/<format>/<updated>.json.gz` (`scout_gamedata::Package` : `Tables` en JSON gzip) et `latest.json`
