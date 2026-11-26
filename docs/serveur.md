@@ -220,6 +220,9 @@ Route **`https://scout.arthurdevtest.duckdns.org`** (Traefik, `[web] host = "sco
   des tables du client (`scout_gamedata::apply_pattern_skills`, le plus haut des patrons d'une recette) dans chaque
   paquet construit ; si le paquet courant diffère (serveur redéployé avec un nouveau fichier), il est republié
   corrigé (nouvel `updated`) et les applis le reprennent.
+  Régénération : `cargo run -p scout-worker --example pattern_skills [Scout.lua]` (défaut : celui du `wow_dir` des réglages)
+  fusionne les niveaux relevés dans le fichier (il ne fait que grossir, un niveau relevé remplace l'ancien) et affiche le résumé ;
+  à commiter puis à déployer avec le serveur.
 - `data/gamedata/wowhead.json` : objets déjà nommés par Wowhead (chacun n'est demandé qu'une fois) ;
   `data/gamedata/wowhead_unknown.json` : ids que Wowhead ne connaît pas (liste triée, pas redemandés) ;
   `data/gamedata/<format>/<updated>.json.gz` (`scout_gamedata::Package` : `Tables` en JSON gzip) et `latest.json`
