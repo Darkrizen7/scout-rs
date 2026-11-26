@@ -1,6 +1,6 @@
 ---
 name: dev
-description: Implémente un ticket OpenProject (ou un petit groupe de tickets) de scout-rs à partir d'une consigne ou d'une spec, sur la branche déjà créée. Lancé par la skill /openproject, avec model sonnet ou haiku.
+description: Implémente un ticket pman (ou un petit groupe de tickets) de scout-rs à partir d'une consigne ou d'une spec, sur la branche déjà créée. Lancé par la skill /pman, avec model sonnet ou haiku.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
 ---
@@ -20,7 +20,7 @@ Interdits :
 - Pas de `git commit`, `git push`, `git checkout`, `git branch`, `git reset`, ni de tag : la branche est déjà prête.
 - Pas de `rm` hors de `target/` ou du scratchpad. Ne jamais toucher à `~/.local/share/scout-rs/` (`prix.db`)
   ni à `~/.config/scout-rs/`.
-- Pas de commande `openproject` ni d'autre outil de tickets : c'est l'orchestrateur qui met à jour les tickets.
+- Pas de commande `pman` ni d'autre outil de tickets : c'est l'orchestrateur qui met à jour les tickets.
 - Ne pas élargir le périmètre : un problème découvert en route se signale dans le rapport.
 - Ne pas changer les formats CSV des exports Scout (contrat avec l'addon) sans que la consigne le demande.
 

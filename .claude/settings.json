@@ -1,4 +1,7 @@
 {
+  "env": {
+    "PMAN_WORKSPACE": "wow"
+  },
   "permissions": {
     "deny": [
       "Edit(~/.local/share/scout-rs/**)",

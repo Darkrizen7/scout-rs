@@ -20,20 +20,24 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
   fichiers sur disque et télécharge des données publiques) ; voir aussi le `CLAUDE.md` de Scout.
 - Économie de tokens : lire seulement les fichiers / passages utiles (`grep -n` puis lecture ciblée), garder
   la sortie des commandes courte (voir ci-dessous), ne pas lancer de sous-agents sans demande
-  (sauf via `/openproject`, voir « Tickets (OpenProject) »).
+  (sauf via `/pman`, voir « Tickets (pman) »).
 
-## Tickets (OpenProject)
-- Source de vérité des tâches : **OpenProject** (http://localhost:8081, `~/openproject-selfhost`), lu et écrit
-  avec le CLI global `openproject` (`~/dev/outils/openproject-cli`, README ; toujours `--json`). Projets `app`
-  (crate `app`), `server` (`scout-server`), `addon` (dépôt `../scout-addon`), `outils` (CLI, migration, outillage).
-  Clés lisibles conservées : `APP-42` (champ `Key`, attribuée par `task create`). Plane (8080) n'est plus tenu.
-- Comptes : Claude agit **uniquement** avec le compte `claude-agent` (jeton dans le keyring, jamais affiché) ;
-  l'utilisateur est `arthur`. Type **Feature** (nouveauté, évolution) ou **Bug** (correction), posé à la création ;
-  type **Validation** = vérification confiée à l'utilisateur.
-- États : Backlog → To do → In progress → In review → Done (ou Cancelled, Refused). Un ticket en « To do » est
-  prenable ; l'utilisateur choisit toujours lequel traiter (argument de `/openproject`, sinon liste proposée).
-- Prenable (calculé par `openproject agent next`) : « To do », pas assigné à un humain, bloquants fermés.
-  Réserver (`agent claim`, assigne à `claude-agent`) ≠ démarrer (`agent start`, « In progress »).
+## Tickets (pman)
+- Source de vérité des tâches : **pman** (http://127.0.0.1:8090, dépôt `~/dev/outils/pman`, `docker compose`),
+  lu et écrit avec le CLI global `pman` (README de `crates/pman-cli` ; `--json` pour les sorties à analyser).
+- **Workspace `wow`** : `PMAN_WORKSPACE=wow` est posé par `.claude/settings.json` (`env`) ; s'il manque (session
+  ouverte ailleurs), préfixer chaque commande : `PMAN_WORKSPACE=wow pman …`. Projets : `APP` (crate `app`),
+  `SERVER` (`scout-server`), `ADDON` (dépôt `../scout-addon`), `OUTILS` (skills, CLAUDE.md, outillage du dépôt).
+  Clés `APP-42`, attribuées par `task create`. Lien d'un ticket : `http://127.0.0.1:8090/wow/projects/APP/issues/APP-42`.
+  OpenProject et Plane ne sont plus tenus.
+- Comptes : Claude agit **uniquement** avec le bot `claude` (jeton dans le keyring, jamais affiché) ; l'utilisateur
+  est `admin` (`human` dans `~/.config/pman/config.toml`). Label **Feature** (nouveauté, évolution) ou **Fix**
+  (correction), posé à la création ; label **Validation** = vérification confiée à l'utilisateur.
+- États : Backlog → Todo → In progress → In review → Done (ou Cancelled) ; noms CLI `backlog`, `todo`,
+  `in_progress`, `in_review`, `done`, `cancelled`. Un ticket en Todo est prenable ; l'utilisateur choisit toujours
+  lequel traiter (argument de `/pman`, sinon liste proposée).
+- Prenable (calculé par `pman agent next`) : Todo, pas assigné à quelqu'un d'autre, pas de label Validation,
+  bloquants fermés. Réserver (`agent claim`, assigne à `claude`) ≠ démarrer (`agent start`, In progress).
 - Une branche par ticket depuis `master`, nommée avec la clé (`APP-42-description-courte`, `agent branch`), et la
   clé en tête du sujet des commits (`APP-42 : …`). Un ticket à la fois (pas de parallèle).
 - À la fin, sans attendre de demande : commit(s) sur la branche, `git push -u origin <branche>`, PR vers `master`
@@ -44,11 +48,11 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
   la conversation** (pourquoi, quoi, comment, résultat attendu, clé et lien).
 - Travail découvert en route : nouveau ticket (avec relation si pertinent), pas d'élargissement du périmètre.
 - Blocage ou ambiguïté : commenter le ticket avec la question précise, `agent release`, ticket suivant.
-- `/openproject` (`.claude/skills/openproject/`) : choix, délégation du code à l'agent `dev`
+- `/pman` (`.claude/skills/pman/`) : choix, délégation du code à l'agent `dev`
   (`.claude/agents/dev.md`, Haiku ou Sonnet), relecture du diff par Claude. Seuls Claude et l'utilisateur
-  touchent à OpenProject, jamais le sous-agent.
-- Configuration de l'instance (statuts, types, champs, rôles) : `~/dev/outils/openproject-cli/setup/apply.sh`
-  (console Rails, idempotent) ; l'API ne permet pas de la modifier.
+  touchent à pman, jamais le sous-agent.
+- Statuts fixes ; labels et champs `AI …` par projet (`pman project show APP`, `project setup-agent APP`).
+  Administration (utilisateurs, jetons) : `docker compose exec pman pman-server admin …` dans `~/dev/outils/pman`.
 
 ## Commandes (sortie silencieuse : n'afficher que les erreurs)
 - Vérifier : `cargo clippy -q --workspace --all-targets --message-format short` : **zéro avertissement** avant
@@ -115,7 +119,7 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 
 ## Commits
 - Sujet en français, phrase courte avec majuscule, corps qui explique le pourquoi. Branche `master`,
-  ou la branche du ticket (voir « Tickets (OpenProject) »).
+  ou la branche du ticket (voir « Tickets (pman) »).
   Hors tickets, commit et push **seulement à la demande** ; sur une branche de ticket, Claude commite,
   pousse, ouvre la PR et la fusionne lui-même : fusion par Claude : `git merge --no-ff` de la branche dans `master` en local (commit de fusion daté hors
   plage, `GIT_AUTHOR_DATE` et `GIT_COMMITTER_DATE`), clippy et tests sur le résultat, puis `git push origin master` (le seul
