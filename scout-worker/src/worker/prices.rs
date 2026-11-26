@@ -61,18 +61,12 @@ pub(super) fn set_server(
         config.save()?;
         changed.then(|| config.price_server.auction_house())
     };
-    let rewrite = chosen.is_some();
     if let Some(house) = chosen {
         show_house(&shared.runtime, shared, &house)?;
     }
     load_houses(shared);
-    shared.spawn(Task::Prices, move |runtime, shared| {
-        sync_latest(runtime, shared, false)?;
-        if rewrite {
-            // Another house: the addon's prices are those of the new one.
-            super::addon_history::start(shared, true);
-        }
-        Ok(())
+    shared.spawn(Task::Prices, |runtime, shared| {
+        sync_latest(runtime, shared, false)
     });
     Ok(())
 }
@@ -148,11 +142,17 @@ pub(super) fn sync_latest(runtime: &Runtime, shared: &Shared, force: bool) -> Re
         db.insert(&scout_api::latest_rows(&house, &last, &latest))
             .await
     })?;
+    let same_house = |config: &crate::Config| {
+        config.price_server.region == server.region && config.price_server.house == server.house
+    };
     {
         let mut config = shared.config();
-        config.price_server.last_sync = Some(started);
-        send(Event::Config(config.clone()));
-        config.save()?;
+        // The house may have changed during the download: its own sync is not done yet.
+        if same_house(&config) {
+            config.price_server.last_sync = Some(started);
+            send(Event::Config(config.clone()));
+            config.save()?;
+        }
     }
     if added > 0 {
         runtime.block_on(refresh(db, &house, send))?;
@@ -166,6 +166,12 @@ pub(super) fn sync_latest(runtime: &Runtime, shared: &Shared, force: bool) -> Re
         "Scout API : {} prix lus, {added} changements enregistrés{sales}",
         latest.len()
     )));
+    if !same_house(&shared.config()) {
+        // Another house was chosen meanwhile (its own sync was refused while this one ran).
+        return sync_latest(runtime, shared, force);
+    }
+    // The addon gets the prices of this house (once a day, or at once for a new house).
+    super::addon_history::start(shared, false);
     Ok(())
 }
 

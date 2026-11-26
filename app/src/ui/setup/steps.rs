@@ -33,12 +33,11 @@ impl Setup {
             {
                 worker.send(Command::SetWowDir(typed.clone()));
             }
-            match saved {
-                Some(dir) if !changed => {
-                    ui.colored_label(theme::current(ui).gain, format!("✔ {}", dir.display()))
-                }
-                _ => ui.weak("Dossier non validé"),
-            };
+            if saved.is_some() && !changed {
+                ui.colored_label(theme::current(ui).gain, "✔ Dossier validé");
+            } else {
+                ui.weak("Dossier non validé");
+            }
         });
     }
 
@@ -128,11 +127,25 @@ pub(super) fn prices(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
             ui.label("Écriture des prix…");
             ui.weak(&state.status);
         });
-    } else if let Some(items) = state.addon_history {
-        ui.colored_label(
-            theme::current(ui).gain,
-            format!("✔ {items} objets envoyés à l'addon."),
-        );
+    } else {
+        match state.addon_history {
+            Some(0) => {
+                ui.colored_label(
+                    theme::current(ui).loss,
+                    "Aucun prix reçu pour cet hôtel des ventes : réessaie dans un instant.",
+                );
+            }
+            Some(items) => {
+                ui.colored_label(
+                    theme::current(ui).gain,
+                    format!("✔ {items} objets envoyés à l'addon."),
+                );
+            }
+            // Written after the prices' download (house step); nothing written in this session.
+            None => {
+                ui.weak("Prix pas encore envoyés : « Réessayer » les envoie.");
+            }
+        }
     }
     if let Some(error) = &state.error {
         ui.colored_label(theme::current(ui).loss, format!("⚠ {error}"));

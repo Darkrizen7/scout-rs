@@ -68,8 +68,9 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
 remplacé en bloc, les marchands sont ajoutés (ceux déjà présents, vus par Scout, gagnent). Un paquet sans butin est refusé.
 
 ## Prix envoyés à l'addon (`History.lua`)
-Au lancement (au plus une fois par jour, `addon_history_day` dans `config.toml`), après le choix d'un dossier WoW avec
-l'addon installé et d'une maison, et toujours après l'installation de l'addon (le dossier est remplacé), le worker
+Au lancement, après chaque synchro des prix et après le choix d'un dossier WoW avec l'addon installé (au plus une fois
+par jour et par maison : `addon_history_day` et `addon_history_house` dans `config.toml`), et toujours après l'installation
+de l'addon (le dossier est remplacé) ou sur « Réessayer » dans l'assistant, le worker
 (`worker/addon_history.rs`, tâche `AddonHistory`) écrit `Interface/AddOns/Scout/History.lua` (fichier temporaire
 `.History.lua.tmp` puis `rename` ; marche aussi par le lien d'une installation de dev). Calcul pur : `scout-core/src/addon_history.rs`.
 ```lua
