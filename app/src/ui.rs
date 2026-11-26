@@ -13,6 +13,7 @@ pub mod items;
 pub mod loot;
 pub mod recipes;
 pub mod settings;
+pub mod setup;
 pub mod sidebar;
 pub mod theme;
 pub mod widgets;

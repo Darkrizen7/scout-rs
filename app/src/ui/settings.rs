@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use eframe::egui;
 
-mod price_server;
+pub mod price_server;
 
 use crate::state::State;
 use crate::ui::{theme, widgets};
@@ -35,6 +35,10 @@ impl Settings {
             .unwrap_or_default();
     }
 
+    pub fn close(&mut self) {
+        self.open = false;
+    }
+
     pub fn window(&mut self, ctx: &egui::Context, state: &mut State, worker: &WorkerHandle) {
         if std::mem::take(&mut self.check_addon) {
             worker.send(Command::CheckScoutAddon);
@@ -56,6 +60,13 @@ impl Settings {
                 game_data(ui, state, worker);
                 section(ui, "WoW", false);
                 self.wow(ui, state, worker);
+                if ui
+                    .button("Relancer l'assistant de démarrage")
+                    .on_hover_text("Repasse par les étapes du premier lancement.")
+                    .clicked()
+                {
+                    state.open_setup = true;
+                }
                 ui.add_space(6.0);
                 ui.separator();
                 ui.horizontal(|ui| {

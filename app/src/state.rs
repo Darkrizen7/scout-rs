@@ -120,6 +120,8 @@ pub struct State {
     pub quit: bool,
     /// Items sent to the addon, shown in the window until the user closes it.
     pub addon_history: Option<usize>,
+    /// The settings asked to (re)open the first-launch assistant.
+    pub open_setup: bool,
 }
 
 impl Default for State {
@@ -158,6 +160,7 @@ impl Default for State {
             update_installed: None,
             quit: false,
             addon_history: None,
+            open_setup: false,
             latest_game_data: None,
             server_houses: None,
             house_changed: false,

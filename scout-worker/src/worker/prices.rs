@@ -61,12 +61,18 @@ pub(super) fn set_server(
         config.save()?;
         changed.then(|| config.price_server.auction_house())
     };
+    let rewrite = chosen.is_some();
     if let Some(house) = chosen {
         show_house(&shared.runtime, shared, &house)?;
     }
     load_houses(shared);
-    shared.spawn(Task::Prices, |runtime, shared| {
-        sync_latest(runtime, shared, false)
+    shared.spawn(Task::Prices, move |runtime, shared| {
+        sync_latest(runtime, shared, false)?;
+        if rewrite {
+            // Another house: the addon's prices are those of the new one.
+            super::addon_history::start(shared, true);
+        }
+        Ok(())
     });
     Ok(())
 }

@@ -291,6 +291,13 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             drop(config);
             addon_history::start(shared, false);
         }
+        Command::FinishSetup => {
+            let mut config = shared.config();
+            config.setup_done = true;
+            send(Event::Config(config.clone()));
+            config.save()?;
+        }
+        Command::WriteAddonHistory => addon_history::start(shared, true),
         Command::CheckScoutAddon => send(Event::ScoutAddon(scout_addon(&shared.config()))),
         Command::SetTheme(theme) => {
             let mut config = shared.config();

@@ -7,7 +7,7 @@ use crate::state::{Module, State, View};
 use crate::ui::analysis_view;
 use crate::ui::{
     addon_history, calculator, chart, fonts, header, item_list, items, loot, recipes, settings,
-    sidebar, theme,
+    setup, sidebar, theme,
 };
 use scout_core::Theme;
 use scout_worker::{Command, WorkerHandle};
@@ -24,6 +24,10 @@ pub struct App {
     items: items::Items,
     loot: loot::Loot,
     settings: settings::Settings,
+    /// The first-launch assistant, while it is open.
+    setup: Option<setup::Setup>,
+    /// The config was seen once: the assistant opens at most once by itself.
+    setup_checked: bool,
     /// Theme currently applied to the egui context.
     theme: Option<Theme>,
 }
@@ -44,6 +48,8 @@ impl App {
             items: items::Items::default(),
             loot: loot::Loot::default(),
             settings: settings::Settings::default(),
+            setup: None,
+            setup_checked: false,
             theme: None,
         }
     }
@@ -60,6 +66,17 @@ impl eframe::App for App {
             && let Some(id) = self.state.selected
         {
             self.worker.send(Command::LoadHistory(id));
+        }
+        if let Some(config) = &self.state.config
+            && !std::mem::replace(&mut self.setup_checked, true)
+            && !config.setup_done
+        {
+            self.state.open_setup = true;
+        }
+        if std::mem::take(&mut self.state.open_setup) {
+            self.settings.close();
+            self.setup = Some(setup::Setup::new(&self.state));
+            self.worker.send(Command::CheckScoutAddon);
         }
         if self.state.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -88,8 +105,15 @@ impl eframe::App for App {
             items,
             loot,
             settings,
+            setup,
             ..
         } = self;
+        if let Some(assistant) = setup {
+            if assistant.show(ui, state, worker) {
+                *setup = None;
+            }
+            return;
+        }
         let palette = theme::current(ui);
         let bar = |fill| {
             egui::Frame::new()

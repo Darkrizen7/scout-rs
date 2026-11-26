@@ -35,6 +35,10 @@ pub enum Command {
     /// Downloads the newest Forever client tables (unless already stored).
     UpdateGameData,
     SetWowDir(PathBuf),
+    /// The first-launch assistant is over: saved in the config.
+    FinishSetup,
+    /// Writes the prices of the last days for the addon now, even if today's file is there.
+    WriteAddonHistory,
     /// What Scout addon the WoW folder holds (answered by `Event::ScoutAddon`).
     CheckScoutAddon,
     SetTheme(Theme),
