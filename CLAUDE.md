@@ -39,8 +39,8 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
   Clés `APP-42`, attribuées par `task create`. Lien d'un ticket : `http://127.0.0.1:8090/wow/projects/APP/issues/APP-42`.
   OpenProject et Plane ne sont plus tenus.
 - Comptes : Claude agit **uniquement** avec le bot `claude` (jeton dans le keyring, jamais affiché) ; l'utilisateur
-  est `admin` (`human` dans `~/.config/pman/config.toml`). Label **Feature** (nouveauté, évolution) ou **Fix**
-  (correction), posé à la création ; label **Validation** = vérification confiée à l'utilisateur.
+  est `arthur` (`human` dans `~/.config/pman/config.toml`). Label **Feature** (nouveauté, évolution) ou **Fix**
+  (correction), posé à la création ; label **Validation** = anciens tickets de vérification confiée à l'utilisateur (plus créés).
 - États : Backlog → Todo → In progress → In review → Done (ou Cancelled) ; noms CLI `backlog`, `todo`,
   `in_progress`, `in_review`, `done`, `cancelled`. Un ticket en Todo est prenable ; l'utilisateur choisit toujours
   lequel traiter (argument de `/pman`, sinon liste proposée).
@@ -51,9 +51,10 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - À la fin, sans attendre de demande : commit(s) sur la branche, `git push -u origin <branche>`, PR vers `master`
   (`gh pr create`, titre `APP-42 : …`), relecture tracée en commentaire de PR, fusion par Claude (voir « Commits »),
   synthèse + relevé de tokens (`agent report --usage-since`, remplit `AI Tokens`, `AI Usage 5h %`, `AI Usage 7d %`),
-  puis « Done » (`agent complete`) ou, s'il faut un test humain (UI…), `agent request-validation` : ticket
-  Validation précis assigné à l'utilisateur, ticket en « In review » jusqu'à sa réponse, **et message explicite dans
-  la conversation** (pourquoi, quoi, comment, résultat attendu, clé et lien).
+  puis « Done » (`agent complete`) ou, s'il faut un test humain (UI…), `agent request-validation` : commentaire
+  qui mentionne l'utilisateur avec les étapes précises, ticket en « In review » assigné à lui (pas de ticket
+  séparé) ; il accepte en passant le ticket en Done, refuse en le remettant en Todo avec sa remarque ; **et message
+  explicite dans la conversation** (pourquoi, quoi, comment, résultat attendu, lien).
 - Travail découvert en route : nouveau ticket (avec relation si pertinent), pas d'élargissement du périmètre.
 - Blocage ou ambiguïté : commenter le ticket avec la question précise, `agent release`, ticket suivant.
 - `/pman` (`.claude/skills/pman/`) : choix, délégation du code à l'agent `dev`
