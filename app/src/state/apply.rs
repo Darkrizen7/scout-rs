@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use scout_worker::Event;
+use scout_worker::{Event, Task};
 
 use super::State;
 
@@ -27,6 +27,9 @@ impl State {
                 self.config = Some(config);
             }
             Event::Busy(task, true) => {
+                if task == Task::AddonHistory {
+                    self.addon_history = None;
+                }
                 self.running.insert(task);
             }
             Event::Busy(task, false) => {
@@ -79,6 +82,7 @@ impl State {
             Event::AddonRelease(release) => self.addon_release = Some(release),
             Event::UpdateAvailable(release) => self.update = Some(release),
             Event::UpdateInstalled(version) => self.update_installed = Some(version),
+            Event::AddonHistory { items, .. } => self.addon_history = Some(items),
             Event::Quit => self.quit = true,
             Event::ServerHouses(houses) => self.server_houses = Some(houses),
             Event::ZoneFavorites(zones) => self.zone_favorites = zones.into_iter().collect(),

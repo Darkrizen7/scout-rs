@@ -5,6 +5,7 @@ use std::io::{self, Cursor};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
+use scout_core::addon_history::HISTORY_FILE;
 use scout_core::update::{AddonInstall, toc_version};
 
 fn addons(wow_dir: &Path) -> PathBuf {
@@ -71,6 +72,16 @@ pub fn install_addon(wow_dir: &Path, zip: &[u8]) -> Result<()> {
         fs::remove_dir_all(&old)?;
     }
     Ok(())
+}
+
+/// Writes `History.lua` in the addon's folder: to a temporary file first, then renamed over the
+/// old one, so the game never reads a half-written file. Works through a dev install's symlink.
+pub fn write_history(wow_dir: &Path, lua: &str) -> Result<()> {
+    let dir = addons(wow_dir).join("Scout");
+    let tmp = dir.join(".History.lua.tmp");
+    let target = dir.join(HISTORY_FILE);
+    fs::write(&tmp, lua).with_context(|| format!("écriture de {}", tmp.display()))?;
+    fs::rename(&tmp, &target).with_context(|| format!("remplacement de {}", target.display()))
 }
 
 /// The zip's `Scout/…` entries, written under `dest`; refuses paths that leave it.
@@ -189,6 +200,22 @@ mod tests {
         let v2 = zip(&[("Scout/Scout.toc", "## Version: 0.2.0\n")]);
         assert!(install_addon(&wow, &v2).is_err());
         assert!(dir.join(".git").is_dir());
+        fs::remove_dir_all(&wow).unwrap();
+    }
+
+    #[test]
+    fn writes_history_atomically() {
+        let wow = temp_wow("history");
+        let dir = wow.join("Interface/AddOns/Scout");
+        fs::create_dir_all(&dir).unwrap();
+        write_history(&wow, "a").unwrap();
+        write_history(&wow, "ScoutHistory = {}").unwrap();
+        assert_eq!(
+            fs::read_to_string(dir.join(HISTORY_FILE)).unwrap(),
+            "ScoutHistory = {}"
+        );
+        assert!(!dir.join(".History.lua.tmp").exists());
+        assert!(write_history(&temp_wow("history-none").join("x"), "a").is_err());
         fs::remove_dir_all(&wow).unwrap();
     }
 }

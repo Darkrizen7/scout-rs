@@ -33,6 +33,9 @@ pub struct Config {
     /// Skill of the character in each profession; key = profession id as text (TOML keys are strings).
     #[serde(default)]
     pub profession_skills: BTreeMap<String, i64>,
+    /// Local day (`YYYY-MM-DD`) of the last successful write of the addon's `History.lua`.
+    #[serde(default)]
+    pub addon_history_day: Option<String>,
 }
 
 /// Where the Blizzard prices come from; nothing is synced without a house.
@@ -96,6 +99,7 @@ impl Default for Config {
             last_import: None,
             price_server: PriceServer::default(),
             profession_skills: BTreeMap::new(),
+            addon_history_day: None,
         }
     }
 }

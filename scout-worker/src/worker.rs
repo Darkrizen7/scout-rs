@@ -8,6 +8,7 @@
 //! runtime per thread (only driven inside `block_on`) a thread could wait for a connection that the
 //! idle thread holding it never returned.
 
+mod addon_history;
 mod prices;
 mod tasks;
 mod update;
@@ -194,6 +195,7 @@ pub(crate) fn run(commands: Receiver<Command>, send: Sink) {
         exe: std::env::current_exe().ok(),
     };
     prices::start(&shared);
+    addon_history::start(&shared, false);
     if first_start {
         shared.spawn(Task::GameData, |runtime, shared| {
             tasks::update_all(
@@ -286,6 +288,8 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             send(Event::Config(config.clone()));
             send(Event::ScoutAddon(scout_addon(&config)));
             config.save()?;
+            drop(config);
+            addon_history::start(shared, false);
         }
         Command::CheckScoutAddon => send(Event::ScoutAddon(scout_addon(&shared.config()))),
         Command::SetTheme(theme) => {
@@ -317,7 +321,10 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
         }),
         Command::InstallAddon(release) => shared.spawn(Task::Addon, move |_, shared| {
             let wow_dir = shared.config().wow_dir()?.to_path_buf();
-            update::install_addon(&release, &wow_dir, &*shared.send)
+            update::install_addon(&release, &wow_dir, &*shared.send)?;
+            // The folder was replaced: History.lua is gone.
+            addon_history::start(shared, true);
+            Ok(())
         }),
         Command::SetPriceServer { url, region, house } => {
             prices::set_server(shared, url, (region, house))?

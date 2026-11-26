@@ -72,6 +72,8 @@ pub enum Task {
     Addon,
     /// Latest prices from the price server.
     Prices,
+    /// Prices of the last days written for the addon (`History.lua`).
+    AddonHistory,
 }
 
 pub enum Event {
@@ -101,6 +103,11 @@ pub enum Event {
     ScoutAddon(AddonInstall),
     /// Newest release of the Scout addon (checked at start).
     AddonRelease(Release),
+    /// `History.lua` written: how many items and bytes.
+    AddonHistory {
+        items: usize,
+        bytes: usize,
+    },
     /// Merchant prices and which NPCs sell what.
     Vendor(Arc<VendorData>),
     /// A newer version of the tool is published (checked at start).

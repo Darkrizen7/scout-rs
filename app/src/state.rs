@@ -118,6 +118,8 @@ pub struct State {
     pub update_installed: Option<String>,
     /// The new version is running: close this window.
     pub quit: bool,
+    /// Items sent to the addon, shown in the window until the user closes it.
+    pub addon_history: Option<usize>,
 }
 
 impl Default for State {
@@ -155,6 +157,7 @@ impl Default for State {
             update: None,
             update_installed: None,
             quit: false,
+            addon_history: None,
             latest_game_data: None,
             server_houses: None,
             house_changed: false,

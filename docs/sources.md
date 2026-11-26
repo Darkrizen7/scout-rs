@@ -66,3 +66,26 @@ lu par Rust pour les chemins Unicode sous Windows). Ci-dessous, `lua x.lua a b` 
 `drop_*` et `vendor_prices`). Le worker ne télécharge que si le manifeste est plus récent que `meta.server_reference`
 (au démarrage, sans bruit si le serveur ne répond pas, et après « Mettre à jour les données du jeu »). Le butin est
 remplacé en bloc, les marchands sont ajoutés (ceux déjà présents, vus par Scout, gagnent). Un paquet sans butin est refusé.
+
+## Prix envoyés à l'addon (`History.lua`)
+Au lancement (au plus une fois par jour, `addon_history_day` dans `config.toml`), après le choix d'un dossier WoW avec
+l'addon installé et d'une maison, et toujours après l'installation de l'addon (le dossier est remplacé), le worker
+(`worker/addon_history.rs`, tâche `AddonHistory`) écrit `Interface/AddOns/Scout/History.lua` (fichier temporaire
+`.History.lua.tmp` puis `rename` ; marche aussi par le lien d'une installation de dev). Calcul pur : `scout-core/src/addon_history.rs`.
+```lua
+-- Généré par scout-rs : ne pas modifier (réécrit chaque jour).
+ScoutHistory = {
+  format = 1,
+  generated = 1764170000,   -- horodatage Unix de l'écriture
+  first_day = 20390,        -- jour du premier prix : jours depuis le 1970-01-01 (date locale de l'appli)
+  prices = {
+    [2589] = "120,,118,121",  -- prix en cuivre par unité, un par jour depuis first_day ; vide = pas de relevé
+  },
+}
+```
+- Fenêtre : les 30 jours locaux qui finissent aujourd'hui inclus (`first_day` = aujourd'hui − 29).
+- Prix du jour = médiane des prix minimum relevés ce jour-là (règle de `analysis.rs`), arrondie à l'entier ; virgules
+  finales retirées (≤ 30 champs) ; objet sans prix dans la fenêtre : absent ; objets triés par id.
+- Aujourd'hui en Lua : `local t = date("*t"); local today = math.floor(time{year=t.year, month=t.month, day=t.day, hour=12} / 86400)`.
+- Lu par le `.toc` de l'addon (`History.lua` en premier, global `ScoutHistory`, `nil` si absent). Changer le format : `HISTORY_FORMAT`, des deux côtés.
+- L'appli affiche une petite fenêtre pendant l'écriture, puis « Fait : N objets envoyés. Tape /reload en jeu. ».
