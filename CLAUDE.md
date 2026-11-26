@@ -23,6 +23,14 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
   (sauf via `/pman`, voir « Tickets (pman) »).
 
 ## Tickets (pman)
+
+<!-- pman init: début (bloc géré par `pman init`) -->
+- Workspace pman : `wow` (`PMAN_WORKSPACE`, posé par `.claude/settings.json`) ; serveur http://127.0.0.1:8090.
+- Projets : `APP`, `SERVER`, `ADDON`, `OUTILS`.
+- Lien d'un ticket : http://127.0.0.1:8090/wow/projects/APP/issues/APP-42
+- Workflow : skill `/pman` (`.claude/skills/pman/`) et agent `dev` (`.claude/agents/dev.md`), installés par `pman init` ; CLI : `pman --help`.
+<!-- pman init: fin -->
+
 - Source de vérité des tâches : **pman** (http://127.0.0.1:8090, dépôt `~/dev/outils/pman`, `docker compose`),
   lu et écrit avec le CLI global `pman` (README de `crates/pman-cli` ; `--json` pour les sorties à analyser).
 - **Workspace `wow`** : `PMAN_WORKSPACE=wow` est posé par `.claude/settings.json` (`env`) ; s'il manque (session
@@ -50,7 +58,15 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - Blocage ou ambiguïté : commenter le ticket avec la question précise, `agent release`, ticket suivant.
 - `/pman` (`.claude/skills/pman/`) : choix, délégation du code à l'agent `dev`
   (`.claude/agents/dev.md`, Haiku ou Sonnet), relecture du diff par Claude. Seuls Claude et l'utilisateur
-  touchent à pman, jamais le sous-agent.
+  touchent à pman, jamais le sous-agent. La skill est générique (installée par `pman init`, ne pas l'éditer) ;
+  ce qui est propre à scout-rs est ici :
+  - Relecture : relancer clippy et les tests, plus le test de plantage `target/debug` si l'UI a changé.
+    Haiku décroche vite sur egui : préférer Sonnet pour l'UI.
+  - PR : corps = résumé, comment tester, `pman : APP-31 (<lien du ticket>)` ; relecture tracée en `gh pr comment`
+    (GitHub refuse l'approbation de sa propre PR : ce commentaire en tient lieu). Fusion par Claude (« Commits »),
+    message `Fusion de la PR #N : <titre>`.
+  - L'agent `dev` est générique lui aussi (installé par `pman init`) : il lit ses vérifications et ses interdits
+    dans ce fichier (« Commandes », « Données », « Architecture »).
 - Statuts fixes ; labels et champs `AI …` par projet (`pman project show APP`, `project setup-agent APP`).
   Administration (utilisateurs, jetons) : `docker compose exec pman pman-server admin …` dans `~/dev/outils/pman`.
 
