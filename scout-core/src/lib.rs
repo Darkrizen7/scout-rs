@@ -1,5 +1,6 @@
 //! Scout's domain: plain data and pure logic, with no disk, network or UI.
 
+pub mod addon_history;
 pub mod analysis;
 pub mod crafting;
 pub mod credits;

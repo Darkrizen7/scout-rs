@@ -3,7 +3,7 @@
 //! An item's price for a day is the median of the minimum prices seen that day (all sources).
 //! Days are local calendar days; the weekend is Saturday and Sunday.
 
-mod stats;
+pub(crate) mod stats;
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -95,7 +95,7 @@ fn is_weekend(date: NaiveDate) -> bool {
     matches!(date.weekday(), Weekday::Sat | Weekday::Sun)
 }
 
-fn local_date(ts: i64) -> Option<NaiveDate> {
+pub(crate) fn local_date(ts: i64) -> Option<NaiveDate> {
     Some(Local.timestamp_opt(ts, 0).single()?.date_naive())
 }
 

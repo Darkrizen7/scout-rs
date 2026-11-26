@@ -6,7 +6,8 @@ use crate::state::{Module, State, View};
 #[cfg(feature = "analysis")]
 use crate::ui::analysis_view;
 use crate::ui::{
-    calculator, chart, fonts, header, item_list, items, loot, recipes, settings, sidebar, theme,
+    addon_history, calculator, chart, fonts, header, item_list, items, loot, recipes, settings,
+    sidebar, theme,
 };
 use scout_core::Theme;
 use scout_worker::{Command, WorkerHandle};
@@ -154,6 +155,8 @@ impl eframe::App for App {
                     .show(ui, |ui| loot.show(ui, state, worker));
             }
         }
-        settings.window(&ui.ctx().clone(), state, worker);
+        let ctx = ui.ctx().clone();
+        settings.window(&ctx, state, worker);
+        addon_history::window(&ctx, state);
     }
 }
