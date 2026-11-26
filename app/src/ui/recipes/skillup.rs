@@ -58,10 +58,16 @@ impl SkillUp {
         let mut changed = false;
         ui.horizontal(|ui| {
             ui.label("Ma compétence");
+            // Wide enough for the hint (and so three digits) in the current font, plus the
+            // text edit margins (4 px each side) and the cursor.
+            let font = egui::TextStyle::Body.resolve(ui.style());
+            let hint =
+                ui.painter()
+                    .layout_no_wrap("1-300".to_owned(), font, egui::Color32::PLACEHOLDER);
             changed = ui
                 .add(
                     egui::TextEdit::singleline(&mut self.text)
-                        .desired_width(36.0)
+                        .desired_width(hint.size().x + 12.0)
                         .char_limit(3)
                         .hint_text("1-300"),
                 )
