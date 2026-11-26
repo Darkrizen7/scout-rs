@@ -232,9 +232,13 @@ async fn game_data_package() {
     let (status, response) = get(&app, &format!("/v1/gamedata/{format}/1000")).await;
     assert_eq!(status, StatusCode::OK);
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let package = scout_gamedata::Package::decode(&bytes).unwrap();
+    assert_eq!(package.build, "1.60.1.71037");
+    // Pattern skill levels reach the clients: recipe ← pattern item, with the skill to learn it.
+    let recipe = &package.tables.recipes[0];
     assert_eq!(
-        scout_gamedata::Package::decode(&bytes).unwrap().build,
-        "1.60.1.71037"
+        (&recipe.taught_by[..], recipe.required),
+        (&[5083][..], Some(35))
     );
     let (status, _) = get(&app, &format!("/v1/gamedata/{format}/999")).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
