@@ -15,17 +15,19 @@ pub fn window(ctx: &egui::Context, state: &mut State) {
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-        .show(ctx, |ui| match state.addon_history {
-            Some(items) => {
-                ui.label(format!(
-                    "Fait : {items} objets envoyés. Tape /reload en jeu."
-                ));
-                ui.add_space(6.0);
-                close = ui.button("OK").clicked();
-            }
-            None => {
-                ui.label("Mise à jour des prix de l'addon…");
-            }
+        .show(ctx, |ui| {
+            ui.vertical_centered(|ui| match state.addon_history {
+                Some(items) => {
+                    ui.label(format!(
+                        "Fait : {items} objets envoyés. Tape /reload en jeu."
+                    ));
+                    ui.add_space(6.0);
+                    close = ui.button("OK").clicked();
+                }
+                None => {
+                    ui.label("Mise à jour des prix de l'addon…");
+                }
+            })
         });
     if close {
         state.addon_history = None;
