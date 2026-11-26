@@ -13,6 +13,7 @@ pub mod reference;
 pub mod sales;
 pub mod scout_api;
 pub mod search;
+pub mod skillup;
 pub mod time;
 pub mod update;
 

@@ -11,9 +11,16 @@ use crate::ui::{coins, theme};
 use scout_core::crafting;
 use scout_core::gamedata::GameData;
 use scout_core::search::Query;
+use scout_worker::WorkerHandle;
 
 impl Recipes {
-    pub(super) fn results(&mut self, ui: &mut egui::Ui, game: &GameData, state: &mut State) {
+    pub(super) fn results(
+        &mut self,
+        ui: &mut egui::Ui,
+        game: &GameData,
+        state: &mut State,
+        worker: &WorkerHandle,
+    ) {
         ui.horizontal(|ui| {
             let width = ui.available_width() - 40.0;
             search_box(ui, SEARCH_ID, SEARCH_HINT, &mut self.search, width);
@@ -30,11 +37,16 @@ impl Recipes {
             }
         });
         ui.add_space(4.0);
-        // "Ma compétence" (APP-20) goes next to this row.
         self.skill.show(ui);
         ui.add_space(4.0);
+        let skill = self
+            .profession
+            .and_then(|p| self.up.controls(ui, state, worker, p).map(|s| (p, s)));
         ui.separator();
         ui.add_space(2.0);
+        if let Some(target) = skill.filter(|_| self.up.active()) {
+            return self.up.list(ui, game, state, target, &mut self.selection);
+        }
         self.rebuild(game, state);
         ui.weak(format!("{} résultats", self.hits.len()));
         let dark = theme::current(ui).dark;

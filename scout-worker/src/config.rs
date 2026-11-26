@@ -1,5 +1,6 @@
 //! Settings (WoW folder, theme) and the paths of the tool's own files.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -29,6 +30,9 @@ pub struct Config {
     /// Our price server (Battle.net auction API).
     #[serde(default)]
     pub price_server: PriceServer,
+    /// Skill of the character in each profession; key = profession id as text (TOML keys are strings).
+    #[serde(default)]
+    pub profession_skills: BTreeMap<String, i64>,
 }
 
 /// Where the Blizzard prices come from; nothing is synced without a house.
@@ -91,6 +95,7 @@ impl Default for Config {
             hide_obsolete: true,
             last_import: None,
             price_server: PriceServer::default(),
+            profession_skills: BTreeMap::new(),
         }
     }
 }

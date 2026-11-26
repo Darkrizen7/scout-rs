@@ -298,6 +298,16 @@ fn handle(command: Command, shared: &Shared) -> Result<()> {
             config.hide_obsolete = hide;
             config.save()?;
         }
+        Command::SetProfessionSkill(profession, skill) => {
+            let mut config = shared.config();
+            match skill {
+                Some(skill) => config
+                    .profession_skills
+                    .insert(profession.to_string(), skill),
+                None => config.profession_skills.remove(&profession.to_string()),
+            };
+            config.save()?;
+        }
         Command::InstallUpdate(release) => shared.spawn(Task::Update, move |_, shared| {
             let exe = shared
                 .exe

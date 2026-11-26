@@ -6,6 +6,7 @@ mod filters;
 mod reagents;
 mod results;
 mod skill_bar;
+mod skillup;
 
 use std::sync::Arc;
 
@@ -37,6 +38,8 @@ pub struct Recipes {
     profits: Vec<Option<i64>>,
     /// Required-skill filter and sort.
     skill: filters::SkillFilter,
+    /// "Monter le métier": the character's skill and the cheapest recipes to level.
+    up: skillup::SkillUp,
     /// (data address, search, profession, items revision, skill filter) the hits were computed for.
     built_for: Option<(usize, String, Option<i64>, u64, filters::SkillKey)>,
     /// False on arrival: the search sits in the middle of the page until a profession is chosen or text typed.
@@ -82,7 +85,7 @@ impl Recipes {
                     .fill(palette.view)
                     .inner_margin(egui::Margin::same(10)),
             )
-            .show(ui, |ui| self.results(ui, &game, state));
+            .show(ui, |ui| self.results(ui, &game, state, worker));
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::new()
