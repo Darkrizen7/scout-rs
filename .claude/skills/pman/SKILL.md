@@ -28,7 +28,7 @@ sans la mettre à jour.
 - Cycle d'un ticket : `agent claim KEY` (réserve, renvoie tout le contexte en un appel : ne pas relire le ticket
   ensuite) → `agent start KEY` (In progress, renvoie `started_at`) → `agent report KEY --file - --usage-since
   <started_at>` → `agent complete KEY` (Done), `agent complete KEY --review` (In review, à l'humain) ou
-  `agent request-validation KEY --title … --file -`. `agent release KEY --reason …` rend un ticket impossible à traiter.
+  `agent request-validation KEY --title … --file -` (validation humaine). `agent release KEY --reason …` rend un ticket impossible à traiter.
 - Créer : `task create --project APP --label Feature|Fix --title … --description-file -` (la clé est attribuée) ;
   relier : `task relate KEY --blocks|--blocked-by|--relates KEY2`. Branche : `agent branch KEY`.
 
@@ -40,7 +40,7 @@ sans la mettre à jour.
   plus 4 options par question, 4 questions au maximum, sinon proposer les premiers et citer les autres dans le
   texte. Aucun coché : s'arrêter sans rien toucher.
 - Pour classer, lire la description (`task show`) et quelques `grep -n` ciblés ; l'exploration lourde revient au sous-agent.
-- Éligible = Todo, pas assigné à quelqu'un d'autre, bloquants fermés, pas de label Validation (calculé par le CLI).
+- Éligible = Todo, pas assigné à quelqu'un d'autre, bloquants fermés, pas de label Validation (anciens tickets de validation ; calculé par le CLI).
 
 ## 2. Classement
 | Catégorie | Quand | Exemples |
@@ -86,12 +86,14 @@ non formaté réécrit des dizaines de fichiers hors périmètre).
   sous-agent, et additionne `AI Tokens`, `AI Usage 5h %`, `AI Usage 7d %`). Correction après relecture : relevé
   complémentaire, il s'additionne.
 - Sans validation humaine nécessaire : `agent complete KEY` (Done), ou `--review` comme ci-dessus.
-- Validation humaine nécessaire (UI, rendu, usage réel, décision) : `agent request-validation KEY --title "Valider : …"
-  --file -` avec les étapes précises, l'environnement et le résultat attendu (jamais « vérifier que tout marche ») :
-  ticket au label Validation assigné à l'humain, relié au ticket de dev, qui passe en In review. Il n'est pas
-  terminé tant que l'utilisateur n'a pas fermé la Validation (Done = accepté, Cancelled = refusé → remettre le
-  ticket en Todo avec sa remarque). **Le dire aussi dans la conversation** : pourquoi, quoi vérifier, comment,
-  résultat attendu, clé et lien de la Validation.
+- Validation humaine nécessaire (UI, rendu, usage réel, décision) : préparer d'abord l'environnement de test (build,
+  serveur relancé, selon le CLAUDE.md), puis `agent request-validation KEY --title "…" --file -` avec les étapes
+  précises, l'environnement et le résultat attendu (jamais « vérifier que tout marche ») : commentaire sur le ticket
+  qui mentionne l'humain (notification), ticket en In review assigné à l'humain. Pas de ticket séparé. L'humain
+  accepte en passant le ticket en **Done**, refuse en le remettant en **Todo** avec sa remarque (reprendre alors
+  le ticket). Avant de livrer des changements laissés en attente de validation, vérifier avec `task show KEY` que
+  le ticket est Done. **Le dire aussi dans la conversation** : pourquoi, quoi vérifier, comment, résultat attendu,
+  lien du ticket.
 - Repartir de la branche principale à jour avant le ticket suivant ; d'autres tickets indépendants peuvent avancer
   pendant une validation.
 - Travail découvert en route : `task create` (+ `task relate`), pas d'élargissement du périmètre.
@@ -105,4 +107,4 @@ Par ticket : branche, lien de la PR (ou fichiers modifiés non commités), ce qu
 - L'économie vient de la boucle explorer / modifier / compiler sur un modèle moins cher.
 - Le quota (5 h / 7 j) couvre tout le compte : l'écart par ticket est approximatif. Une métrique absente reste vide.
 - Personne ne voit le rendu : la validation humaine de l'UI reste indispensable.
-<!-- pman init: af9107d65b0c9b7e -->
+<!-- pman init: 828addfad0b8eb25 -->
