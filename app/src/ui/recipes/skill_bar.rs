@@ -12,10 +12,10 @@ const MAX_SKILL: i64 = 300;
 const BAR_HEIGHT: f32 = 12.0;
 const LABEL_HEIGHT: f32 = 16.0;
 
-const ORANGE: Color32 = Color32::from_rgb(0xe6, 0x61, 0x00);
-const YELLOW: Color32 = Color32::from_rgb(0xe0, 0xb4, 0x00);
-const GREEN: Color32 = Color32::from_rgb(0x3d, 0xa5, 0x3d);
-const GREY: Color32 = Color32::from_rgb(0x8a, 0x8a, 0x8e);
+pub(super) const ORANGE: Color32 = Color32::from_rgb(0xe6, 0x61, 0x00);
+pub(super) const YELLOW: Color32 = Color32::from_rgb(0xe0, 0xb4, 0x00);
+pub(super) const GREEN: Color32 = Color32::from_rgb(0x3d, 0xa5, 0x3d);
+pub(super) const GREY: Color32 = Color32::from_rgb(0x8a, 0x8a, 0x8e);
 
 /// Draws the bar next to the profession name; hovering it explains the colors.
 pub fn show(ui: &mut egui::Ui, r: &Recipe) {

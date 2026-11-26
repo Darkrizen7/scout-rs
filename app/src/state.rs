@@ -246,6 +246,32 @@ impl State {
         worker.send(Command::SetHideObsolete(hide));
     }
 
+    /// Skill of the character in a profession, when entered.
+    pub fn profession_skill(&self, profession: i64) -> Option<i64> {
+        self.config
+            .as_ref()?
+            .profession_skills
+            .get(&profession.to_string())
+            .copied()
+    }
+
+    /// Stores the character's skill in a profession (None clears it).
+    pub fn set_profession_skill(
+        &mut self,
+        profession: i64,
+        skill: Option<i64>,
+        worker: &WorkerHandle,
+    ) {
+        if let Some(config) = &mut self.config {
+            let key = profession.to_string();
+            match skill {
+                Some(s) => config.profession_skills.insert(key, s),
+                None => config.profession_skills.remove(&key),
+            };
+        }
+        worker.send(Command::SetProfessionSkill(profession, skill));
+    }
+
     /// Whether the item passes the side bar filter (and is not a hidden obsolete one).
     pub fn shown(&self, item_id: i64) -> bool {
         if self

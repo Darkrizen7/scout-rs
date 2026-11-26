@@ -39,6 +39,8 @@ pub enum Command {
     CheckScoutAddon,
     SetTheme(Theme),
     SetHideObsolete(bool),
+    /// Skill of the character in a profession (id); None clears it.
+    SetProfessionSkill(i64, Option<i64>),
     /// Downloads this release and replaces the executable (answered by `Event::UpdateInstalled`).
     InstallUpdate(Release),
     /// Starts the new executable, then `Event::Quit`.

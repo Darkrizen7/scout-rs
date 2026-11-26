@@ -6,7 +6,8 @@
   Monster - / DNT » et les objets de test (mot entier « Test » / « Testing »), `gamedata::is_obsolete` ;
   `last_import` = date du dernier import Scout réussi ; `[price_server]` : `url` du serveur de prix (défaut
   `scout_api::DEFAULT_SERVER`), `region` (eu, us, kr, tw) et `house` = hôtel des ventes affiché partout, `last_sync` = date
-  des derniers prix téléchargés). Chemins via `directories`.
+  des derniers prix téléchargés) ; `[profession_skills]` : compétence du personnage par métier (clé = id du métier
+  en texte, valeur 1–300), saisie dans l'onglet Recettes. Chemins via `directories`.
 - Tables :
   - Market : `items (item_id, name, class_id, subclass_id, class_name, subclass_name)` (noms et catégories vus par
     Scout), `snapshots (item_id, source, region, house, ts, price, quantity)` clé `(item_id, region, house,
