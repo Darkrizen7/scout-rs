@@ -10,5 +10,7 @@ pub mod wowhead;
 
 pub use fetch::{Download, Naming, download, name_items, wanted_items};
 pub use package::{Manifest, Package};
-pub use patterns::{apply_pattern_skills, parse_pattern_skills};
+pub use patterns::{
+    Summary, apply_pattern_skills, merge_pattern_skills, parse_pattern_skills, write_pattern_skills,
+};
 pub use wago::{TABLES, assemble, latest_build, table_csv};

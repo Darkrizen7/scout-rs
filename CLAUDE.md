@@ -83,6 +83,8 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 - Paquet de butin et marchands du serveur (GPL ; plus rien n'est intégré au binaire, MIT) :
   `cargo run -p scout-worker --example server_reference` le régénère depuis `prix.db` dans `scout-server/data/`
   (à commiter puis à déployer avec le serveur).
+- Niveaux des patrons du serveur : `cargo run -p scout-worker --example pattern_skills [Scout.lua]` met à jour
+  `scout-server/data/pattern_skills.csv` depuis les relevés de l'addon (à commiter puis à déployer avec le serveur).
 - Les scripts Lua tournent dans Lua 5.4 intégré (`mlua`, feature `vendored`) : rien à installer.
 
 ## Données (règles ; détail dans `docs/donnees.md`)
@@ -152,7 +154,7 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
   `.github/workflows/release.yml` : tests, compilation, Release GitHub avec les binaires Linux et Windows et leurs `.sha256`.
 - Avant chaque version, **demander à l'utilisateur** s'il y a de nouveaux marchands ou du butin à publier : alors
   régénérer le paquet du serveur (`cargo run -p scout-worker --example server_reference`, après un import Scout
-  récent), le commiter et déployer le serveur. Le binaire n'en dépend pas.
+  récent), le commiter et déployer le serveur (de même pour `pattern_skills`). Le binaire n'en dépend pas.
 - Avant le tag : augmenter `version` dans `[workspace.package]` du `Cargo.toml` racine (commit à part,
   `Cargo.lock` compris). Le tag doit être identique à cette version (`v` + version), sinon l'Action échoue :
   la mise à jour automatique (`worker/update`, bouton « Mettre à jour » en haut) compare `CARGO_PKG_VERSION` à

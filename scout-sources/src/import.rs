@@ -8,10 +8,13 @@ use anyhow::{Context, Result, anyhow};
 use mlua::{Function, Lua, LuaString};
 use scout_core::drops::ObservedLoot;
 use scout_core::{ItemName, Row, VendorPrice};
+use serde::Deserialize;
 use serde::de::DeserializeOwned;
 
 /// Exports the items merchants sell (the prices Scout saw in game).
 const VENDOR_EXPORT: &str = include_str!("../lua/vendor_export.lua");
+/// Exports the skill level of the recipe items Scout saw in game.
+const PATTERN_EXPORT: &str = include_str!("../lua/pattern_export.lua");
 /// Runs an exporter in-process: stdout collected, stderr dropped, files read by Rust.
 const SANDBOX: &str = include_str!("../lua/sandbox.lua");
 
@@ -43,6 +46,22 @@ pub fn run_vendor_export(saved_variables: &Path) -> Result<Vec<VendorPrice>> {
     run_lua(
         VENDOR_EXPORT,
         Path::new("vendor_export.lua"),
+        &[saved_variables.into()],
+    )
+}
+
+/// The skill level of a recipe item (`ScoutDB.craft.patterns[item].req`).
+#[derive(Debug, Deserialize)]
+pub struct PatternSkill {
+    pub item_id: i64,
+    pub skill: i64,
+}
+
+/// The embedded script `pattern_export.lua <Scout.lua>`.
+pub fn run_pattern_export(saved_variables: &Path) -> Result<Vec<PatternSkill>> {
+    run_lua(
+        PATTERN_EXPORT,
+        Path::new("pattern_export.lua"),
         &[saved_variables.into()],
     )
 }
@@ -105,6 +124,27 @@ mod tests {
     use scout_core::SCOUT;
 
     use super::*;
+
+    #[test]
+    fn exports_pattern_levels() {
+        let dir = std::env::temp_dir().join(format!("scout-pattern-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("Scout.lua");
+        fs::write(
+            &file,
+            "ScoutDB = { craft = { patterns = {\n\
+             [6044] = { name = 'a', req = 150 },\n\
+             [7976] = { name = 'b' },\n\
+             [7977] = { name = 'c', req = 'x' },\n\
+             ['oops'] = { req = 10 },\n\
+             } } }",
+        )
+        .unwrap();
+        let rows = run_pattern_export(&file).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!((rows[0].item_id, rows[0].skill), (6044, 150));
+    }
 
     #[test]
     fn parses_listed_and_missing_items() {
