@@ -62,7 +62,10 @@ Battle.net ──► scout-server (VPS) ──HTTPS──► app (worker, source
 - Mémoire : un seul travail lourd (téléchargement + agrégation + compression) à la fois, toutes régions
   confondues (sémaphore à 1 permis, `Collector::heavy`), après des OOM à 256 Mo. Mesure du pic :
   `SCOUT_PEAK_FILE=<relevé.json.zst> cargo test -p scout-server --release peak -- --ignored --nocapture`
-  (affiche `VmHWM`, `src/peak.rs`).
+  (affiche `VmHWM`, `src/peak.rs`). Mesuré le 26/11 sur le plus gros relevé eu (1,9 Mo compressé, 23 Mo
+  de JSON, 5 863 objets) : 106 Mo pour le travail seul ; processus du VPS après 40 relevés : 196 Mo. Le cache
+  de `/latest` ajoute au plus ~22 Mo (64 octets × 5 863 objets × 60 HdV). Limite du module : 350 Mo
+  (`memory` de `modules/scout/module.toml`, dépôt vps), soit ~1,5 × le pic.
 - Image arm64 construite sur le PC (`tools/update.sh scout <version>`, qui lit `modules/scout/release.conf`),
   Dockerfile à la racine sur le modèle de `dofus_follow_up` (Debian slim, certificats copiés, uid 10001).
 
