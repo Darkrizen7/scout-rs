@@ -36,6 +36,10 @@ pub struct Config {
     /// Local day (`YYYY-MM-DD`) of the last successful write of the addon's `History.lua`.
     #[serde(default)]
     pub addon_history_day: Option<String>,
+    /// The first-launch assistant was completed. Absent from older files (no assistant for them);
+    /// a missing file means a first launch (`Config::default()`).
+    #[serde(default = "yes")]
+    pub setup_done: bool,
 }
 
 /// Where the Blizzard prices come from; nothing is synced without a house.
@@ -100,6 +104,7 @@ impl Default for Config {
             price_server: PriceServer::default(),
             profession_skills: BTreeMap::new(),
             addon_history_day: None,
+            setup_done: false,
         }
     }
 }
@@ -190,6 +195,13 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn setup_done_defaults_by_origin() {
+        let old: Config = toml::from_str("").unwrap();
+        assert!(old.setup_done);
+        assert!(!Config::default().setup_done);
+    }
 
     #[test]
     fn old_config_with_server_key_still_loads() {

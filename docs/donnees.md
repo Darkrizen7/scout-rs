@@ -5,7 +5,8 @@
   vrai par défaut : masque les objets inutilisables : « Deprecated / Unused / [INUTILISÉ] / périmé / [PH] / OLD /
   Monster - / DNT » et les objets de test (mot entier « Test » / « Testing »), `gamedata::is_obsolete` ;
   `last_import` = date du dernier import Scout réussi ; `addon_history_day` = jour local (`AAAA-MM-JJ`) de la dernière
-  écriture réussie de `History.lua` dans l'addon (au plus une par jour) ; `[price_server]` : `url` du serveur de prix (défaut
+  écriture réussie de `History.lua` dans l'addon (au plus une par jour) ; `setup_done` = assistant de premier lancement
+  terminé (absent d'une ancienne config : vrai, pas d'assistant ; pas de fichier : faux, l'assistant s'ouvre) ; `[price_server]` : `url` du serveur de prix (défaut
   `scout_api::DEFAULT_SERVER`), `region` (eu, us, kr, tw) et `house` = hôtel des ventes affiché partout, `last_sync` = date
   des derniers prix téléchargés) ; `[profession_skills]` : compétence du personnage par métier (clé = id du métier
   en texte, valeur 1–300), saisie dans l'onglet Recettes. Chemins via `directories`.

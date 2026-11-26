@@ -31,7 +31,7 @@
   cliquée depuis une fiche objet s'ouvre dans Recettes (`State::show_recipe`).
 
 ## Fichiers de l'UI (`app/src/ui/`)
-`header` (onglets, en-tête Market, barre d'état, sélecteur d'hôtel des ventes, fenêtre Réglages ; `settings/price_server` : serveur de prix, région, mode de jeu, HdV), `sidebar` (barre latérale Market ; `sidebar/entry` : lignes et
+`setup` (assistant de premier lancement, remplace la fenêtre principale : dossier WoW, addon, HdV via `settings/price_server::rows`, données du jeu, prix écrits pour l'addon, fin ; relançable depuis les Réglages ; `setup/steps`), `header` (onglets, en-tête Market, barre d'état, sélecteur d'hôtel des ventes, fenêtre Réglages ; `settings/price_server` : serveur de prix, région, mode de jeu, HdV), `sidebar` (barre latérale Market ; `sidebar/entry` : lignes et
 icônes de catégories partagées par les barres latérales), `item_list`, `chart` (`plots` réutilisé par la fiche objet, qui n'a pas les boutons d'agrégation Détaillé / Journalier / Hebdo / Mensuel du Market : tous les relevés des deux sources (Scout et serveur), un point par jour, moyenne par semaine ou par mois, avec la fenêtre de temps correspondante ; sur le graphe du Market le titre mène à la fiche objet ; `chart/money_axis` : axe des prix avec pièces ; `chart/limits` : déplacement et zoom des graphes, bornés aux jours de données et à 0, avec effet élastique, axe du temps partagé et bouton « Aujourd'hui »), `analysis_view` (+ `charts`),
 `calculator`, `items` (+ `items/{list,rows,sidebar,sheet,merchants,drops}`),
 `loot` (+ `loot/{map,map/paint,npcs,npc,sidebar}`), `recipes` (+ `recipes/{results,filters,detail,reagents,skill_bar}`), `widgets` (étoile de favori,

@@ -43,15 +43,7 @@ impl Form {
                     ui.add(egui::TextEdit::singleline(&mut self.url).desired_width(300.0));
                     ui.end_row();
                 }
-                ui.label("Région");
-                region_choice(ui, state, worker);
-                ui.end_row();
-                ui.label("Mode de jeu");
-                mode_choice(ui, state, worker);
-                ui.end_row();
-                ui.label("Hôtel des ventes");
-                widgets::house_picker(ui, state, worker, 300.0);
-                ui.end_row();
+                rows(ui, state, worker);
             });
         if let Some(Err(error)) = &state.server_houses {
             ui.colored_label(theme::current(ui).loss, format!("⚠ {error}"));
@@ -87,6 +79,20 @@ impl Form {
             };
         });
     }
+}
+
+/// The rows of region, game mode and auction house, to put in a two-column `egui::Grid`
+/// (shared with the first-launch assistant).
+pub fn rows(ui: &mut egui::Ui, state: &State, worker: &WorkerHandle) {
+    ui.label("Région");
+    region_choice(ui, state, worker);
+    ui.end_row();
+    ui.label("Mode de jeu");
+    mode_choice(ui, state, worker);
+    ui.end_row();
+    ui.label("Hôtel des ventes");
+    widgets::house_picker(ui, state, worker, 300.0);
+    ui.end_row();
 }
 
 /// The Battle.net regions where the server found Forever auction houses.
