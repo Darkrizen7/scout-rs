@@ -305,7 +305,21 @@ pub(crate) mod tests {
             build: "1.60.1.71037".into(),
             updated,
             complete: true,
-            tables: Tables::default(),
+            tables: Tables {
+                // Kodo Hide Bag, taught by its pattern (item 5083) at Leatherworking 35.
+                recipes: vec![scout_core::gamedata::Recipe {
+                    spell_id: 5244,
+                    name: "Sac en peau de kodo".into(),
+                    profession: 165,
+                    required: Some(35),
+                    yellow: 70,
+                    grey: 90,
+                    creates: None,
+                    reagents: vec![],
+                    taught_by: vec![5083],
+                }],
+                ..Tables::default()
+            },
         };
         let bytes = package.encode().unwrap();
         let folder = store.format_dir(GAME_FORMAT);
