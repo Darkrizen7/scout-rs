@@ -36,6 +36,9 @@ pub struct Config {
     /// Local day (`YYYY-MM-DD`) of the last successful write of the addon's `History.lua`.
     #[serde(default)]
     pub addon_history_day: Option<String>,
+    /// Auction house (`price_server.region`, `price_server.house`) whose prices that file holds.
+    #[serde(default)]
+    pub addon_history_house: Option<(String, u32)>,
     /// The first-launch assistant was completed. Absent from older files (no assistant for them);
     /// a missing file means a first launch (`Config::default()`).
     #[serde(default = "yes")]
@@ -104,6 +107,7 @@ impl Default for Config {
             price_server: PriceServer::default(),
             profession_skills: BTreeMap::new(),
             addon_history_day: None,
+            addon_history_house: None,
             setup_done: false,
         }
     }

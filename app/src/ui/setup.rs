@@ -2,8 +2,7 @@
 //! It replaces the main window until it is finished; everything goes through the worker.
 
 use eframe::egui;
-use scout_core::update::AddonInstall;
-use scout_worker::{Command, Task, WorkerHandle};
+use scout_worker::{Command, WorkerHandle};
 
 use crate::state::State;
 
@@ -118,7 +117,7 @@ impl Setup {
             if let Some(previous) = self.step.previous()
                 && ui.button("Retour").clicked()
             {
-                self.go(previous, state, worker);
+                self.go(previous, worker);
             }
             match self.step.next() {
                 Some(next) => {
@@ -130,7 +129,7 @@ impl Setup {
                         _ => ("Suivant", true),
                     };
                     if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
-                        self.go(next, state, worker);
+                        self.go(next, worker);
                     }
                 }
                 None => {
@@ -157,19 +156,11 @@ impl Setup {
     }
 
     /// Changes step and does what its entry needs.
-    fn go(&mut self, step: Step, state: &State, worker: &WorkerHandle) {
+    fn go(&mut self, step: Step, worker: &WorkerHandle) {
         self.step = step;
         match step {
             Step::Addon => worker.send(Command::CheckScoutAddon),
             Step::House => self.load_houses = true,
-            Step::Prices => {
-                // Nothing runs yet and nothing was sent: write the prices now.
-                let present = matches!(&state.scout_addon, Some(a) if *a != AddonInstall::Missing);
-                let running = state.busy(Task::Prices) || state.busy(Task::AddonHistory);
-                if present && !running && state.addon_history.is_none() && self.has_house(state) {
-                    worker.send(Command::WriteAddonHistory);
-                }
-            }
             _ => {}
         }
     }

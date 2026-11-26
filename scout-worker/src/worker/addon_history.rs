@@ -9,8 +9,8 @@ use scout_sources as sources;
 use super::Shared;
 use crate::message::{Event, Task};
 
-/// Starts the write when the addon is there, a house is chosen and today's file is not written yet
-/// (or `force`: the addon's folder was just replaced).
+/// Starts the write when the addon is there, a house is chosen and today's file for that house is
+/// not written yet (or `force`: the addon's folder was just replaced, or the user asked).
 pub(super) fn start(shared: &Shared, force: bool) {
     let today = Local::now().date_naive();
     {
@@ -18,12 +18,15 @@ pub(super) fn start(shared: &Shared, force: bool) {
         let Ok(wow_dir) = config.wow_dir() else {
             return;
         };
-        if config.price_server.house.is_none()
-            || matches!(sources::addon_install(wow_dir), AddonInstall::Missing)
-        {
+        let Some(house) = config.price_server.house else {
+            return;
+        };
+        if matches!(sources::addon_install(wow_dir), AddonInstall::Missing) {
             return;
         }
-        let done = config.addon_history_day.as_deref() == Some(today.to_string().as_str());
+        let done = config.addon_history_day.as_deref() == Some(today.to_string().as_str())
+            && config.addon_history_house.as_ref()
+                == Some(&(config.price_server.region.clone(), house));
         if done && !force {
             return;
         }
@@ -49,6 +52,7 @@ fn write(runtime: &tokio::runtime::Runtime, shared: &Shared, today: NaiveDate) -
 
     let mut config = shared.config();
     config.addon_history_day = Some(today.to_string());
+    config.addon_history_house = Some((house.region.clone(), house.id));
     (shared.send)(Event::Config(config.clone()));
     config.save()?;
     (shared.send)(Event::AddonHistory {
