@@ -20,31 +20,35 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
   fichiers sur disque et télécharge des données publiques) ; voir aussi le `CLAUDE.md` de Scout.
 - Économie de tokens : lire seulement les fichiers / passages utiles (`grep -n` puis lecture ciblée), garder
   la sortie des commandes courte (voir ci-dessous), ne pas lancer de sous-agents sans demande
-  (sauf via `/roadmap`, voir « Tickets (Plane) »).
+  (sauf via `/openproject`, voir « Tickets (OpenProject) »).
 
-## Tickets (Plane)
-- Source de vérité des tâches : **Plane** (http://localhost:8080, workspace `wow-scout`, via le MCP `plane`),
-  projets `APP` (crate `app`), `SERVER` (`scout-server`), `ADDON` (dépôt `../scout-addon`). `TODO.md` n'est plus tenu.
-- Chaque ticket porte un label : **Feature** (nouveauté, évolution) ou **Fix** (correction d'un bug), posé à la création.
-- États : Backlog → Todo → In Progress → In Review → Done (ou Cancelled). Après la fusion, Claude passe en « Done »
-  les tickets sans UI ; un ticket qui change l'interface reste en « In Review », assigné à l'utilisateur, qui le
-  passe en « Done » après son test (ses dépendants restent bloqués jusque-là).
-- Choix du travail : le ticket « Todo » de plus haute priorité dont tous les « blocked by » sont « Done ».
-  Jamais un ticket déjà « In Progress » ou assigné à quelqu'un d'autre.
-- Avant de coder : passer le ticket en « In Progress », l'assigner à l'utilisateur, lire description,
-  commentaires et relations.
-- Une branche par ticket depuis `master`, nommée avec l'identifiant (`APP-42-description-courte`), et
-  l'identifiant en tête du sujet des commits (`APP-42 : …`). Un ticket à la fois (pas de parallèle).
-- À la fin, sans attendre de demande : commit(s) sur la branche du ticket, `git push -u origin <branche>`,
-  PR vers `master` (`gh pr create`, titre `APP-42 : …`), puis commentaire de synthèse sur le ticket (fait,
-  comment tester, limites, lien de la PR) et fusion de la PR par Claude (voir « Commits »), puis « Done » ou, s'il y a de l'UI à tester, « In Review ».
+## Tickets (OpenProject)
+- Source de vérité des tâches : **OpenProject** (http://localhost:8081, `~/openproject-selfhost`), lu et écrit
+  avec le CLI global `openproject` (`~/dev/outils/openproject-cli`, README ; toujours `--json`). Projets `app`
+  (crate `app`), `server` (`scout-server`), `addon` (dépôt `../scout-addon`), `outils` (CLI, migration, outillage).
+  Clés lisibles conservées : `APP-42` (champ `Key`, attribuée par `task create`). Plane (8080) n'est plus tenu.
+- Comptes : Claude agit **uniquement** avec le compte `claude-agent` (jeton dans le keyring, jamais affiché) ;
+  l'utilisateur est `arthur`. Type **Feature** (nouveauté, évolution) ou **Bug** (correction), posé à la création ;
+  type **Validation** = vérification confiée à l'utilisateur.
+- États : Backlog → To do → In progress → In review → Done (ou Cancelled, Refused). Un ticket en « To do » est
+  prenable ; l'utilisateur choisit toujours lequel traiter (argument de `/openproject`, sinon liste proposée).
+- Prenable (calculé par `openproject agent next`) : « To do », pas assigné à un humain, bloquants fermés.
+  Réserver (`agent claim`, assigne à `claude-agent`) ≠ démarrer (`agent start`, « In progress »).
+- Une branche par ticket depuis `master`, nommée avec la clé (`APP-42-description-courte`, `agent branch`), et la
+  clé en tête du sujet des commits (`APP-42 : …`). Un ticket à la fois (pas de parallèle).
+- À la fin, sans attendre de demande : commit(s) sur la branche, `git push -u origin <branche>`, PR vers `master`
+  (`gh pr create`, titre `APP-42 : …`), relecture tracée en commentaire de PR, fusion par Claude (voir « Commits »),
+  synthèse + relevé de tokens (`agent report --usage-since`, remplit `AI Tokens`, `AI Usage 5h %`, `AI Usage 7d %`),
+  puis « Done » (`agent complete`) ou, s'il faut un test humain (UI…), `agent request-validation` : ticket
+  Validation précis assigné à l'utilisateur, ticket en « In review » jusqu'à sa réponse, **et message explicite dans
+  la conversation** (pourquoi, quoi, comment, résultat attendu, clé et lien).
 - Travail découvert en route : nouveau ticket (avec relation si pertinent), pas d'élargissement du périmètre.
-- Blocage ou ambiguïté : commenter le ticket avec la question précise et passer au ticket suivant.
-- `/roadmap` (`.claude/skills/roadmap/`) : tri des tickets, délégation du code à l'agent `dev`
+- Blocage ou ambiguïté : commenter le ticket avec la question précise, `agent release`, ticket suivant.
+- `/openproject` (`.claude/skills/openproject/`) : choix, délégation du code à l'agent `dev`
   (`.claude/agents/dev.md`, Haiku ou Sonnet), relecture du diff par Claude. Seuls Claude et l'utilisateur
-  touchent à Plane, jamais le sous-agent.
-- MCP : `plane-mcp-server` 0.3.7 installé par `uv tool` et **patché** pour la CE (relations via `/relations`,
-  pas `/dependencies`) ; ne pas le mettre à jour (`uv tool upgrade`) sans refaire le patch.
+  touchent à OpenProject, jamais le sous-agent.
+- Configuration de l'instance (statuts, types, champs, rôles) : `~/dev/outils/openproject-cli/setup/apply.sh`
+  (console Rails, idempotent) ; l'API ne permet pas de la modifier.
 
 ## Commandes (sortie silencieuse : n'afficher que les erreurs)
 - Vérifier : `cargo clippy -q --workspace --all-targets --message-format short` : **zéro avertissement** avant
@@ -111,8 +115,8 @@ touche ni disque ni base ni réseau » : `app` n'a ni `sqlx` ni `ureq` dans ses 
 
 ## Commits
 - Sujet en français, phrase courte avec majuscule, corps qui explique le pourquoi. Branche `master`,
-  ou la branche du ticket Plane (voir « Tickets (Plane) »).
-  Hors tickets Plane, commit et push **seulement à la demande** ; sur une branche de ticket, Claude commite,
+  ou la branche du ticket (voir « Tickets (OpenProject) »).
+  Hors tickets, commit et push **seulement à la demande** ; sur une branche de ticket, Claude commite,
   pousse, ouvre la PR et la fusionne lui-même : fusion par Claude : `git merge --no-ff` de la branche dans `master` en local (commit de fusion daté hors
   plage, `GIT_AUTHOR_DATE` et `GIT_COMMITTER_DATE`), clippy et tests sur le résultat, puis `git push origin master` (le seul
   push sur `master` ; vérifier avant, avec `gh pr view`, qu'elle n'est pas déjà fusionnée). Une fusion par GitHub
