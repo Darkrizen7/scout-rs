@@ -1,110 +1,110 @@
 ---
 name: pman
-description: Traiter les tickets pman du dépôt avec le CLI `pman` - choisir, prendre, spécifier, déléguer à des sous-agents Sonnet ou Haiku, relire, livrer, relever les tokens, demander les validations humaines. Workspace, projets et règles du dépôt sont dans son CLAUDE.md. À lancer quand l'utilisateur tape /pman (ex. `/pman`, `/pman APP`, `/pman APP-31`) ou demande de traiter un ticket.
+description: Handle the repository's pman tickets with the `pman` CLI - pick, claim, specify, delegate to Sonnet or Haiku subagents, review, deliver, record tokens, request human validations. Workspace, projects and repository rules are in its CLAUDE.md. Run when the user types /pman (e.g. `/pman`, `/pman APP`, `/pman APP-31`) or asks to handle a ticket.
 ---
 
-# /pman : traiter les tickets
+# /pman: handle tickets
 
-Argument : un ticket (`APP-31`), un projet (`APP`) ou rien (tous les projets du dépôt). C'est la seule situation
-où Claude lance des sous-agents sans demande explicite.
+Argument: a ticket (`APP-31`), a project (`APP`) or nothing (all the repository's projects). This is the only
+situation where Claude launches subagents without an explicit request.
 
-**Rien de propre au dépôt dans cette skill.** Le `CLAUDE.md` du dépôt donne : workspace et clés de projet
-(section « Tickets (pman) », bloc écrit par `pman init`), commandes de vérification (clippy, tests, build, lint…),
-règles de commit, de PR et de fusion, interdits. Ses règles priment sur cette skill ; le lire avant de commencer.
-Skill installée et mise à jour par `pman init` (dépôt pman) : ne pas l'éditer ici, sinon `pman init` la conserve
-sans la mettre à jour.
+**Nothing repository-specific in this skill.** The repository's `CLAUDE.md` gives: workspace and project keys
+("Tickets (pman)" section, block written by `pman init`), check commands (clippy, tests, build, lint…),
+commit, PR and merge rules, prohibitions. Its rules take precedence over this skill; read it before starting.
+Skill installed and updated by `pman init` (pman repository): do not edit it here, otherwise `pman init` keeps it
+without updating it.
 
-## Le CLI (global, `pman --help` ; `--json` pour les sorties à analyser)
-- Workspace : `PMAN_WORKSPACE` vient de `.claude/settings.json` ; s'il manque, préfixer les commandes
-  (`PMAN_WORKSPACE=<slug> pman …`, slug donné par le CLAUDE.md).
-- Identité : bot **claude** (jeton dans le keyring) ; l'humain de référence est `human` du
-  `~/.config/pman/config.toml`. Ne jamais lire, afficher ni transmettre le jeton.
-- Un ticket se désigne par sa clé `APP-31`. Les erreurs sortent en JSON sur stderr (`kind` : `not_found`,
-  `conflict`, `assigned_to_human`, `blocked`, `not_eligible`, `not_mine`…) avec un `hint` ; code de sortie 6 =
-  refus du workflow.
-- Lecture : `task show KEY` (description, champs, bloqueurs, relations, commentaires),
-  `task list --project APP --status todo`, `agent mine`, `agent next [--project APP]` (choisi + suivants + écartés
-  avec la raison).
-- Cycle d'un ticket : `agent claim KEY` (réserve, renvoie tout le contexte en un appel : ne pas relire le ticket
-  ensuite) → `agent start KEY` (In progress, renvoie `started_at`) → `agent report KEY --file - --usage-since
-  <started_at>` → `agent complete KEY` (Done), `agent complete KEY --review` (In review, à l'humain) ou
-  `agent request-validation KEY --title … --file -` (validation humaine). `agent release KEY --reason …` rend un ticket impossible à traiter.
-- Créer : `task create --project APP --label Feature|Fix --title … --description-file -` (la clé est attribuée) ;
-  relier : `task relate KEY --blocks|--blocked-by|--relates KEY2`. Branche : `agent branch KEY`.
+## The CLI (global, `pman --help`; `--json` for outputs to parse)
+- Workspace: `PMAN_WORKSPACE` comes from `.claude/settings.json`; if it is missing, prefix the commands
+  (`PMAN_WORKSPACE=<slug> pman …`, slug given by CLAUDE.md).
+- Identity: bot **claude** (token in the keyring); the reference human is `human` from
+  `~/.config/pman/config.toml`. Never read, display or forward the token.
+- A ticket is designated by its key `APP-31`. Errors come out as JSON on stderr (`kind`: `not_found`,
+  `conflict`, `assigned_to_human`, `blocked`, `not_eligible`, `not_mine`…) with a `hint`; exit code 6 =
+  workflow refusal.
+- Reading: `task show KEY` (description, fields, blockers, relations, comments),
+  `task list --project APP --status todo`, `agent mine`, `agent next [--project APP]` (chosen + next ones + skipped
+  with the reason).
+- Ticket cycle: `agent claim KEY` (reserves, returns the whole context in one call: do not re-read the ticket
+  afterwards) → `agent start KEY` (In progress, returns `started_at`) → `agent report KEY --file - --usage-since
+  <started_at>` → `agent complete KEY` (Done), `agent complete KEY --review` (In review, to the human) or
+  `agent request-validation KEY --title … --file -` (human validation). `agent release KEY --reason …` gives back a ticket that cannot be handled.
+- Create: `task create --project APP --label Feature|Fix --title … --description-file -` (the key is assigned);
+  link: `task relate KEY --blocks|--blocked-by|--relates KEY2`. Branch: `agent branch KEY`.
 
-## 1. Choix du ticket (toujours par l'utilisateur)
-- Argument = un ticket : le traiter (vérifier qu'il est éligible avec `agent claim`, qui refuse sinon).
-- Sinon : `agent next [--project APP]` (sans argument : chaque projet du CLAUDE.md), puis une seule
-  `AskUserQuestion` (`multiSelect: true`) avec les éligibles dans l'ordre (choisi puis suivants ; libellé = clé +
-  titre court, description = priorité · catégorie et modèle prévus, ex. « High · Haiku, consigne directe ») ; au
-  plus 4 options par question, 4 questions au maximum, sinon proposer les premiers et citer les autres dans le
-  texte. Aucun coché : s'arrêter sans rien toucher.
-- Pour classer, lire la description (`task show`) et quelques `grep -n` ciblés ; l'exploration lourde revient au sous-agent.
-- Éligible = Todo, pas assigné à quelqu'un d'autre, bloquants fermés, pas de label Validation (anciens tickets de validation ; calculé par le CLI).
+## 1. Choosing the ticket (always by the user)
+- Argument = a ticket: handle it (check that it is eligible with `agent claim`, which refuses otherwise).
+- Otherwise: `agent next [--project APP]` (without argument: each project of CLAUDE.md), then a single
+  `AskUserQuestion` (`multiSelect: true`) with the eligible ones in order (chosen then next ones; label = key +
+  short title, description = priority · category and planned model, e.g. "High · Haiku, direct instruction"); at
+  most 4 options per question, 4 questions at most, otherwise offer the first ones and name the others in the
+  text. None ticked: stop without touching anything.
+- To classify, read the description (`task show`) and a few targeted `grep -n`; heavy exploration goes to the subagent.
+- Eligible = Todo, not assigned to someone else, blockers closed, no Validation label (old validation tickets; computed by the CLI).
 
-## 2. Classement
-| Catégorie | Quand | Exemples |
+## 2. Classification
+| Category | When | Examples |
 |---|---|---|
-| **Haiku, consigne directe** | changement mécanique, bien délimité | retirer un champ d'un formulaire |
-| **Sonnet, écrit sa propre spec** | feature moyenne, un seul module, suit un modèle existant | nouveau filtre calqué sur un filtre existant |
-| **Claude écrit la spec, Sonnet code** | architecture, plusieurs modules ou crates, contrat entre composants | cache, nouveau format d'échange |
-| **Pas de délégation** | décision qui revient à l'utilisateur | poser la question (commentaire + AskUserQuestion) |
-Un ticket minuscule : le faire soi-même coûte souvent moins qu'un sous-agent (qui relit `CLAUDE.md`).
+| **Haiku, direct instruction** | mechanical, well-delimited change | remove a field from a form |
+| **Sonnet, writes its own spec** | medium feature, a single module, follows an existing pattern | new filter modelled on an existing filter |
+| **Claude writes the spec, Sonnet codes** | architecture, several modules or crates, contract between components | cache, new exchange format |
+| **No delegation** | decision that belongs to the user | ask the question (comment + AskUserQuestion) |
+A tiny ticket: doing it yourself often costs less than a subagent (which re-reads `CLAUDE.md`).
 
-## 3. Spec (catégories 2 et 3)
-Une quinzaine de lignes dans le scratchpad (jamais dans le dépôt) : objectif, fichiers concernés, contraintes,
-critères d'acceptation, tests attendus, ce qu'il ne faut pas toucher. En catégorie 2, le sous-agent l'écrit en tête
-de son travail et la rappelle dans son rapport. Les commandes de vérification (format, lint, tests, build) sont
-**copiées du CLAUDE.md du dépôt**, jamais reprises d'un autre dépôt ni supposées (un `cargo fmt` lancé sur un dépôt
-non formaté réécrit des dizaines de fichiers hors périmètre).
+## 3. Spec (categories 2 and 3)
+About fifteen lines in the scratchpad (never in the repository): goal, files concerned, constraints,
+acceptance criteria, expected tests, what must not be touched. In category 2, the subagent writes it at the start
+of its work and recalls it in its report. The check commands (format, lint, tests, build) are
+**copied from the repository's CLAUDE.md**, never taken from another repository nor assumed (a `cargo fmt` run on an
+unformatted repository rewrites dozens of files out of scope).
 
-## 4. Délégation (séquentielle, un ticket à la fois)
-1. `agent claim KEY`, puis `agent start KEY` (noter `started_at`).
-2. Depuis la branche principale à jour : `git switch -c $(pman agent branch KEY)` (ex. `APP-31-selecteur-mode`),
-   sauf si le CLAUDE.md dit de travailler autrement.
-3. Agent `dev` (`.claude/agents/dev.md`, `model: haiku` ou `sonnet`) avec seulement : consigne ou spec, clé du
-   ticket, dépôt (un autre dépôt si le CLAUDE.md y rattache le projet), fichiers connus, critères d'acceptation.
-   Jamais toute la roadmap ni l'historique. Plusieurs petits tickets Haiku peuvent partir dans un seul agent
-   (SendMessage après chaque changement de branche).
+## 4. Delegation (sequential, one ticket at a time)
+1. `agent claim KEY`, then `agent start KEY` (note `started_at`).
+2. From the up-to-date main branch: `git switch -c $(pman agent branch KEY)` (e.g. `APP-31-mode-selector`),
+   unless CLAUDE.md says to work otherwise.
+3. `dev` agent (`.claude/agents/dev.md`, `model: haiku` or `sonnet`) with only: instruction or spec, ticket
+   key, repository (another repository if CLAUDE.md attaches the project to it), known files, acceptance criteria.
+   Never the whole roadmap nor the history. Several small Haiku tickets can go to a single agent
+   (SendMessage after each branch change).
 
-## 5. Relecture (Opus : rester sobre)
-- `git diff --stat`, puis le diff ciblé, comparé à la spec. Pas de relecture complète des fichiers.
-- Relancer soi-même les vérifications du CLAUDE.md, telles qu'il les écrit (ne pas se fier au rapport).
-- `git status --short` ne liste que des fichiers du périmètre ; sinon, comprendre pourquoi avant de livrer.
-- Problème : renvoyer la remarque au **même** agent (SendMessage). Haiku qui bute deux fois : repasser à Sonnet.
+## 5. Review (Opus: stay sober)
+- `git diff --stat`, then the targeted diff, compared with the spec. No full-file review.
+- Re-run CLAUDE.md's checks yourself, exactly as it writes them (do not trust the report).
+- `git status --short` lists only files within the scope; otherwise, understand why before delivering.
+- Problem: send the remark back to the **same** agent (SendMessage). Haiku stuck twice: switch back to Sonnet.
 
-## 6. Fin de ticket
-- Livraison selon le CLAUDE.md (commits, PR, fusion, dates). Par défaut, s'il n'en dit rien : commit par Claude sur
-  la branche (sujet `APP-31 : …`, corps = pourquoi, attribution), `git push -u origin <branche>`,
-  `gh pr create` vers la branche principale (corps : résumé, comment tester, `pman : APP-31 (<lien du ticket>)`),
-  relecture tracée en `gh pr comment` (diff vs spec, vérifications) ; la fusion seulement si le CLAUDE.md la confie
-  à Claude. Jamais de `--force`. Pas de commit par le sous-agent.
-- Si le CLAUDE.md interdit les commits à Claude : laisser les changements non commités, les résumer dans le
-  rapport, et terminer par `agent complete KEY --review` (l'humain relit et commite).
-- Synthèse et tokens en un appel : `agent report KEY --file - --usage-since <started_at>` (texte : fait, comment
-  tester, limites, lien de la PR s'il y en a une ; le CLI ajoute les lignes de tokens et de quota, le détail par
-  sous-agent, et additionne `AI Tokens`, `AI Usage 5h %`, `AI Usage 7d %`). Correction après relecture : relevé
-  complémentaire, il s'additionne.
-- Sans validation humaine nécessaire : `agent complete KEY` (Done), ou `--review` comme ci-dessus.
-- Validation humaine nécessaire (UI, rendu, usage réel, décision) : préparer d'abord l'environnement de test (build,
-  serveur relancé, selon le CLAUDE.md), puis `agent request-validation KEY --title "…" --file -` avec les étapes
-  précises, l'environnement et le résultat attendu (jamais « vérifier que tout marche ») : commentaire sur le ticket
-  qui mentionne l'humain (notification), ticket en In review assigné à l'humain. Pas de ticket séparé. L'humain
-  accepte en passant le ticket en **Done**, refuse en le remettant en **Todo** avec sa remarque (reprendre alors
-  le ticket). Avant de livrer des changements laissés en attente de validation, vérifier avec `task show KEY` que
-  le ticket est Done. **Le dire aussi dans la conversation** : pourquoi, quoi vérifier, comment, résultat attendu,
-  lien du ticket.
-- Repartir de la branche principale à jour avant le ticket suivant ; d'autres tickets indépendants peuvent avancer
-  pendant une validation.
-- Travail découvert en route : `task create` (+ `task relate`), pas d'élargissement du périmètre.
-- Blocage ou ambiguïté : `task comment KEY --file -` avec la question précise, `agent release KEY --reason …`, ticket suivant.
+## 6. End of ticket
+- Delivery according to CLAUDE.md (commits, PR, merge, dates). By default, if it says nothing: commit by Claude on
+  the branch (subject `APP-31: …`, body = why, attribution), `git push -u origin <branch>`,
+  `gh pr create` towards the main branch (body: summary, how to test, `pman: APP-31 (<ticket link>)`),
+  review traced as `gh pr comment` (diff vs spec, checks); merge only if CLAUDE.md entrusts it
+  to Claude. Never `--force`. No commit by the subagent.
+- If CLAUDE.md forbids commits by Claude: leave the changes uncommitted, summarize them in the
+  report, and finish with `agent complete KEY --review` (the human reviews and commits).
+- Summary and tokens in one call: `agent report KEY --file - --usage-since <started_at>` (text: what was done, how to
+  test, limits, PR link if there is one; the CLI adds the token and quota lines, the per-subagent detail,
+  and adds up `AI Tokens`, `AI Usage 5h %`, `AI Usage 7d %`). Fix after review: additional
+  report, it adds up.
+- No human validation needed: `agent complete KEY` (Done), or `--review` as above.
+- Human validation needed (UI, rendering, real usage, decision): first prepare the test environment (build,
+  server restarted, per CLAUDE.md), then `agent request-validation KEY --title "…" --file -` with the precise
+  steps, the environment and the expected result (never "check that everything works"): comment on the ticket
+  that mentions the human (notification), ticket in In review assigned to the human. No separate ticket. The human
+  accepts by moving the ticket to **Done**, refuses by putting it back in **Todo** with their remark (then resume
+  the ticket). Before delivering changes left awaiting validation, check with `task show KEY` that
+  the ticket is Done. **Also say it in the conversation**: why, what to check, how, expected result,
+  ticket link.
+- Start again from the up-to-date main branch before the next ticket; other independent tickets can progress
+  during a validation.
+- Work discovered along the way: `task create` (+ `task relate`), no widening of the scope.
+- Blocker or ambiguity: `task comment KEY --file -` with the precise question, `agent release KEY --reason …`, next ticket.
 
-## 7. Bilan pour l'utilisateur
-Par ticket : branche, lien de la PR (ou fichiers modifiés non commités), ce qui est fait, validations demandées
-(clé + lien), corrections après relecture.
+## 7. Summary for the user
+Per ticket: branch, PR link (or uncommitted modified files), what is done, validations requested
+(key + link), corrections after review.
 
-## Limites
-- L'économie vient de la boucle explorer / modifier / compiler sur un modèle moins cher.
-- Le quota (5 h / 7 j) couvre tout le compte : l'écart par ticket est approximatif. Une métrique absente reste vide.
-- Personne ne voit le rendu : la validation humaine de l'UI reste indispensable.
-<!-- pman init: 828addfad0b8eb25 -->
+## Limits
+- The saving comes from the explore / modify / compile loop on a cheaper model.
+- The quota (5 h / 7 d) covers the whole account: the per-ticket gap is approximate. A missing metric stays empty.
+- Nobody sees the rendering: human validation of the UI remains essential.
+<!-- pman init: 5bd86e769c7db27a -->

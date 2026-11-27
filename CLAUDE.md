@@ -24,12 +24,11 @@ l'HdV dans le temps, tous les objets du jeu, toutes les recettes, butin par zone
 
 ## Tickets (pman)
 
-<!-- pman init: début (bloc géré par `pman init`) -->
-- Workspace pman : `wow` (`PMAN_WORKSPACE`, posé par `.claude/settings.json`) ; serveur http://127.0.0.1:8090.
-- Projets : `APP`, `SERVER`, `ADDON`, `OUTILS`.
-- Lien d'un ticket : http://127.0.0.1:8090/wow/projects/APP/issues/APP-42
-- Workflow : skill `/pman` (`.claude/skills/pman/`) et agent `dev` (`.claude/agents/dev.md`), installés par `pman init` ; CLI : `pman --help`.
-<!-- pman init: fin -->
+<!-- pman init: start (managed by `pman init`) -->
+- pman workspace: `default` (`PMAN_WORKSPACE`, set by `.claude/settings.json`); server http://127.0.0.1:8090.
+- Projects: none (`pman init --project KEY`).
+- Workflow: skill `/pman` (`.claude/skills/pman/`) and agent `dev` (`.claude/agents/dev.md`), installed by `pman init`; CLI: `pman --help`.
+<!-- pman init: end -->
 
 - Source de vérité des tâches : **pman** (http://127.0.0.1:8090, dépôt `~/dev/outils/pman`, `docker compose`),
   lu et écrit avec le CLI global `pman` (README de `crates/pman-cli` ; `--json` pour les sorties à analyser).
