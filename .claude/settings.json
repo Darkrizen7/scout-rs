@@ -1,6 +1,6 @@
 {
   "env": {
-    "PMAN_WORKSPACE": "default"
+    "PMAN_WORKSPACE": "wow"
   },
   "permissions": {
     "deny": [
